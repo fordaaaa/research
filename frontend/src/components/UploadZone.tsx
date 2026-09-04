@@ -20,6 +20,8 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
     setErrors([]);
     try {
       setErrors(await onUpload(Array.from(files)));
+    } catch (err) {
+      setErrors([{ file: "upload", detail: err instanceof Error ? err.message : "upload failed" }]);
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -69,6 +71,8 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
               setText("");
               setTitle("");
               setShowPaste(false);
+            } catch (err) {
+              setErrors([{ file: "paste", detail: err instanceof Error ? err.message : "paste failed" }]);
             } finally {
               setBusy(false);
             }
