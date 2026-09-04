@@ -41,22 +41,34 @@ npm i <package>
 
 ```
 backend/
-├── api/main.py        # FastAPI routes — thin HTTP layer, all logic in core/
-├── core/              # pure logic, no framework imports
-│   ├── models.py      # pydantic models (single source of truth for shapes)
-│   ├── parsers.py     # pdf/docx/txt/md bytes → Page[]
-│   ├── chunker.py     # pages → chunks (~1200 chars, ~150 overlap, never spans pages)
-│   ├── store.py       # JSON file store (notebooks.json + per-source files)
-│   ├── ingest.py      # bytes → parse → chunk → store
-│   └── config.py      # loads config.yaml
-├── config.yaml        # ai.enabled: false default; providers pluggable
-└── data/              # ALL user data (gitignored)
+├── api/                # FastAPI layer — thin HTTP, module-per-resource
+│   ├── main.py         # app factory, lifespan, CORS, global 500 handler
+│   ├── deps.py         # safe_id() validation, get_store, notebook_or_404
+│   ├── notebooks.py    # notebook CRUD + /export
+│   ├── sources.py      # upload / paste / url / list / get / chunks / patch / delete
+│   └── search.py       # GET /notebooks/{id}/search (filters in query params)
+├── core/               # pure logic, no framework imports
+│   ├── models.py       # pydantic models (single source of truth for shapes)
+│   ├── parsers.py      # pdf/docx/txt/md bytes → Page[]
+│   ├── chunker.py      # pages → chunks (~1200 chars, ~150 overlap, never spans pages)
+│   ├── search.py       # query parsing, stemming, relevance scoring (pluggable)
+│   ├── store.py        # JSON file store (notebooks.json + per-source files)
+│   ├── ingest.py       # bytes/url/text → parse → chunk → store
+│   ├── fetcher.py      # http fetch + trafilatura article extraction (for url srcs)
+│   ├── export.py       # notebook → Obsidian-style markdown .zip
+│   └── config.py       # loads config.yaml
+├── config.yaml         # ai.enabled: false default; providers pluggable
+└── data/               # ALL user data (gitignored)
 frontend/
-└── src/               # React 19 + TS + Tailwind 4 (api.ts is the only fetch layer)
+└── src/                # React 19 + TS + Tailwind 4 (api.ts is the only fetch layer)
 ```
 
-Request flow: UI → Vite proxy (`/api/*`) → FastAPI → `core/` → JSON files.
+Request flow: UI → Vite proxy (`/api/*`) → FastAPI (`api/<resource>.py`) → `core/` → JSON files.
 **All API routes must live under `/api`** — the dev proxy depends on it.
+
+### Route registration
+
+Resources register onto the app from `api/main.py` (`notebooks.register(app)`, etc.). When adding an endpoint, add it inside the matching `register(app)` function. `safe_id`, `get_store`, `notebook_or_404` come from `api.deps`.
 
 ### Storage notes (M1)
 
@@ -71,6 +83,7 @@ data/notebooks/{id}/{sid}.json     # {source fields, pages[], chunks[]}
 - Writes are atomic (temp file + `os.replace`).
 - `RESEARCH_DATA_DIR` env var overrides the data dir — tests use it to run in temp dirs.
 - When SQLite/FTS5 arrives, swap `store.py` internals only; its interface must not leak storage details.
+- The store keeps in-memory id indexes (`_by_id` for notebooks, `_source_index` source_id→notebook_id), rebuilt at init and pruned on delete — see `get_notebook`, `find_source`, `delete_notebook`/`delete_source`. Search scans chunk files on demand (no index for text yet).
 
 ## Conventions
 
@@ -78,7 +91,8 @@ data/notebooks/{id}/{sid}.json     # {source fields, pages[], chunks[]}
 - Backend: type hints everywhere, pydantic models in `core/models.py`, docstrings only where non-obvious.
 - Frontend: TypeScript strict, function components, double quotes, Tailwind utility classes (no CSS files beyond `index.css`).
 - Tests live in `backend/tests/`; API tests use `fastapi.testclient` + temp data dir.
-- Verify before committing: `uv run pytest` (backend changes) and `npm run build` (frontend changes).
+- Verify before committing: `uv run pytest` (backend changes, MUST be green) and `npm run build` (frontend changes, MUST run clean).
+- Do not commit until the working tree is green. If a change is in-progress and red, say so in HANDOFF.md rather than committing a broken tree.
 
 ## Current status
 
