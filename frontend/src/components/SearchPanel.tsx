@@ -9,6 +9,7 @@ export default function SearchPanel({ onSearch }: Props) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -18,8 +19,12 @@ export default function SearchPanel({ onSearch }: Props) {
           e.preventDefault();
           if (!query.trim()) return;
           setSearching(true);
+          setError(null);
           try {
             setHits(await onSearch(query.trim()));
+          } catch (err) {
+            setHits([]);
+            setError(err instanceof Error ? err.message : "search failed");
           } finally {
             setSearching(false);
           }
@@ -40,6 +45,9 @@ export default function SearchPanel({ onSearch }: Props) {
         </button>
       </form>
 
+      {error && (
+        <p className="text-sm text-red-400 text-center pt-2">{error}</p>
+      )}
       {hits === null ? (
         <p className="text-sm text-neutral-600 text-center pt-6">
           Search runs entirely on your machine — no AI involved.
