@@ -57,8 +57,9 @@ class SearchHit(BaseModel):
     source_id: str
     source_title: str
     pages: list[int]
-    score: int
+    score: float
     snippet: str
+    matched_terms: list[str] = Field(default_factory=list)
 
 
 class NotebookCreate(BaseModel):

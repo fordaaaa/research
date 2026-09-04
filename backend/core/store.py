@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.models import Notebook, SearchHit, Source, SourceSummary, utcnow
-from core.search import EmptyQuery, parse_query, score_chunk
+from core.search import EmptyQuery, parse_query, score_chunk, stemmed_words
 
 
 def new_id() -> str:
@@ -200,21 +200,36 @@ class Store:
             parsed = parse_query(query)
         except EmptyQuery:
             return []
+        sources = [
+            source
+            for summary in self.list_sources(notebook_id)
+            if (source := self.get_source(notebook_id, summary.id)) is not None
+        ]
+        n_docs = len(sources)
+        df = {term: 0 for term in set(parsed.terms)}
+        for source in sources:
+            document_terms = {
+                term
+                for chunk in source.chunks
+                for term in stemmed_words(chunk.text)
+            }
+            for term in df.keys() & document_terms:
+                df[term] += 1
+
         source_filter = set(source_ids) if source_ids else None
         tag_filter = set(tags) if tags else None
         hits: list[SearchHit] = []
-        for summary in self.list_sources(notebook_id):
-            if kind and summary.kind != kind:
+        for src in sources:
+            if kind and src.kind != kind:
                 continue
-            if source_filter and summary.id not in source_filter:
+            if source_filter and src.id not in source_filter:
                 continue
-            if tag_filter and not (tag_filter & set(summary.tags)):
-                continue
-            src = self.get_source(notebook_id, summary.id)
-            if not src:
+            if tag_filter and not (tag_filter & set(src.tags)):
                 continue
             for chunk in src.chunks:
-                matched, score = score_chunk(chunk.text, parsed)
+                matched, score, matched_stems = score_chunk(
+                    chunk.text, parsed, df=df, n_docs=n_docs
+                )
                 if not matched:
                     continue
                 hits.append(
@@ -224,6 +239,7 @@ class Store:
                         pages=chunk.pages,
                         score=score,
                         snippet=_snippet(chunk.text, parsed.terms),
+                        matched_terms=matched_stems,
                     )
                 )
         hits.sort(key=lambda h: h.score, reverse=True)
@@ -244,4 +260,3 @@ def _snippet(original: str, terms: list[str], width: int = 80) -> str:
     prefix = "…" if start > 0 else ""
     suffix = "…" if end < len(original) else ""
     return prefix + original[start:end].strip() + suffix
-

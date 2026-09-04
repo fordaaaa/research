@@ -77,3 +77,18 @@ def test_search_offset_and_limit(tmp_path):
     assert len(all_hits) == 5
     assert len(page) == 2
     assert page[0].score <= all_hits[2].score
+
+
+def test_search_uses_source_document_frequency(tmp_path):
+    store = _store(tmp_path)
+    nb = store.create_notebook("Ranking")
+    rare = ingest.ingest_text(store, nb.id, "Rare", "quasar")
+    ingest.ingest_text(store, nb.id, "Common A", "biology")
+    ingest.ingest_text(store, nb.id, "Common B", "biology")
+
+    rare_hit = store.search(nb.id, "quasar")[0]
+    common_hit = store.search(nb.id, "biology")[0]
+
+    assert rare_hit.source_id == rare.id
+    assert rare_hit.score > common_hit.score
+    assert rare_hit.matched_terms == ["quasar"]
