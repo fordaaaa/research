@@ -129,6 +129,7 @@ class Store:
         sources = self._load_meta(source.notebook_id)
         sources.append(summary.model_dump(mode="json"))
         self._save_meta(source.notebook_id, sources)
+        self._source_index[source.id] = source.notebook_id
         return summary
 
     def get_source(self, notebook_id: str, source_id: str) -> Source | None:
@@ -136,11 +137,10 @@ class Store:
         return Source.model_validate(data) if data else None
 
     def find_source(self, source_id: str) -> Source | None:
-        for nb in self._load_index():
-            src = self.get_source(nb["id"], source_id)
-            if src:
-                return src
-        return None
+        notebook_id = self._source_index.get(source_id)
+        if notebook_id is None:
+            return None
+        return self.get_source(notebook_id, source_id)
 
     def delete_source(self, notebook_id: str, source_id: str) -> bool:
         sources = self._load_meta(notebook_id)
@@ -151,6 +151,7 @@ class Store:
         path = self._source_path(notebook_id, source_id)
         if path.exists():
             path.unlink()
+        self._source_index.pop(source_id, None)
         return True
 
     # ---------- search ----------
