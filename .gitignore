@@ -10,6 +10,12 @@ node_modules/
 dist/
 *.local
 
+# desktop build products
+/backend/build/
+/backend/dist/
+/macos/build/
+*.xcarchive
+
 # app data / secrets
 .env
 .env.*
@@ -26,3 +32,6 @@ data/
 .claude/
 .mcp.json
 .panoply/
+
+# codex local config (yolo/auto-approve) — do not commit
+.codex/
