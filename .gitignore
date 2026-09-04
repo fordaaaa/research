@@ -20,6 +20,9 @@ data/
 # editor / os
 .DS_Store
 .idea/
-# panoply per-user prefs (don't commit filing/autoclose settings)
-.panoply/
 .vscode/
+
+# panoply plugin install (per-user; re-created by `npx panoply init`)
+.claude/
+.mcp.json
+.panoply/
