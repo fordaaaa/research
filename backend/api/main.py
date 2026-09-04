@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Path, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -16,6 +17,16 @@ logger = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 MAX_FILES = 20
+
+# IDs are produced by core.store.new_id() as 12 lowercase hex chars. Anything else
+# is rejected at the route boundary to prevent path traversal in the JSON store.
+_ID = re.compile(r"^[a-f0-9]{12}$")
+
+
+def safe_id(value: str, name: str) -> str:
+    if not _ID.match(value):
+        raise HTTPException(status_code=400, detail=f"invalid {name}")
+    return value
 
 
 @asynccontextmanager
@@ -75,13 +86,15 @@ def list_notebooks():
 
 
 @app.delete("/api/notebooks/{notebook_id}", status_code=204)
-def delete_notebook(notebook_id: str):
+def delete_notebook(notebook_id: str = Path(...)):
+    notebook_id = safe_id(notebook_id, "notebook_id")
     if not _store().delete_notebook(notebook_id):
         raise HTTPException(status_code=404, detail="notebook not found")
 
 
 @app.post("/api/notebooks/{notebook_id}/sources")
-async def upload_sources(notebook_id: str, files: list[UploadFile] = File(...)):
+async def upload_sources(notebook_id: str = Path(...), files: list[UploadFile] = File(...)):
+    notebook_id = safe_id(notebook_id, "notebook_id")
     _notebook_or_404(notebook_id)
     if len(files) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"max {MAX_FILES} files per upload")
@@ -99,26 +112,30 @@ async def upload_sources(notebook_id: str, files: list[UploadFile] = File(...)):
 
 
 @app.post("/api/notebooks/{notebook_id}/sources/text", status_code=201)
-def create_paste_source(notebook_id: str, body: PasteCreate):
+def create_paste_source(notebook_id: str = Path(...), body: PasteCreate = ...):
+    notebook_id = safe_id(notebook_id, "notebook_id")
     _notebook_or_404(notebook_id)
     source = ingest.ingest_text(_store(), notebook_id, body.title, body.text)
     return _summary(source)
 
 
 @app.get("/api/notebooks/{notebook_id}/sources")
-def list_sources(notebook_id: str):
+def list_sources(notebook_id: str = Path(...)):
+    notebook_id = safe_id(notebook_id, "notebook_id")
     _notebook_or_404(notebook_id)
     return _store().list_sources(notebook_id)
 
 
 @app.get("/api/notebooks/{notebook_id}/search")
-def search_notebook(notebook_id: str, q: str = Query(min_length=1, max_length=500)):
+def search_notebook(notebook_id: str = Path(...), q: str = Query(min_length=1, max_length=500)):
+    notebook_id = safe_id(notebook_id, "notebook_id")
     _notebook_or_404(notebook_id)
     return _store().search(notebook_id, q)
 
 
 @app.get("/api/sources/{source_id}")
-def get_source(source_id: str):
+def get_source(source_id: str = Path(...)):
+    source_id = safe_id(source_id, "source_id")
     source = _store().find_source(source_id)
     if not source:
         raise HTTPException(status_code=404, detail="source not found")
@@ -126,7 +143,8 @@ def get_source(source_id: str):
 
 
 @app.get("/api/sources/{source_id}/chunks")
-def get_chunks(source_id: str, offset: int = 0, limit: int = Query(default=50, le=200)):
+def get_chunks(source_id: str = Path(...), offset: int = 0, limit: int = Query(default=50, le=200)):
+    source_id = safe_id(source_id, "source_id")
     source = _store().find_source(source_id)
     if not source:
         raise HTTPException(status_code=404, detail="source not found")
@@ -137,7 +155,8 @@ def get_chunks(source_id: str, offset: int = 0, limit: int = Query(default=50, l
 
 
 @app.delete("/api/sources/{source_id}", status_code=204)
-def delete_source(source_id: str):
+def delete_source(source_id: str = Path(...)):
+    source_id = safe_id(source_id, "source_id")
     source = _store().find_source(source_id)
     if not source or not _store().delete_source(source.notebook_id, source_id):
         raise HTTPException(status_code=404, detail="source not found")

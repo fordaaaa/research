@@ -70,4 +70,17 @@ def test_unsupported_single_file_still_errors(client):
 
 
 def test_search_unknown_notebook_404(client):
-    assert client.get("/api/notebooks/nope/search", params={"q": "x"}).status_code == 404
+    # valid id format, but the notebook does not exist
+    assert client.get("/api/notebooks/000000000000/search", params={"q": "x"}).status_code == 404
+
+
+def test_invalid_id_returns_400(client):
+    # malformed ids (anything that doesn't match core.store.new_id()) must be
+    # rejected at the route boundary — otherwise they could escape into the
+    # JSON store's path joins and read/write files outside notebooks/.
+    # (URLs that try to traverse (e.g. "../etc") get normalized away by the
+    # HTTP client and never reach the route at all, so we use a string that
+    # passes through as-is but fails the id regex.)
+    assert client.get("/api/notebooks/notahexid/search", params={"q": "x"}).status_code == 400
+    assert client.get("/api/sources/notahexid").status_code == 400
+    assert client.delete("/api/notebooks/notahexid").status_code == 400
