@@ -9,8 +9,9 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 
 from api.deps import get_store, notebook_or_404, safe_id
 from core import ingest, parsers
+from core.fetcher import FetchError
 from core.ingest import IngestError
-from core.models import PasteCreate, Source, SourceUpdate
+from core.models import PasteCreate, Source, SourceUpdate, UrlCreate
 
 MAX_FILES = 20
 
@@ -42,6 +43,16 @@ def register(app: FastAPI) -> None:
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), notebook_id)
         source = ingest.ingest_text(get_store(app), notebook_id, body.title, body.text)
+        return _summary(source)
+
+    @app.post("/api/notebooks/{notebook_id}/sources/url", status_code=201)
+    def create_url_source(notebook_id: str, body: UrlCreate):
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        notebook_or_404(get_store(app), notebook_id)
+        try:
+            source = ingest.ingest_url(get_store(app), notebook_id, body.url)
+        except FetchError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
         return _summary(source)
 
     @app.get("/api/notebooks/{notebook_id}/sources")

@@ -73,3 +73,7 @@ class PasteCreate(BaseModel):
 class SourceUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     tags: list[str] | None = None
+
+
+class UrlCreate(BaseModel):
+    url: str = Field(min_length=5, max_length=2000)

@@ -146,6 +146,47 @@ def test_update_source_404(client):
     assert client.patch("/api/sources/000000000000", json={"title": "x"}).status_code == 404
 
 
+def test_url_source_ingest(client, monkeypatch):
+    from core import fetcher
+
+    monkeypatch.setattr(
+        fetcher, "fetch_article", lambda url: ("photosynthesis powers plants fully", "WP Title")
+    )
+    nb = client.post("/api/notebooks", json={"name": "Web"}).json()
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/sources/url",
+        json={"url": "https://example.com/article"},
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["kind"] == "url"
+    assert body["title"] == "WP Title"
+    assert body["meta"]["url"] == "https://example.com/article"
+    assert body["chunk_count"] >= 1
+
+    hits = client.get(
+        f"/api/notebooks/{nb['id']}/search", params={"q": "photosynthesis"}
+    ).json()
+    assert len(hits) == 1
+
+
+def test_url_source_fetch_error(client, monkeypatch):
+    from core import fetcher
+    from core.fetcher import FetchError
+
+    def boom(url):
+        raise FetchError("no readable article text found", status=400)
+
+    monkeypatch.setattr(fetcher, "fetch_article", boom)
+    nb = client.post("/api/notebooks", json={"name": "Web"}).json()
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/sources/url",
+        json={"url": "https://example.com/empty"},
+    )
+    assert r.status_code == 400
+    assert "article" in r.json()["detail"]
+
+
 def test_invalid_id_returns_400(client):
     # malformed ids (anything that doesn't match core.store.new_id()) must be
     # rejected at the route boundary — otherwise they could escape into the

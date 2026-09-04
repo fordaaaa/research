@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core import chunker, parsers
+from core import chunker, fetcher, parsers
 from core.models import Page, Source, utcnow
 from core.store import Store, new_id
 
@@ -35,17 +35,38 @@ def ingest_text(store: Store, notebook_id: str, title: str, text: str) -> Source
                     [Page(number=1, text=text.strip())])
 
 
+def ingest_url(store: Store, notebook_id: str, url: str) -> Source:
+    """Fetch a URL, extract its article text, and store it as a source."""
+    text, title = fetcher.fetch_article(url)
+    return _persist(
+        store,
+        notebook_id,
+        title,
+        "url",
+        [Page(number=1, text=text)],
+        extra_meta={"url": url},
+    )
+
+
 def _persist(
-    store: Store, notebook_id: str, title: str, kind: str, pages: list[Page]
+    store: Store,
+    notebook_id: str,
+    title: str,
+    kind: str,
+    pages: list[Page],
+    extra_meta: dict | None = None,
 ) -> Source:
     chunks = chunker.chunk_pages(pages)
     words = sum(len(p.text.split()) for p in pages)
+    meta = {"page_count": len(pages), "word_count": words}
+    if extra_meta:
+        meta.update(extra_meta)
     source = Source(
         id=new_id(),
         notebook_id=notebook_id,
         kind=kind,  # type: ignore[arg-type]
         title=title,
-        meta={"page_count": len(pages), "word_count": words},
+        meta=meta,
         created_at=utcnow(),
         pages=pages,
         chunks=chunks,

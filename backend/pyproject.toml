@@ -11,6 +11,8 @@ dependencies = [
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
     "python-multipart>=0.0.32",
+    "trafilatura>=2.2.0",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
