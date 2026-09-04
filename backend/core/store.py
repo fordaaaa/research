@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import uuid
 from pathlib import Path
 from typing import Any
 
 from core.models import Notebook, SearchHit, Source, SourceSummary, utcnow
-
-_WORD = re.compile(r"[a-z0-9']+")
+from core.search import EmptyQuery, parse_query, score_chunk
 
 
 def new_id() -> str:
@@ -156,34 +154,54 @@ class Store:
 
     # ---------- search ----------
 
-    def search(self, notebook_id: str, query: str, limit: int = 10) -> list[SearchHit]:
-        terms = _WORD.findall(query.lower())
-        if not terms:
+    def search(
+        self,
+        notebook_id: str,
+        query: str,
+        *,
+        kind: str | None = None,
+        source_ids: list[str] | None = None,
+        tags: list[str] | None = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[SearchHit]:
+        """Keyword search with AND semantics, phrases, and source-level filters."""
+        try:
+            parsed = parse_query(query)
+        except EmptyQuery:
             return []
+        source_filter = set(source_ids) if source_ids else None
+        tag_filter = set(tags) if tags else None
         hits: list[SearchHit] = []
         for summary in self.list_sources(notebook_id):
+            if kind and summary.kind != kind:
+                continue
+            if source_filter and summary.id not in source_filter:
+                continue
+            if tag_filter and not (tag_filter & set(summary.tags)):
+                continue
             src = self.get_source(notebook_id, summary.id)
             if not src:
                 continue
             for chunk in src.chunks:
-                lower = chunk.text.lower()
-                counts = [lower.count(t) for t in terms]
-                if not all(counts):
-                    continue  # AND semantics: every term must appear
+                matched, score = score_chunk(chunk.text, parsed)
+                if not matched:
+                    continue
                 hits.append(
                     SearchHit(
                         source_id=src.id,
                         source_title=src.title,
                         pages=chunk.pages,
-                        score=sum(counts),
-                        snippet=_snippet(chunk.text, lower, terms),
+                        score=score,
+                        snippet=_snippet(chunk.text, parsed.terms),
                     )
                 )
         hits.sort(key=lambda h: h.score, reverse=True)
-        return hits[:limit]
+        return hits[offset : offset + limit]
 
 
-def _snippet(original: str, lower: str, terms: list[str], width: int = 80) -> str:
+def _snippet(original: str, terms: list[str], width: int = 80) -> str:
+    lower = original.lower()
     pos = -1
     for t in terms:
         pos = lower.find(t)
