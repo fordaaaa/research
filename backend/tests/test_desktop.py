@@ -33,3 +33,20 @@ def test_web_root_uses_the_explicit_desktop_resource_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("RESEARCH_WEB_DIR", str(web))
 
     assert web_root() == web
+
+
+def test_desktop_session_protects_notebook_data(tmp_path, monkeypatch):
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("desktop")
+    monkeypatch.setenv("RESEARCH_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("RESEARCH_DESKTOP_TOKEN", "only-this-launch")
+
+    with TestClient(create_app(web)) as client:
+        assert client.get("/api/health").status_code == 200
+        assert client.get("/api/notebooks").status_code == 403
+        response = client.get("/?desktop_token=only-this-launch")
+        assert response.status_code == 200
+        assert response.text == "desktop"
+        assert client.get("/api/notebooks").status_code == 200
+        assert response.headers["x-frame-options"] == "DENY"

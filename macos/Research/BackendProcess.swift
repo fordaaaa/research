@@ -14,6 +14,7 @@ final class BackendProcess: ObservableObject {
     private var process: Process?
     private var outputPipe: Pipe?
     private var outputBuffer = ""
+    private var launchToken = ""
 
     func start() {
         stop()
@@ -27,6 +28,7 @@ final class BackendProcess: ObservableObject {
         }
 
         do {
+            launchToken = UUID().uuidString
             let process = Process()
             let pipe = Pipe()
             process.executableURL = executable
@@ -35,6 +37,7 @@ final class BackendProcess: ObservableObject {
             process.environment = ProcessInfo.processInfo.environment.merging([
                 "RESEARCH_DATA_DIR": try dataDirectory().path,
                 "RESEARCH_WEB_DIR": webDirectory.path,
+                "RESEARCH_DESKTOP_TOKEN": launchToken,
             ]) { _, appValue in appValue }
             pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let data = handle.availableData
@@ -72,7 +75,7 @@ final class BackendProcess: ObservableObject {
         outputBuffer = lines.last.map(String.init) ?? ""
         for line in lines.dropLast() where line.hasPrefix("RESEARCH_READY ") {
             guard let url = URL(string: String(line.dropFirst("RESEARCH_READY ".count))) else { continue }
-            state = .ready(url)
+            state = .ready(url.appending(queryItems: [URLQueryItem(name: "desktop_token", value: launchToken)]))
         }
     }
 

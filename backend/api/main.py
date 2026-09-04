@@ -7,12 +7,14 @@ store access, notebook-not-found) live in `api.deps`.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from api import notebooks, search, sources
@@ -37,6 +39,31 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    desktop_token = os.environ.get("RESEARCH_DESKTOP_TOKEN")
+
+    @app.middleware("http")
+    async def desktop_session(request: Request, call_next):
+        if desktop_token:
+            supplied = request.query_params.get("desktop_token")
+            if supplied == desktop_token and request.url.path == "/":
+                response = RedirectResponse(url="/", status_code=303)
+                response.set_cookie(
+                    "research_session",
+                    desktop_token,
+                    httponly=True,
+                    samesite="strict",
+                )
+                return response
+            if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+                if request.cookies.get("research_session") != desktop_token:
+                    return JSONResponse(status_code=403, content={"detail": "desktop session required"})
+
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self'"
+        return response
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
