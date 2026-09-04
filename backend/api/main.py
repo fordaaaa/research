@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, HTTPException, Path, Query, Request, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from core import ingest
+from core import ingest, parsers
 from core.ingest import IngestError
 from core.models import NotebookCreate, PasteCreate, Source
 from core.store import Store
@@ -75,6 +75,24 @@ def _summary(source: Source) -> dict:
     return data
 
 
+async def _read_capped(f: UploadFile) -> bytes:
+    """Read an UploadFile in chunks; raise IngestError(413) once MAX_BYTES is reached.
+
+    Streaming lets us reject a multi-GB payload without buffering the full body.
+    """
+    cap = parsers.MAX_BYTES
+    chunk_size = 1024 * 1024  # 1 MB
+    buf = bytearray()
+    while True:
+        chunk = await f.read(chunk_size)
+        if not chunk:
+            break
+        buf.extend(chunk)
+        if len(buf) > cap:
+            raise IngestError("file exceeds 50 MB limit", status=413)
+    return bytes(buf)
+
+
 @app.post("/api/notebooks", status_code=201)
 def create_notebook(body: NotebookCreate):
     return _store().create_notebook(body.name)
@@ -101,7 +119,7 @@ async def upload_sources(notebook_id: str = Path(...), files: list[UploadFile] =
     sources, errors = [], []
     for f in files:
         try:
-            data = await f.read()
+            data = await _read_capped(f)
             source = ingest.ingest_bytes(
                 _store(), notebook_id, f.filename, f.content_type, data
             )
