@@ -166,8 +166,8 @@ class Store:
             if not src:
                 continue
             for chunk in src.chunks:
-                text = chunk.text.lower()
-                counts = [text.count(t) for t in terms]
+                lower = chunk.text.lower()
+                counts = [lower.count(t) for t in terms]
                 if not all(counts):
                     continue  # AND semantics: every term must appear
                 hits.append(
@@ -176,25 +176,24 @@ class Store:
                         source_title=src.title,
                         pages=chunk.pages,
                         score=sum(counts),
-                        snippet=_snippet(chunk.text, terms),
+                        snippet=_snippet(chunk.text, lower, terms),
                     )
                 )
         hits.sort(key=lambda h: h.score, reverse=True)
         return hits[:limit]
 
 
-def _snippet(text: str, terms: list[str], width: int = 80) -> str:
-    lower = text.lower()
+def _snippet(original: str, lower: str, terms: list[str], width: int = 80) -> str:
     pos = -1
     for t in terms:
         pos = lower.find(t)
         if pos != -1:
             break
     if pos == -1:
-        return text[: width * 2] + ("…" if len(text) > width * 2 else "")
+        return original[: width * 2] + ("…" if len(original) > width * 2 else "")
     start = max(0, pos - width)
-    end = min(len(text), pos + width)
+    end = min(len(original), pos + width)
     prefix = "…" if start > 0 else ""
-    suffix = "…" if end < len(text) else ""
-    return prefix + text[start:end].strip() + suffix
+    suffix = "…" if end < len(original) else ""
+    return prefix + original[start:end].strip() + suffix
 
