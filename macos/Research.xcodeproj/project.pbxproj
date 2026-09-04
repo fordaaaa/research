@@ -1,0 +1,56 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00100000000000000000011 /* ResearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000010 /* ResearchApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A00100000000000000000010 /* ResearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchApp.swift; sourceTree = "<group>"; };
+		A00100000000000000000020 /* Research.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Research.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00100000000000000000030 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00100000000000000000040 = {isa = PBXGroup; children = (A00100000000000000000041 /* Research */, A00100000000000000000042 /* Products */); sourceTree = "<group>"; };
+		A00100000000000000000041 /* Research */ = {isa = PBXGroup; children = (A00100000000000000000010 /* ResearchApp.swift */); path = Research; sourceTree = "<group>"; };
+		A00100000000000000000042 /* Products */ = {isa = PBXGroup; children = (A00100000000000000000020 /* Research.app */); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00100000000000000000050 /* Research */ = {isa = PBXNativeTarget; buildConfigurationList = A00100000000000000000051 /* Build configuration list for PBXNativeTarget "Research" */; buildPhases = (A00100000000000000000052 /* Sources */, A00100000000000000000030 /* Frameworks */, A00100000000000000000053 /* Resources */); buildRules = (); dependencies = (); name = Research; productName = Research; productReference = A00100000000000000000020 /* Research.app */; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00100000000000000000060 /* Project object */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2620; LastUpgradeCheck = 2620; TargetAttributes = { A00100000000000000000050 = { CreatedOnToolsVersion = 26.2; }; }; }; buildConfigurationList = A00100000000000000000061 /* Build configuration list for PBXProject "Research" */; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A00100000000000000000040; productRefGroup = A00100000000000000000042 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (A00100000000000000000050 /* Research */); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00100000000000000000053 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00100000000000000000052 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000011 /* ResearchApp.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A00100000000000000000070 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; }; name = Debug; };
+		A00100000000000000000071 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; }; name = Release; };
+		A00100000000000000000072 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = research; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fordaaaa.research; PRODUCT_NAME = Research; SDKROOT = macosx; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; }; name = Debug; };
+		A00100000000000000000073 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = research; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.fordaaaa.research; PRODUCT_NAME = Research; SDKROOT = macosx; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00100000000000000000061 /* Build configuration list for PBXProject "Research" */ = {isa = XCConfigurationList; buildConfigurations = (A00100000000000000000070 /* Debug */, A00100000000000000000071 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00100000000000000000051 /* Build configuration list for PBXNativeTarget "Research" */ = {isa = XCConfigurationList; buildConfigurations = (A00100000000000000000072 /* Debug */, A00100000000000000000073 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A00100000000000000000060 /* Project object */;
+}
