@@ -65,4 +65,4 @@ class NotebookCreate(BaseModel):
 
 class PasteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200, default="Pasted note")
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=5_000_000)
