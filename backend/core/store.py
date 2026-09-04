@@ -37,6 +37,18 @@ class Store:
         self.notebooks_dir = self.root / "notebooks"
         self.notebooks_dir.mkdir(parents=True, exist_ok=True)
         self._index_path = self.root / "notebooks.json"
+        self._refresh_indexes()
+
+    def _refresh_indexes(self) -> None:
+        """Reload notebooks.json and rebuild the in-memory id indexes."""
+        rows = self._load_index()
+        self._by_id: dict[str, dict] = {r["id"]: r for r in rows}
+        self._source_index: dict[str, str] = {}  # source_id -> notebook_id
+        for r in rows:
+            meta = _read_json(self._meta_path(r["id"]), {})
+            for s in meta.get("sources", []):
+                if "id" in s:
+                    self._source_index[s["id"]] = r["id"]
 
     # ---------- low-level helpers ----------
 
@@ -74,13 +86,12 @@ class Store:
         rows.append(nb.model_dump(mode="json"))
         self._save_index(rows)
         self._write_json(self._meta_path(nb.id), {"sources": []})
+        self._by_id[nb.id] = nb.model_dump(mode="json")
         return nb
 
     def get_notebook(self, notebook_id: str) -> Notebook | None:
-        for r in self._load_index():
-            if r.get("id") == notebook_id:
-                return Notebook.model_validate(r)
-        return None
+        row = self._by_id.get(notebook_id)
+        return Notebook.model_validate(row) if row else None
 
     def delete_notebook(self, notebook_id: str) -> bool:
         rows = self._load_index()
@@ -89,6 +100,10 @@ class Store:
             return False
         self._save_index(kept)
         shutil.rmtree(self._nb_dir(notebook_id), ignore_errors=True)
+        self._by_id.pop(notebook_id, None)
+        for sid, nid in list(self._source_index.items()):
+            if nid == notebook_id:
+                self._source_index.pop(sid, None)
         return True
 
     # ---------- sources ----------
