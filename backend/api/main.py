@@ -101,7 +101,7 @@ def list_sources(notebook_id: str):
 
 
 @app.get("/api/notebooks/{notebook_id}/search")
-def search_notebook(notebook_id: str, q: str = Query(min_length=1)):
+def search_notebook(notebook_id: str, q: str = Query(min_length=1, max_length=500)):
     _notebook_or_404(notebook_id)
     return _store().search(notebook_id, q)
 
