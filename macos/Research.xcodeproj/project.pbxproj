@@ -8,11 +8,13 @@
 /* Begin PBXBuildFile section */
 		A00100000000000000000011 /* ResearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000010 /* ResearchApp.swift */; };
 		A00100000000000000000013 /* BackendProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000012 /* BackendProcess.swift */; };
+		A00100000000000000000015 /* ResearchWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00100000000000000000014 /* ResearchWebView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A00100000000000000000010 /* ResearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchApp.swift; sourceTree = "<group>"; };
 		A00100000000000000000012 /* BackendProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendProcess.swift; sourceTree = "<group>"; };
+		A00100000000000000000014 /* ResearchWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResearchWebView.swift; sourceTree = "<group>"; };
 		A00100000000000000000020 /* Research.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Research.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -22,7 +24,7 @@
 
 /* Begin PBXGroup section */
 		A00100000000000000000040 = {isa = PBXGroup; children = (A00100000000000000000041 /* Research */, A00100000000000000000042 /* Products */); sourceTree = "<group>"; };
-		A00100000000000000000041 /* Research */ = {isa = PBXGroup; children = (A00100000000000000000010 /* ResearchApp.swift */, A00100000000000000000012 /* BackendProcess.swift */); path = Research; sourceTree = "<group>"; };
+		A00100000000000000000041 /* Research */ = {isa = PBXGroup; children = (A00100000000000000000010 /* ResearchApp.swift */, A00100000000000000000012 /* BackendProcess.swift */, A00100000000000000000014 /* ResearchWebView.swift */); path = Research; sourceTree = "<group>"; };
 		A00100000000000000000042 /* Products */ = {isa = PBXGroup; children = (A00100000000000000000020 /* Research.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -39,7 +41,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A00100000000000000000052 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000011 /* ResearchApp.swift in Sources */, A00100000000000000000013 /* BackendProcess.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A00100000000000000000052 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100000000000000000011 /* ResearchApp.swift in Sources */, A00100000000000000000013 /* BackendProcess.swift in Sources */, A00100000000000000000015 /* ResearchWebView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

@@ -30,7 +30,9 @@ private struct ContentView: View {
                         .foregroundStyle(.secondary)
                     Button("Try Again") { backend.start() }
                 }
-            case .idle, .starting, .ready:
+            case .ready(let url):
+                ResearchWebView(url: url)
+            case .idle, .starting:
                 ContentUnavailableView("Starting research", systemImage: "books.vertical", description: Text("Preparing your local workspace…"))
             }
         }
