@@ -4,7 +4,7 @@ Live state of the project. Read this first when picking the work back up.
 
 ## Current state
 
-- Branch `main`. M0 + M1 complete and committed (granular feat/chore/docs commits — see `git log`).
+- Branch `main`. M0–M2 complete and committed (granular feat/chore/docs commits — see `git log`).
 - **Owner direction (latest): capability-first.** Prioritize searching and information management; UI work is deferred — the existing minimal UI stays as-is and may lag behind the API. End goal unchanged: a real app (desktop packaging later).
 - Run it: `cd backend && uv run uvicorn api.main:app --reload` + `cd frontend && npm run dev` → http://localhost:5173
 - Tests: `cd backend && uv run pytest` · Frontend check: `cd frontend && npm run build`
@@ -39,17 +39,23 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `frontend/src/` — `api.ts` fetch layer; NotebookPicker, UploadZone (multi-file + paste dialog), SourceList, SearchPanel; dark NotebookLM-ish shell.
 - `backend/tests/` — chunker unit tests, parser tests (PDF/DOCX fixtures generated in-test), API round-trip (upload → list → search) against a temp data dir.
 
+## M2 — search & information management (committed)
+
+- `core/search.py` — query parser (`"phrases"` + terms, AND semantics) and relevance scoring (term frequency, phrase boost, proximity). New module; storage-agnostic.
+- `store.search()` (rewritten) — now ranks via `core.search` and filters by `kind`, `source_ids`, `tags`, plus `limit`/`offset`.
+- `api/search.py` — search endpoint takes `kind`, `source`, `tag`, `limit`, `offset`.
+- `Source.tags` — tags on sources and summaries; `store.update_source()` + `PATCH /api/sources/{id}` to rename and/or retag (tags lowercased/deduped). Search can filter by tag.
+- `core/fetcher.py` + `ingest.ingest_url` + `POST /api/notebooks/{id}/sources/url` — fetch a URL via httpx and extract main article text with trafilatura; source `kind == "url"`, original URL kept in `meta["url"]`.
+- `core/export.py` + `GET /api/notebooks/{id}/export` — Obsidian-style markdown bundle as a zip: `index.md` linking each source, per-source `.md` with YAML frontmatter (title/kind/tags/url) and page text.
+- Tests: search module, store-search filters, API filters, source update, URL ingest (fetch monkeypatched), export round-trip. `uv run pytest` green (40).
+
 ## Next milestones
 
-- **M2 (re-scoped per owner): search & information management** — APIs first, UI optional:
-  ranked search upgrades (phrase/proximity matching, per-source/kind filters, field search),
-  source management (rename, notes/annotations, tags or collections), URL ingest
-  (trafilatura), richer chunks/reader API, and markdown/Obsidian-style export of a notebook.
-- **M3** — AI mode plumbing: provider registry (`config.yaml`), free-key Settings panel, embeddings (vector search joins chunk ids), cited streaming chat.
+- **M3** — AI mode plumbing: provider registry (`config.yaml`), free-key Settings API, embeddings (vector search joins chunk ids), cited streaming chat.
 - **M4** — Deep Research: plan → keyless web search (ddgs/Wikipedia/arXiv; SearXNG optional) → gather → cited report, streamed; report export (md/pdf via Pandoc).
 - **M5** — study tools: auto flashcards → Anki (genanki), quizzes (notebooklm-py style JSON), study guides, mind map (stretch).
 - **M6** — polish + desktop packaging (Electron wrap of local server), model/provider switcher, OCR fallback (tesseract), Audio Overview stretch (local TTS).
 
 ## Parking lot
 
-URL source fetching (needs trafilatura — decide M2 vs M4) · SQLite FTS5/sqlite-vec migration · highlights/annotations sync · Obsidian vault export (whole notebook as linked .md) · spaced repetition scheduling.
+SQLite FTS5/sqlite-vec migration · chunk-level notes/annotations · source file-type passthrough (keep original bytes for re-parse) · spaced repetition scheduling · richer chunks/reader API (field search, per-source filters already in) · tag collections/folders.

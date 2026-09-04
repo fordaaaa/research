@@ -4,7 +4,7 @@ A free, local-first NotebookLM alternative for school. Import sources, search an
 
 ## Stack
 
-- **Backend** — Python 3.12, FastAPI, SQLite (FTS5 for search), managed with [uv](https://docs.astral.sh/uv/)
+- **Backend** — Python 3.12, FastAPI, JSON file storage (SQLite deferred until embeddings/scale demand it), managed with [uv](https://docs.astral.sh/uv/)
 - **Frontend** — React + TypeScript + Vite + Tailwind CSS
 - **AI (optional, off by default)** — pluggable free-tier providers (Groq, Google AI Studio, OpenRouter); the app is fully usable with AI disabled
 
@@ -34,8 +34,8 @@ Focus is on information capabilities first — search and source management. The
 
 - [x] M0 — project scaffold (FastAPI + React)
 - [x] M1 — source ingest (PDF, DOCX, TXT/MD, paste) with page-aware chunking
-- [ ] M2 — search & information management (ranking, filters, tags/notes, URL ingest, markdown export)
-- [ ] M3 — AI mode: cited chat with sources
+- [x] M2 — search & information management (ranked search, filters, tags, rename, URL ingest, markdown export)
+- [ ] M3 — AI mode: cited chat with sources + embeddings
 - [ ] M4 — deep research mode (plan → search → gather → cited report)
 - [ ] M5 — study tools (flashcards → Anki, quizzes, study guides)
 - [ ] M6 — desktop packaging
