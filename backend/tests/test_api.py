@@ -74,6 +74,43 @@ def test_search_unknown_notebook_404(client):
     assert client.get("/api/notebooks/000000000000/search", params={"q": "x"}).status_code == 404
 
 
+def test_search_filters_phrase_and_paging(client):
+    nb = client.post("/api/notebooks", json={"name": "Filtering"}).json()
+    a = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Lecture", "text": "The powerhouse of the cell produces energy. " * 30},
+    ).json()
+    client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Notes", "text": "Photosynthesis captures sunlight in leaves."},
+    )
+
+    exact = client.get(
+        f"/api/notebooks/{nb['id']}/search",
+        params={"q": 'energy "powerhouse of the cell"'},
+    ).json()
+    loose = client.get(
+        f"/api/notebooks/{nb['id']}/search", params={"q": "energy powerhouse cell"}
+    ).json()
+    assert exact and loose and exact[0]["score"] > loose[0]["score"]
+
+    kind = client.get(
+        f"/api/notebooks/{nb['id']}/search", params={"q": "energy", "kind": "paste"}
+    ).json()
+    assert kind and all(h["source_title"] in ("Lecture", "Notes") for h in kind)
+
+    scoped = client.get(
+        f"/api/notebooks/{nb['id']}/search",
+        params={"q": "sunlight", "source": a["id"]},
+    ).json()
+    assert scoped == []
+
+    limited = client.get(
+        f"/api/notebooks/{nb['id']}/search", params={"q": "the", "limit": 2, "offset": 1}
+    ).json()
+    assert len(limited) <= 2
+
+
 def test_invalid_id_returns_400(client):
     # malformed ids (anything that doesn't match core.store.new_id()) must be
     # rejected at the route boundary — otherwise they could escape into the

@@ -11,7 +11,20 @@ def register(app: FastAPI) -> None:
     def search_notebook(
         notebook_id: str,
         q: str = Query(min_length=1, max_length=500),
+        kind: str | None = Query(default=None, description="filter by source kind"),
+        source: list[str] = Query(default=[], description="filter to specific source ids"),
+        tag: list[str] = Query(default=[], description="filter to sources with any of these tags"),
+        limit: int = Query(default=10, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
     ):
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), notebook_id)
-        return get_store(app).search(notebook_id, q)
+        return get_store(app).search(
+            notebook_id,
+            q,
+            kind=kind,
+            source_ids=source,
+            tags=tag,
+            limit=limit,
+            offset=offset,
+        )
