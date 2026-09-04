@@ -30,10 +30,12 @@ Open http://localhost:5173. The dev server proxies `/api/*` to the backend on po
 
 ## Roadmap
 
+Focus is on information capabilities first — search and source management. The UI stays minimal until the core earns it.
+
 - [x] M0 — project scaffold (FastAPI + React)
-- [ ] M1 — source ingest (PDF, DOCX, URLs, pasted text)
-- [ ] M2 — library, full-text search, reader (no AI needed)
+- [x] M1 — source ingest (PDF, DOCX, TXT/MD, paste) with page-aware chunking
+- [ ] M2 — search & information management (ranking, filters, tags/notes, URL ingest, markdown export)
 - [ ] M3 — AI mode: cited chat with sources
 - [ ] M4 — deep research mode (plan → search → gather → cited report)
 - [ ] M5 — study tools (flashcards → Anki, quizzes, study guides)
-- [ ] M6 — polish + desktop packaging
+- [ ] M6 — desktop packaging
