@@ -20,4 +20,6 @@ data/
 # editor / os
 .DS_Store
 .idea/
+# panoply per-user prefs (don't commit filing/autoclose settings)
+.panoply/
 .vscode/
