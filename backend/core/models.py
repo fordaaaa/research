@@ -68,3 +68,8 @@ class NotebookCreate(BaseModel):
 class PasteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200, default="Pasted note")
     text: str = Field(min_length=1, max_length=5_000_000)
+
+
+class SourceUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    tags: list[str] | None = None

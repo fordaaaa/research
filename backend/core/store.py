@@ -140,6 +140,36 @@ class Store:
             return None
         return self.get_source(notebook_id, source_id)
 
+    def update_source(
+        self,
+        notebook_id: str,
+        source_id: str,
+        *,
+        title: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Source | None:
+        """Rename and/or retag a source, persisting both the file and the index."""
+        src = self.get_source(notebook_id, source_id)
+        if not src:
+            return None
+        if title is not None:
+            src.title = title.strip()
+        if tags is not None:
+            src.tags = [t.strip().lower() for t in tags if t.strip()]
+        self._write_json(
+            self._source_path(notebook_id, source_id), src.model_dump(mode="json")
+        )
+        sources = self._load_meta(notebook_id)
+        changed = False
+        for s in sources:
+            if s.get("id") == source_id:
+                s["title"] = src.title
+                s["tags"] = src.tags
+                changed = True
+        if changed:
+            self._save_meta(notebook_id, sources)
+        return src
+
     def delete_source(self, notebook_id: str, source_id: str) -> bool:
         sources = self._load_meta(notebook_id)
         kept = [s for s in sources if s.get("id") != source_id]

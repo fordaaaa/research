@@ -111,6 +111,41 @@ def test_search_filters_phrase_and_paging(client):
     assert len(limited) <= 2
 
 
+def test_update_source_rename_and_tags(client):
+    nb = client.post("/api/notebooks", json={"name": "Tagged"}).json()
+    src = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Untitled", "text": "Mitochondria are in cells."},
+    ).json()
+
+    r = client.patch(
+        f"/api/sources/{src['id']}",
+        json={"title": "Cell Biology", "tags": ["biology", "Lecture 2"]},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "Cell Biology"
+    assert "biology" in body["tags"]
+
+    # changes reflect in the source list and tag-filtered search
+    listed = client.get(f"/api/notebooks/{nb['id']}/sources").json()
+    assert listed[0]["title"] == "Cell Biology"
+    assert listed[0]["tags"] == ["biology", "lecture 2"]
+
+    hits = client.get(
+        f"/api/notebooks/{nb['id']}/search", params={"q": "cells", "tag": "biology"}
+    ).json()
+    assert len(hits) == 1
+
+    # PATCH clears tags when given an empty array
+    r2 = client.patch(f"/api/sources/{src['id']}", json={"tags": []})
+    assert r2.json()["tags"] == []
+
+
+def test_update_source_404(client):
+    assert client.patch("/api/sources/000000000000", json={"title": "x"}).status_code == 404
+
+
 def test_invalid_id_returns_400(client):
     # malformed ids (anything that doesn't match core.store.new_id()) must be
     # rejected at the route boundary — otherwise they could escape into the

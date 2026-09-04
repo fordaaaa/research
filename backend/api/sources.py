@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from api.deps import get_store, notebook_or_404, safe_id
 from core import ingest, parsers
 from core.ingest import IngestError
-from core.models import PasteCreate, Source
+from core.models import PasteCreate, Source, SourceUpdate
 
 MAX_FILES = 20
 
@@ -49,6 +49,18 @@ def register(app: FastAPI) -> None:
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), notebook_id)
         return get_store(app).list_sources(notebook_id)
+
+    @app.patch("/api/sources/{source_id}")
+    def update_source(source_id: str, body: SourceUpdate):
+        source_id = safe_id(source_id, "source_id")
+        store = get_store(app)
+        src = store.find_source(source_id)
+        if not src:
+            raise HTTPException(status_code=404, detail="source not found")
+        updated = store.update_source(
+            src.notebook_id, source_id, title=body.title, tags=body.tags
+        )
+        return _summary(updated)
 
     @app.get("/api/sources/{source_id}")
     def get_source(source_id: str):
