@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import io
+import logging
 
 import pymupdf
 from docx import Document as DocxDocument
+from docx.opc.exceptions import OpcError
 
 from core.models import Page
+
+logger = logging.getLogger(__name__)
 
 MAX_BYTES = 50 * 1024 * 1024
 
@@ -51,8 +55,9 @@ def parse(data: bytes, kind: str) -> list[Page]:
 def _parse_pdf(data: bytes) -> list[Page]:
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
-    except Exception as exc:
-        raise ValueError(f"invalid pdf: {exc}") from exc
+    except (pymupdf.FileDataError, pymupdf.EmptyFileError, RuntimeError, ValueError) as exc:
+        logger.warning("invalid pdf upload (%d bytes): %s", len(data), exc)
+        raise ValueError("invalid pdf") from exc
     pages = []
     for i, page in enumerate(doc):
         pages.append(Page(number=i + 1, text=page.get_text("text").strip()))
@@ -63,8 +68,9 @@ def _parse_pdf(data: bytes) -> list[Page]:
 def _parse_docx(data: bytes) -> list[Page]:
     try:
         doc = DocxDocument(io.BytesIO(data))
-    except Exception as exc:
-        raise ValueError(f"invalid docx: {exc}") from exc
+    except (OpcError, KeyError, ValueError) as exc:
+        logger.warning("invalid docx upload (%d bytes): %s", len(data), exc)
+        raise ValueError("invalid docx") from exc
     text = "\n".join(p.text for p in doc.paragraphs).strip()
     return [Page(number=1, text=text)]
 
