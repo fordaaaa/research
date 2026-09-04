@@ -21,7 +21,7 @@ class Chunk(BaseModel):
     text: str
 
 
-SourceKind = Literal["pdf", "docx", "txt", "md", "paste"]
+SourceKind = Literal["pdf", "docx", "txt", "md", "paste", "url"]
 
 
 class Source(BaseModel):
@@ -29,6 +29,7 @@ class Source(BaseModel):
     notebook_id: str
     kind: SourceKind
     title: str
+    tags: list[str] = Field(default_factory=list)
     meta: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     pages: list[Page] = Field(default_factory=list)
@@ -40,6 +41,7 @@ class SourceSummary(BaseModel):
     notebook_id: str
     kind: SourceKind
     title: str
+    tags: list[str] = Field(default_factory=list)
     meta: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     chunk_count: int
