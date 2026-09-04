@@ -1,0 +1,20 @@
+[project]
+name = "research-backend"
+version = "0.1.0"
+description = "Free, local-first NotebookLM alternative for school"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.10",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.28",
+]
+
+[tool.uv]
+package = false
