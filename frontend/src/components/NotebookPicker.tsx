@@ -13,7 +13,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
   const [busy, setBusy] = useState(false);
 
   return (
-    <main className="flex-1 overflow-y-auto p-8">
+    <main className="flex-1 overflow-y-auto p-8 animate-page-in">
       <div className="max-w-xl mx-auto space-y-6">
         <form
           className="flex gap-2"
@@ -50,7 +50,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             </li>
           )}
           {notebooks.map((nb) => (
-            <li key={nb.id} className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900">
+            <li key={nb.id} className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 animate-card-in">
               <button className="flex-1 text-left min-w-0" onClick={() => onOpen(nb)}>
                 <span className="text-sm font-medium">{nb.name}</span>
                 <span className="ml-3 text-xs text-neutral-500">

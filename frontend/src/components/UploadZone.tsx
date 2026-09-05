@@ -61,7 +61,7 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
 
       {showPaste && (
         <form
-          className="space-y-2"
+          className="space-y-2 animate-pop-in"
           onSubmit={async (e) => {
             e.preventDefault();
             if (!text.trim() || busy) return;

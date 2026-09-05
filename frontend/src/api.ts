@@ -7,8 +7,9 @@ export interface Notebook {
 export interface SourceSummary {
   id: string;
   notebook_id: string;
-  kind: "pdf" | "docx" | "txt" | "md" | "paste";
+  kind: "pdf" | "docx" | "txt" | "md" | "paste" | "url";
   title: string;
+  tags: string[];
   meta: { page_count?: number; word_count?: number } & Record<string, unknown>;
   created_at: string;
   chunk_count: number;
@@ -19,6 +20,13 @@ export interface SearchHit {
   source_title: string;
   pages: number[];
   score: number;
+  snippet: string;
+  matched_terms: string[];
+}
+
+export interface WebSearchResult {
+  title: string;
+  url: string;
   snippet: string;
 }
 
@@ -69,6 +77,13 @@ export const addPaste = (notebookId: string, title: string, text: string) =>
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
+export const addUrl = (notebookId: string, url: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/sources/url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  }).then(j<SourceSummary>);
+
 export const deleteSource = (id: string) =>
   fetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
@@ -78,3 +93,6 @@ export const search = (notebookId: string, q: string) =>
   fetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`).then(
     j<SearchHit[]>
   );
+
+export const searchWeb = (q: string) =>
+  fetch(`${BASE}/web/search?q=${encodeURIComponent(q)}`).then(j<WebSearchResult[]>);

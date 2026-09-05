@@ -70,7 +70,7 @@ export default function App() {
           }}
         />
       ) : (
-        <main className="flex-1 grid grid-cols-1 lg:grid-cols-[380px_1fr] lg:divide-x divide-neutral-800 overflow-hidden">
+        <main key={notebook.id} className="flex-1 grid grid-cols-1 lg:grid-cols-[380px_1fr] lg:divide-x divide-neutral-800 overflow-hidden animate-page-in">
           <section className="p-6 space-y-6 overflow-y-auto">
             <UploadZone
               onUpload={async (files) => {
@@ -92,7 +92,13 @@ export default function App() {
             />
           </section>
           <section className="p-6 overflow-y-auto">
-            <SearchPanel onSearch={(q) => api.search(notebook.id, q)} />
+            <SearchPanel
+              onSearch={(q) => api.search(notebook.id, q)}
+              onImportUrl={async (url) => {
+                await api.addUrl(notebook.id, url);
+                await refreshSources(notebook.id);
+              }}
+            />
           </section>
         </main>
       )}
