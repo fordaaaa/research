@@ -5,12 +5,16 @@ import NotebookPicker from "./components/NotebookPicker";
 import UploadZone from "./components/UploadZone";
 import SourceList from "./components/SourceList";
 import SearchPanel from "./components/SearchPanel";
+import ChatPanel from "./components/ChatPanel";
+import SettingsDialog from "./components/SettingsDialog";
 
 export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [backendUp, setBackendUp] = useState(true);
+  const [aiConfigured, setAIConfigured] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const refreshNotebooks = useCallback(async () => {
     try {
@@ -34,6 +38,10 @@ export default function App() {
   }, [refreshNotebooks]);
 
   useEffect(() => {
+    api.getAISettings().then((settings) => setAIConfigured(settings.configured)).catch(() => setAIConfigured(false));
+  }, []);
+
+  useEffect(() => {
     if (notebook) refreshSources(notebook.id);
   }, [notebook, refreshSources]);
 
@@ -50,9 +58,9 @@ export default function App() {
         {!backendUp && (
           <span className="text-xs text-red-400">backend not reachable</span>
         )}
-        <span className="ml-auto rounded-full bg-neutral-800 px-3 py-1 text-xs font-medium text-neutral-400">
-          AI off
-        </span>
+        <button className={`ml-auto rounded-full px-3 py-1 text-xs font-medium transition-colors ${aiConfigured ? "bg-emerald-950 text-emerald-300 hover:bg-emerald-900" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`} onClick={() => setShowSettings(true)}>
+          {aiConfigured ? "AI ready" : "AI off"}
+        </button>
       </header>
 
       {!notebook ? (
@@ -92,6 +100,11 @@ export default function App() {
             />
           </section>
           <section className="p-6 overflow-y-auto">
+            <ChatPanel
+              configured={aiConfigured}
+              onAsk={(message) => api.askNotebook(notebook.id, message)}
+              onConfigure={() => setShowSettings(true)}
+            />
             <SearchPanel
               onSearch={(q) => api.search(notebook.id, q)}
               onImportUrl={async (url) => {
@@ -102,6 +115,11 @@ export default function App() {
           </section>
         </main>
       )}
+      <SettingsDialog
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        onChanged={setAIConfigured}
+      />
     </div>
   );
 }

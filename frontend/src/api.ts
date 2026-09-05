@@ -30,13 +30,33 @@ export interface WebSearchResult {
   snippet: string;
 }
 
+export interface AISettings {
+  configured: boolean;
+  provider: "gemini" | null;
+  model: string | null;
+}
+
+export interface Citation {
+  source_id: string;
+  source_title: string;
+  pages: number[];
+}
+
+export interface ChatResponse {
+  answer: string;
+  citations: Citation[];
+}
+
 export interface UploadError {
   file: string;
   detail: string;
 }
 
 async function j<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -96,3 +116,24 @@ export const search = (notebookId: string, q: string) =>
 
 export const searchWeb = (q: string) =>
   fetch(`${BASE}/web/search?q=${encodeURIComponent(q)}`).then(j<WebSearchResult[]>);
+
+export const getAISettings = () => fetch(`${BASE}/settings/ai`).then(j<AISettings>);
+
+export const saveAISettings = (apiKey: string, model: string) =>
+  fetch(`${BASE}/settings/ai`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey, model }),
+  }).then(j<AISettings>);
+
+export const clearAISettings = () =>
+  fetch(`${BASE}/settings/ai`, { method: "DELETE" }).then((res) => {
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  });
+
+export const askNotebook = (notebookId: string, message: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  }).then(j<ChatResponse>);
