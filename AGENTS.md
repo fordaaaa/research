@@ -26,6 +26,12 @@ uv run pytest                             # tests (always green before commit)
 uv add <package>                          # add a dependency
 ```
 
+macOS app (run from the repository root):
+
+```sh
+sh scripts/build_macos_app.sh             # builds an arm64, ad-hoc-signed .app
+```
+
 Frontend (run from `frontend/`):
 
 ```sh
@@ -61,10 +67,19 @@ backend/
 └── data/               # ALL user data (gitignored)
 frontend/
 └── src/                # React 19 + TS + Tailwind 4 (api.ts is the only fetch layer)
+macos/
+├── Research.xcodeproj  # native macOS app project
+└── Research/           # SwiftUI shell, sidecar process manager, WKWebView
+scripts/
+└── build_macos_app.sh  # frontend + PyInstaller sidecar + Xcode app build
 ```
 
 Request flow: UI → Vite proxy (`/api/*`) → FastAPI (`api/<resource>.py`) → `core/` → JSON files.
 **All API routes must live under `/api`** — the dev proxy depends on it.
+
+The packaged app serves the built frontend from a loopback FastAPI sidecar rather
+than Vite. Its Swift shell sets `RESEARCH_DATA_DIR` to Application Support and
+passes a per-launch session token; do not write user data inside the `.app`.
 
 ### Route registration
 
@@ -92,6 +107,9 @@ data/notebooks/{id}/{sid}.json     # {source fields, pages[], chunks[]}
 - Frontend: TypeScript strict, function components, double quotes, Tailwind utility classes (no CSS files beyond `index.css`).
 - Tests live in `backend/tests/`; API tests use `fastapi.testclient` + temp data dir.
 - Verify before committing: `uv run pytest` (backend changes, MUST be green) and `npm run build` (frontend changes, MUST run clean).
+- Verify native changes with `sh scripts/build_macos_app.sh`; it checks the
+  arm64 sidecar and app signature. Use the Xcode path in that script instead of
+  changing the machine-wide developer directory.
 - Do not commit until the working tree is green. If a change is in-progress and red, say so in HANDOFF.md rather than committing a broken tree.
 
 ## Current status
