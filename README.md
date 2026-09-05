@@ -1,12 +1,16 @@
 # research
 
-A free, local-first NotebookLM alternative for school. Import sources, search and read them, and — optionally — chat with them or run deep research reports with an AI provider of your choice. Runs entirely on your machine. No accounts, no subscriptions, no data leaving your laptop unless you turn AI on.
+A free, local-first NotebookLM alternative for school. Import sources, search,
+read, discover public material, and export your work with no account or API key.
+Runs on your machine; your core research workflow never depends on a model or a
+remote provider.
 
 ## Stack
 
 - **Backend** — Python 3.12, FastAPI, JSON file storage (SQLite deferred until embeddings/scale demand it), managed with [uv](https://docs.astral.sh/uv/)
 - **Frontend** — React + TypeScript + Vite + Tailwind CSS
-- **AI (optional, off by default)** — pluggable free-tier providers (Groq, Google AI Studio, OpenRouter); the app is fully usable with AI disabled
+- **Keyless discovery** — public-web search through DDGS, with no account or API key
+- **Remote AI (optional, off by default)** — a user may add a free-tier key, but it is never required for the product to work
 
 ## Development
 
@@ -45,18 +49,17 @@ Notebook data lives in `~/Library/Application Support/research/data`, outside th
 app bundle. Public notarization is intentionally not part of the $0 build.
 
 Web discovery works with no account or AI key: search public results, then add a
-page to the current notebook as a local source. Optional grounded chat uses a
-Gemini API key you paste in Settings; the key stays in the local app data and AI
-remains off until you enable it.
+page to the current notebook as a local source. The optional Gemini integration
+is deliberately secondary; the main product direction is keyless research.
 
 ## Roadmap
 
-Native macOS packaging is currently prioritized; capability work remains local-first.
+Native macOS packaging and keyless research are the current priorities.
 
 - [x] M0 — project scaffold (FastAPI + React)
 - [x] M1 — source ingest (PDF, DOCX, TXT/MD, paste) with page-aware chunking
 - [x] M2 — search & information management (ranked search, filters, tags, rename, URL ingest, markdown export)
 - [ ] M3 — native macOS app polish and distribution readiness
-- [ ] M4 — deep research mode (plan → search → gather → cited report)
-- [ ] M5 — study tools (flashcards → Anki, quizzes, study guides)
-- [ ] M6 — optional AI mode: cited chat with sources + embeddings
+- [ ] M4 — keyless research mode (plan → web search → gather → cited source collection)
+- [ ] M5 — keyless study tools (manual flashcards, quizzes, and study guides)
+- [ ] M6 — optional remote AI experiments, only if they add value without becoming required

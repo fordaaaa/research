@@ -9,9 +9,10 @@ Live state of the project. **Read this first** before doing anything.
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
-- **Owner direction (latest): macOS app first.** The app is now a native SwiftUI
-  host over the existing local React + FastAPI implementation. Keep the web UI
-  focused; native integration should earn its complexity.
+- **Owner direction (latest): macOS and keyless research first.** The native app
+  must be a useful source-management and public-discovery tool without any key,
+  account, or model. Keep the web UI focused; native integration should earn its
+  complexity.
 - Run it: `cd backend && uv run uvicorn api.main:app --reload` + `cd frontend && npm run dev` → http://localhost:5173
 - Tests: `cd backend && uv run pytest` · Frontend check: `cd frontend && npm run build`
 
@@ -31,24 +32,24 @@ Live state of the project. **Read this first** before doing anything.
 - The local build is not notarized or publicly distributable. Notarization
   requires Apple’s paid developer program and must remain optional under $0.
 
-## Discovery and optional AI
+## Keyless discovery
 
 - `/api/web/search` uses DDGS with moderate SafeSearch and no key or account.
   Its results can be added through the UI as URL sources and become local
   notebook data after ingest.
 - The search panel has separate **Your sources** and **Search the web** modes;
   it does not silently send source searches to the internet.
-- `/api/settings/ai` stores an optional Gemini key only under the local data
-  directory and never returns it to the browser. `/api/notebooks/{id}/chat`
-  sends selected notebook excerpts to Gemini and returns local source citations.
-- Gemini free-tier availability and limits vary by region. No key is supplied,
-  no AI call happens by default, and no local model is installed.
+- Keyless discovery, ingestion, search, reading, study workflows, and exports
+  are the product direction. Do not make any of these rely on the optional AI
+  adapter.
+- An optional Gemini experiment exists but is not a roadmap dependency. It
+  stores a user-supplied key only locally and remains fully disabled otherwise.
 
 ## Locked owner decisions
 
-1. **$0 forever** — no paid services; pluggable providers, all default off.
-2. **No local LLMs** (no Ollama) — AI comes from optional free-tier API keys (Groq / Google AI Studio / OpenRouter) pasted into Settings, M3+.
-3. **No-AI mode is first-class** — ingest/search/reader/exports work with `ai.enabled: false`.
+1. **$0 and keyless-first forever** — core workflows require no paid service, account, or API key.
+2. **No local LLMs** (no Ollama) — optional remote AI is not a product dependency.
+3. **No-AI mode is first-class** — ingest/search/web discovery/reader/exports work with no provider configured.
 4. **Python backend (FastAPI + uv) + React frontend** — two languages accepted for best PDF/DOCX ecosystem.
 5. **Commits: conventional prefixes, single line, no body, no Co-Authored-By.**
 6. **SQLite deferred** — M1+ uses a JSON file store; revisit when embeddings (M3+) or scale demand it. Swap inside `core/store.py` only.
@@ -95,9 +96,9 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 ## Next milestones
 
 - **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
-- **M4** — Deep Research: plan → keyless web search (ddgs/Wikipedia/arXiv; SearXNG optional) → gather → cited report, streamed; report export (md/pdf via Pandoc).
-- **M5** — study tools: auto flashcards → Anki (genanki), quizzes (notebooklm-py style JSON), study guides, mind map (stretch).
-- **M6** — optional AI mode plumbing: provider registry, cited chat, embeddings, deep research, and study tools.
+- **M4** — Keyless Research: plan → public-web search → gather → cited local source collection and export.
+- **M5** — keyless study tools: manual flashcards, quizzes, study guides, and exportable mind maps.
+- **M6** — only then assess optional remote AI experiments; they must never gate the product.
 
 ## Parking lot
 

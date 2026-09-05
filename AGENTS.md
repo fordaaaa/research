@@ -4,14 +4,17 @@ Guide for AI agents (and humans) working in this repo.
 
 ## What this is
 
-**research** — a free, local-first NotebookLM alternative for school. Sources live on your machine; search/read always work with zero AI; AI features (cited chat, deep research, study tools) unlock when the user pastes a free-tier API key in Settings.
+**research** — a free, local-first NotebookLM alternative for school. Sources
+live on your machine; source management, search, public-web discovery, and
+exports must work with zero AI and zero API keys. Keyless research is the main
+product goal.
 
 Non-negotiables:
 
-- **$0 rule** — never add paid services, accounts, or API-key-required defaults. Providers are pluggable and default off.
+- **Keyless-first** — no core research, discovery, study, or export feature may require an API key, account, or paid service. Remote providers are optional experiments, never a primary workflow.
 - **No local LLMs** — Ollama etc. intentionally excluded by owner decision.
-- **No-AI mode is first-class** — every feature must degrade to keyword-only usefulness when `ai.enabled: false`.
-- **Privacy** — user data stays in `backend/data/` (gitignored). Never commit `.env`, keys, or data files.
+- **No-AI mode is first-class** — every feature must remain useful when all remote providers are absent.
+- **Privacy** — user data stays in the local data directory (`backend/data/` in development; Application Support in the packaged app). Never commit `.env`, keys, or data files.
 
 Inspiration: NotebookLM (notebooks of sources, grounded chat, generated artifacts: quizzes/mind maps/audio) and Obsidian (local markdown, everything exportable). See also teng-lin/notebooklm-py for the feature surface.
 
@@ -52,18 +55,19 @@ backend/
 │   ├── deps.py         # safe_id() validation, get_store, notebook_or_404
 │   ├── notebooks.py    # notebook CRUD + /export
 │   ├── sources.py      # upload / paste / url / list / get / chunks / patch / delete
-│   └── search.py       # GET /notebooks/{id}/search (filters in query params)
+│   ├── search.py       # GET /notebooks/{id}/search (filters in query params)
+│   ├── web.py          # GET /web/search (keyless public discovery)
+│   └── ai.py           # optional remote-provider routes; never required
 ├── core/               # pure logic, no framework imports
 │   ├── models.py       # pydantic models (single source of truth for shapes)
 │   ├── parsers.py      # pdf/docx/txt/md bytes → Page[]
 │   ├── chunker.py      # pages → chunks (~1200 chars, ~150 overlap, never spans pages)
-│   ├── search.py       # query parsing, stemming, relevance scoring (pluggable)
+│   ├── search.py       # query parsing, stemming, relevance scoring
+│   ├── websearch.py    # keyless public-web discovery
 │   ├── store.py        # JSON file store (notebooks.json + per-source files)
 │   ├── ingest.py       # bytes/url/text → parse → chunk → store
 │   ├── fetcher.py      # http fetch + trafilatura article extraction (for url srcs)
 │   ├── export.py       # notebook → Obsidian-style markdown .zip
-│   └── config.py       # loads config.yaml
-├── config.yaml         # ai.enabled: false default; providers pluggable
 └── data/               # ALL user data (gitignored)
 frontend/
 └── src/                # React 19 + TS + Tailwind 4 (api.ts is the only fetch layer)
@@ -80,6 +84,14 @@ Request flow: UI → Vite proxy (`/api/*`) → FastAPI (`api/<resource>.py`) →
 The packaged app serves the built frontend from a loopback FastAPI sidecar rather
 than Vite. Its Swift shell sets `RESEARCH_DATA_DIR` to Application Support and
 passes a per-launch session token; do not write user data inside the `.app`.
+
+### Keyless design
+
+The default and primary flow is: find public sources → import them locally →
+search/read/export them locally. `api/web.py` provides public discovery with no
+user credential. Do not introduce a provider, model, or account requirement to
+unlock that flow. The existing optional Gemini adapter is not a dependency to
+build upon unless the owner explicitly changes this direction.
 
 ### Route registration
 
