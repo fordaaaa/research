@@ -15,6 +15,26 @@ def test_web_search_api(client, monkeypatch):
     assert response.json()[0]["url"] == "https://example.com"
 
 
+def test_ai_settings_and_grounded_chat(client, monkeypatch):
+    from api import ai
+
+    assert client.get("/api/settings/ai").json()["configured"] is False
+    saved = client.put(
+        "/api/settings/ai",
+        json={"api_key": "a-key-that-is-not-returned-to-the-browser", "model": "gemini-test"},
+    ).json()
+    assert saved == {"configured": True, "provider": "gemini", "model": "gemini-test"}
+    nb = client.post("/api/notebooks", json={"name": "Chat"}).json()
+    client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Cells", "text": "Mitochondria make energy for cells."},
+    )
+    monkeypatch.setattr(ai.gemini, "generate", lambda key, model, prompt: "Mitochondria make energy [1].")
+    response = client.post(f"/api/notebooks/{nb['id']}/chat", json={"message": "What makes energy?"})
+    assert response.status_code == 200
+    assert response.json()["citations"][0]["source_title"] == "Cells"
+
+
 def test_notebook_crud_upload_and_search(client):
     nb = client.post("/api/notebooks", json={"name": "Biology"}).json()
 

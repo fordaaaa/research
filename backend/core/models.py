@@ -84,3 +84,30 @@ class WebSearchResult(BaseModel):
     title: str
     url: str
     snippet: str
+
+
+class AISettingsUpdate(BaseModel):
+    provider: Literal["gemini"] = "gemini"
+    api_key: str = Field(min_length=10, max_length=500)
+    model: str = Field(default="gemini-2.5-flash", min_length=1, max_length=100)
+
+
+class AISettings(BaseModel):
+    configured: bool
+    provider: Literal["gemini"] | None = None
+    model: str | None = None
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4_000)
+
+
+class Citation(BaseModel):
+    source_id: str
+    source_title: str
+    pages: list[int]
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    citations: list[Citation]
