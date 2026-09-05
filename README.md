@@ -44,6 +44,11 @@ with `DEVELOPER_DIR`). It produces a locally ad-hoc-signed Apple-silicon app.
 Notebook data lives in `~/Library/Application Support/research/data`, outside the
 app bundle. Public notarization is intentionally not part of the $0 build.
 
+Web discovery works with no account or AI key: search public results, then add a
+page to the current notebook as a local source. Optional grounded chat uses a
+Gemini API key you paste in Settings; the key stays in the local app data and AI
+remains off until you enable it.
+
 ## Roadmap
 
 Native macOS packaging is currently prioritized; capability work remains local-first.

@@ -3,7 +3,7 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, M0–M2 plus the native macOS alpha are committed. The
-> working tree is green; backend tests pass (50) and the packaged macOS smoke
+> working tree is green; backend tests pass (56) and the packaged macOS smoke
 > test has passed on this Apple-silicon machine.
 
 ## Current state
@@ -30,6 +30,19 @@ Live state of the project. **Read this first** before doing anything.
   unguarded when `RESEARCH_DESKTOP_TOKEN` is absent.
 - The local build is not notarized or publicly distributable. Notarization
   requires Apple’s paid developer program and must remain optional under $0.
+
+## Discovery and optional AI
+
+- `/api/web/search` uses DDGS with moderate SafeSearch and no key or account.
+  Its results can be added through the UI as URL sources and become local
+  notebook data after ingest.
+- The search panel has separate **Your sources** and **Search the web** modes;
+  it does not silently send source searches to the internet.
+- `/api/settings/ai` stores an optional Gemini key only under the local data
+  directory and never returns it to the browser. `/api/notebooks/{id}/chat`
+  sends selected notebook excerpts to Gemini and returns local source citations.
+- Gemini free-tier availability and limits vary by region. No key is supplied,
+  no AI call happens by default, and no local model is installed.
 
 ## Locked owner decisions
 
@@ -63,6 +76,8 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `core/parsers.py` — magic-byte + ext + content-type detection; PDF→pages via PyMuPDF, DOCX via python-docx (single page), txt/md utf-8. Unknown → 415 (`IngestError`).
 - `core/chunker.py` — normalize → sentence split → greedy ~1200-char chunks, ~150 overlap, **never spans pages**.
 - `core/search.py` — query parsing + relevance (see ⚠️ Uncommitted section — read working tree, not commit).
+- `core/websearch.py` — keyless DDGS public-web discovery.
+- `core/settings.py` + `core/gemini.py` — local optional-key storage and Gemini REST client.
 - `core/store.py` — JSON store: notebooks index, per-source files with `pages[]`/`chunks[]`; atomic writes; in-memory `_by_id`/`_source_index`; `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
 - `core/ingest.py` — `ingest_bytes` (files), `ingest_text` (paste), `ingest_url` (calls `fetcher`).
 - `core/fetcher.py` — httpx GET + trafilatura article extraction; `FetchError` → mapped to HTTP status.
@@ -79,7 +94,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Next milestones
 
-- **M3** — native app polish: icon, native export/download handoff, automated Xcode tests, and distribution investigation without paid defaults.
+- **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
 - **M4** — Deep Research: plan → keyless web search (ddgs/Wikipedia/arXiv; SearXNG optional) → gather → cited report, streamed; report export (md/pdf via Pandoc).
 - **M5** — study tools: auto flashcards → Anki (genanki), quizzes (notebooklm-py style JSON), study guides, mind map (stretch).
 - **M6** — optional AI mode plumbing: provider registry, cited chat, embeddings, deep research, and study tools.
