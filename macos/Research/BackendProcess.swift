@@ -18,7 +18,11 @@ final class BackendProcess: ObservableObject {
 
     func start() {
         stop()
-        guard let executable = Bundle.main.url(forAuxiliaryExecutable: "research-backend") else {
+        guard let executable = Bundle.main.url(
+            forResource: "research-backend",
+            withExtension: nil,
+            subdirectory: "backend"
+        ) else {
             state = .failed("The bundled research backend is missing.")
             return
         }
