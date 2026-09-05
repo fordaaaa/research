@@ -2,6 +2,19 @@ def test_health(client):
     assert client.get("/api/health").json() == {"ok": True}
 
 
+def test_web_search_api(client, monkeypatch):
+    from api import web
+
+    monkeypatch.setattr(
+        web,
+        "search_web",
+        lambda query, limit: [{"title": "Cells", "url": "https://example.com", "snippet": "Biology"}],
+    )
+    response = client.get("/api/web/search", params={"q": "cells"})
+    assert response.status_code == 200
+    assert response.json()[0]["url"] == "https://example.com"
+
+
 def test_notebook_crud_upload_and_search(client):
     nb = client.post("/api/notebooks", json={"name": "Biology"}).json()
 
