@@ -5,9 +5,8 @@ from fastapi import FastAPI, HTTPException
 
 from api.deps import get_store, notebook_or_404, safe_id
 from core import providers, settings
-from core.models import AISettingsUpdate, ChatRequest, ChatResponse, Citation
-
-MAX_CONTEXT = 14_000
+from core.context import build_context
+from core.models import AISettingsUpdate, ChatRequest, ChatResponse
 
 
 def register(app: FastAPI) -> None:
@@ -33,7 +32,7 @@ def register(app: FastAPI) -> None:
         if not key or not configured.model:
             raise HTTPException(status_code=503, detail="add an AI provider key in Settings to use AI chat")
 
-        excerpts, citations = _context(store, notebook_id)
+        excerpts, citations = build_context(store, notebook_id)
         if not excerpts:
             raise HTTPException(status_code=400, detail="add a source before asking AI")
         prompt = (
@@ -46,20 +45,3 @@ def register(app: FastAPI) -> None:
         except providers.AIError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return ChatResponse(answer=answer, citations=citations, model=used_model)
-
-
-def _context(store, notebook_id: str) -> tuple[list[str], list[Citation]]:
-    excerpts, citations, size = [], [], 0
-    for summary in store.list_sources(notebook_id):
-        source = store.get_source(notebook_id, summary.id)
-        if not source:
-            continue
-        for chunk in source.chunks:
-            addition = len(chunk.text)
-            if excerpts and size + addition > MAX_CONTEXT:
-                return excerpts, citations
-            number = len(citations) + 1
-            excerpts.append(f"[{number}] {source.title}, pages {', '.join(map(str, chunk.pages))}:\n{chunk.text}")
-            citations.append(Citation(source_id=source.id, source_title=source.title, pages=chunk.pages))
-            size += addition
-    return excerpts, citations
