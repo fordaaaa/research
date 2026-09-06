@@ -3,7 +3,7 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, M0–M2 plus the native macOS alpha are committed. The
-> working tree is green; backend tests pass (64) and the packaged macOS smoke
+> working tree is green; backend tests pass (101) and the packaged macOS smoke
 > test has passed on this Apple-silicon machine.
 
 ## Current state
@@ -100,7 +100,14 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 ## Next milestones
 
 - **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
-- **M4** — Keyless Research: plan → public-web search → gather → cited local source collection and export.
+- **M5** — keyless study tools: manual flashcards, quizzes, study guides, exportable mind maps.
+- **M4 polish** — possible follow-ups: persist research plans per notebook, cap bulk-add selections, retry failed adds.
+
+## Keyless research mode (M4, shipped)
+
+- Staged, frontend-driven pipeline — no background jobs. `POST /api/notebooks/{id}/research/plan|gather|synthesize` in `api/research.py`; algorithm in `core/research.py` (5-template heuristic planner with optional AI planner and line-based parse + heuristic fallback; URL-normalized cross-query ranking `3×queries + max(0,4−pos) + min(5,overlap)`, ≤2/domain, cap 15; digest builder). Shared cited-context helper lives in `core/context.py` (extracted from api/ai.py; used by chat and synthesis).
+- Gather never ingests: the UI bulk-adds through the existing per-URL `/sources/url`. Failed queries degrade individually (0.35s `QUERY_DELAY`); 503 only when all fail. Synthesize falls back to the keyless digest on any AI error and records `{research_topic, queries, origin}` in source meta via `ingest_text(extra_meta=...)`.
+- Frontend: `ResearchPanel.tsx` state machine (topic → editable query chips → ranked checklist with top-5 preselect → per-URL add progress → optional overview), wired into App.tsx between ChatPanel and SearchPanel.
 - **M5** — keyless study tools: manual flashcards, quizzes, study guides, and exportable mind maps.
 - **M6** — only then assess optional remote AI experiments; they must never gate the product.
 

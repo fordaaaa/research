@@ -60,6 +60,6 @@ Native macOS packaging and keyless research are the current priorities.
 - [x] M1 — source ingest (PDF, DOCX, TXT/MD, paste) with page-aware chunking
 - [x] M2 — search & information management (ranked search, filters, tags, rename, URL ingest, markdown export)
 - [ ] M3 — native macOS app polish and distribution readiness
-- [ ] M4 — keyless research mode (plan → web search → gather → cited source collection)
+- [x] M4 — keyless research mode (plan → web search → gather → cited source collection)
 - [ ] M5 — keyless study tools (manual flashcards, quizzes, and study guides)
 - [ ] M6 — optional remote AI experiments, only if they add value without becoming required
