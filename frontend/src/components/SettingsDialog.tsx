@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { AIProvider } from "../api";
+import Spinner from "./Spinner";
 
 interface Props {
   open: boolean;
@@ -105,8 +106,9 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
           <p className="text-xs leading-relaxed text-neutral-500">{PROVIDERS[provider].helper}</p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center gap-2 pt-1">
-            <button className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
-              {busy ? "Saving…" : configured ? "Replace key" : "Enable AI"}
+            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
+              {busy && <Spinner size={13} />}
+              {busy ? "Saving" : configured ? "Replace key" : "Enable AI"}
             </button>
             {configured && (
               <button

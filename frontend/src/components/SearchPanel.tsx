@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { searchWeb } from "../api";
 import type { SearchHit, WebSearchResult } from "../api";
+import Spinner from "./Spinner";
 
 interface Props {
   onSearch: (q: string) => Promise<SearchHit[]>;
@@ -66,11 +67,12 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
         <button
-          className="rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white disabled:opacity-50"
           type="submit"
           disabled={searching}
         >
-          {searching ? "…" : "Search"}
+          {searching && <Spinner size={13} />}
+          Search
         </button>
       </form>
 
@@ -119,7 +121,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
               <p className="mt-1 text-xs text-neutral-500 truncate">{result.url}</p>
               {result.snippet && <p className="mt-2 text-sm leading-relaxed text-neutral-300">{result.snippet}</p>}
               <button
-                className="mt-3 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
                 disabled={importing === result.url}
                 onClick={async () => {
                   setImporting(result.url);
@@ -133,7 +135,8 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
                   }
                 }}
               >
-                {importing === result.url ? "Adding…" : "Add to notebook"}
+                {importing === result.url && <Spinner size={12} />}
+                {importing === result.url ? "Adding" : "Add to notebook"}
               </button>
             </li>
           ))}

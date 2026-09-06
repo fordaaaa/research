@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { UploadError } from "../api";
+import Spinner from "./Spinner";
 
 interface Props {
   onUpload: (files: File[]) => Promise<UploadError[]>;
@@ -39,7 +40,15 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
           if (!busy) handleFiles(e.dataTransfer.files);
         }}
       >
-        <p className="text-sm font-medium">{busy ? "Uploading…" : "Drop files or click to upload"}</p>
+        <p className="flex items-center justify-center gap-2 text-sm font-medium">
+          {busy ? (
+            <>
+              <Spinner /> Uploading
+            </>
+          ) : (
+            "Drop files or click to upload"
+          )}
+        </p>
         <p className="text-xs text-neutral-500 mt-1">PDF · DOCX · TXT · MD — up to 50 MB each</p>
         <input
           ref={inputRef}

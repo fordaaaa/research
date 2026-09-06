@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { ResearchCandidate, ResearchPlan, ResearchSynthesis } from "../api";
+import Spinner from "./Spinner";
 
 interface Props {
   notebookId: string;
@@ -153,11 +154,12 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             onChange={(event) => setTopic(event.target.value)}
           />
           <button
-            className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >
-            {busy ? "Planning…" : "Plan"}
+            {busy && <Spinner size={13} />}
+            {busy ? "Planning" : "Plan"}
           </button>
         </form>
       )}
@@ -203,11 +205,12 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           )}
           <div className="flex items-center gap-2">
             <button
-              className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
               disabled={busy || plan.queries.length === 0}
               onClick={runGather}
             >
-              {busy ? "Searching…" : "Find sources"}
+              {busy && <Spinner size={13} />}
+              {busy ? "Searching" : "Find sources"}
             </button>
             <button className="px-2 py-2 text-xs text-neutral-500 hover:text-red-400" onClick={startOver}>
               Start over
@@ -276,11 +279,12 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             </div>
           ) : (
             <button
-              className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
               disabled={busy}
               onClick={runSynthesize}
             >
-              {busy ? "Writing…" : aiConfigured ? "Write overview with AI" : "Write overview"}
+              {busy && <Spinner size={13} />}
+              {busy ? "Writing" : aiConfigured ? "Write overview with AI" : "Write overview"}
             </button>
           )}
           {!synthesis && !aiConfigured && <p className="text-xs text-neutral-600">structured digest — no key needed</p>}
