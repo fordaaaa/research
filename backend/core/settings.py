@@ -25,7 +25,10 @@ def get_ai_settings(data_dir: Path) -> AISettings:
     data = _read(_path(data_dir)).get("ai", {})
     if not isinstance(data, dict) or not data.get("api_key"):
         return AISettings(configured=False)
-    return AISettings(configured=True, provider="gemini", model=data.get("model", "gemini-2.5-flash"))
+    provider = data.get("provider", "gemini")
+    if provider not in ("gemini", "openrouter"):
+        provider = "gemini"
+    return AISettings(configured=True, provider=provider, model=data.get("model", "gemini-2.5-flash"))
 
 
 def save_ai_settings(data_dir: Path, body: AISettingsUpdate) -> AISettings:

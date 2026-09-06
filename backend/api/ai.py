@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 
 from api.deps import get_store, notebook_or_404, safe_id
-from core import gemini, settings
+from core import providers, settings
 from core.models import AISettingsUpdate, ChatRequest, ChatResponse, Citation
 
 MAX_CONTEXT = 14_000
@@ -31,7 +31,7 @@ def register(app: FastAPI) -> None:
         key = settings.api_key(store.root)
         configured = settings.get_ai_settings(store.root)
         if not key or not configured.model:
-            raise HTTPException(status_code=503, detail="add a Gemini API key in Settings to use AI chat")
+            raise HTTPException(status_code=503, detail="add an AI provider key in Settings to use AI chat")
 
         excerpts, citations = _context(store, notebook_id)
         if not excerpts:
@@ -42,10 +42,10 @@ def register(app: FastAPI) -> None:
             f"QUESTION: {body.message}\n\nSOURCES:\n" + "\n\n".join(excerpts)
         )
         try:
-            answer = gemini.generate(key, configured.model, prompt)
-        except gemini.GeminiError as exc:
+            answer, used_model = providers.generate(configured.provider, key, configured.model, prompt)
+        except providers.AIError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-        return ChatResponse(answer=answer, citations=citations)
+        return ChatResponse(answer=answer, citations=citations, model=used_model)
 
 
 def _context(store, notebook_id: str) -> tuple[list[str], list[Citation]]:

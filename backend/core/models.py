@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def utcnow() -> datetime:
@@ -86,15 +86,32 @@ class WebSearchResult(BaseModel):
     snippet: str
 
 
+AIProvider = Literal["gemini", "openrouter"]
+
+AI_DEFAULT_MODELS: dict[str, str] = {
+    "gemini": "gemini-2.5-flash",
+    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
+}
+
+
 class AISettingsUpdate(BaseModel):
-    provider: Literal["gemini"] = "gemini"
+    provider: AIProvider = "gemini"
     api_key: str = Field(min_length=10, max_length=500)
     model: str = Field(default="gemini-2.5-flash", min_length=1, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_model(cls, data: Any) -> Any:
+        if isinstance(data, dict) and not data.get("model"):
+            provider = data.get("provider", "gemini")
+            if provider in AI_DEFAULT_MODELS:
+                data = {**data, "model": AI_DEFAULT_MODELS[provider]}
+        return data
 
 
 class AISettings(BaseModel):
     configured: bool
-    provider: Literal["gemini"] | None = None
+    provider: AIProvider | None = None
     model: str | None = None
 
 
@@ -111,3 +128,4 @@ class Citation(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     citations: list[Citation]
+    model: str | None = None

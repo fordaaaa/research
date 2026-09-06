@@ -29,10 +29,15 @@ def test_ai_settings_and_grounded_chat(client, monkeypatch):
         f"/api/notebooks/{nb['id']}/sources/text",
         json={"title": "Cells", "text": "Mitochondria make energy for cells."},
     )
-    monkeypatch.setattr(ai.gemini, "generate", lambda key, model, prompt: "Mitochondria make energy [1].")
+    monkeypatch.setattr(
+        ai.providers,
+        "generate",
+        lambda provider, key, model, prompt: ("Mitochondria make energy [1].", model),
+    )
     response = client.post(f"/api/notebooks/{nb['id']}/chat", json={"message": "What makes energy?"})
     assert response.status_code == 200
     assert response.json()["citations"][0]["source_title"] == "Cells"
+    assert response.json()["model"] == "gemini-test"
 
 
 def test_notebook_crud_upload_and_search(client):
