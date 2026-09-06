@@ -3,7 +3,7 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, M0–M2 plus the native macOS alpha are committed. The
-> working tree is green; backend tests pass (56) and the packaged macOS smoke
+> working tree is green; backend tests pass (64) and the packaged macOS smoke
 > test has passed on this Apple-silicon machine.
 
 ## Current state
@@ -42,8 +42,10 @@ Live state of the project. **Read this first** before doing anything.
 - Keyless discovery, ingestion, search, reading, study workflows, and exports
   are the product direction. Do not make any of these rely on the optional AI
   adapter.
-- An optional Gemini experiment exists but is not a roadmap dependency. It
-  stores a user-supplied key only locally and remains fully disabled otherwise.
+- An optional AI experiment exists (Gemini or OpenRouter provider, user picks in
+  Settings) but is not a roadmap dependency. It stores a user-supplied key only
+  locally and remains fully disabled otherwise. `core/providers.py` retries 429s
+  (honoring `Retry-After`) and falls back to backup free models before erroring.
 
 ## Locked owner decisions
 
@@ -78,7 +80,9 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `core/chunker.py` — normalize → sentence split → greedy ~1200-char chunks, ~150 overlap, **never spans pages**.
 - `core/search.py` — query parsing + relevance (see ⚠️ Uncommitted section — read working tree, not commit).
 - `core/websearch.py` — keyless DDGS public-web discovery.
-- `core/settings.py` + `core/gemini.py` — local optional-key storage and Gemini REST client.
+- `core/settings.py` — local optional-key storage; provider-aware (`gemini` | `openrouter`), legacy files without provider default to gemini.
+- `core/gemini.py` / `core/openrouter.py` — provider REST clients; errors carry `status` + `retry_after`.
+- `core/providers.py` — dispatch `generate(provider, key, model, prompt) -> (answer, model)`; retry on 429/5xx, skip to backup models on 404/400, abort on 401/403; `FALLBACK_MODELS`/`DEFAULT_MODELS` constants live here.
 - `core/store.py` — JSON store: notebooks index, per-source files with `pages[]`/`chunks[]`; atomic writes; in-memory `_by_id`/`_source_index`; `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
 - `core/ingest.py` — `ingest_bytes` (files), `ingest_text` (paste), `ingest_url` (calls `fetcher`).
 - `core/fetcher.py` — httpx GET + trafilatura article extraction; `FetchError` → mapped to HTTP status.
