@@ -5,6 +5,7 @@ import NotebookPicker from "./components/NotebookPicker";
 import UploadZone from "./components/UploadZone";
 import SourceList from "./components/SourceList";
 import SearchPanel from "./components/SearchPanel";
+import ResearchPanel from "./components/ResearchPanel";
 import ChatPanel from "./components/ChatPanel";
 import SettingsDialog from "./components/SettingsDialog";
 
@@ -104,6 +105,11 @@ export default function App() {
               configured={aiConfigured}
               onAsk={(message) => api.askNotebook(notebook.id, message)}
               onConfigure={() => setShowSettings(true)}
+            />
+            <ResearchPanel
+              notebookId={notebook.id}
+              aiConfigured={aiConfigured}
+              onSourcesChanged={() => refreshSources(notebook.id)}
             />
             <SearchPanel
               onSearch={(q) => api.search(notebook.id, q)}

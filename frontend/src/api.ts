@@ -134,6 +134,52 @@ export const clearAISettings = () =>
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   });
 
+export interface ResearchPlan {
+  topic: string;
+  queries: string[];
+  origin: "ai" | "heuristic";
+}
+
+export interface ResearchCandidate {
+  title: string;
+  url: string;
+  snippet: string;
+  score: number;
+  matched_queries: string[];
+}
+
+export interface ResearchGather {
+  candidates: ResearchCandidate[];
+  failed_queries: string[];
+}
+
+export interface ResearchSynthesis {
+  source: SourceSummary;
+  origin: "ai" | "digest";
+  model: string | null;
+}
+
+export const planResearch = (notebookId: string, topic: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/research/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic }),
+  }).then(j<ResearchPlan>);
+
+export const gatherResearch = (notebookId: string, queries: string[]) =>
+  fetch(`${BASE}/notebooks/${notebookId}/research/gather`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ queries }),
+  }).then(j<ResearchGather>);
+
+export const synthesizeResearch = (notebookId: string, body: { topic: string; queries: string[] }) =>
+  fetch(`${BASE}/notebooks/${notebookId}/research/synthesize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<ResearchSynthesis>);
+
 export const askNotebook = (notebookId: string, message: string) =>
   fetch(`${BASE}/notebooks/${notebookId}/chat`, {
     method: "POST",
