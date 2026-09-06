@@ -139,6 +139,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
         {plan && <span className="rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300">{plan.origin === "ai" ? "AI-planned" : "Quick plan"}</span>}
       </div>
 
+      <div key={phase === "adding" ? "results" : phase} className="animate-phase-in">
       {phase === "topic" && (
         <form
           className="mt-3 flex gap-2"
@@ -222,12 +223,13 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
       {(phase === "results" || phase === "adding") && (
         <div className="mt-3 space-y-3">
           <div className="space-y-2">
-            {candidates.map((candidate) => {
+            {candidates.map((candidate, i) => {
               const status = addStatus[candidate.url] ?? { state: "idle" as const };
               return (
                 <label
                   key={candidate.url}
-                  className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3"
+                  className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 animate-card-in"
+                  style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
                 >
                   <input
                     type="checkbox"
@@ -298,6 +300,8 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           </div>
         </div>
       )}
+
+      </div>
 
       {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
     </section>

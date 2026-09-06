@@ -23,10 +23,11 @@ export default function SourceList({ sources, onDelete }: Props) {
         <p className="text-sm text-neutral-600">No sources yet.</p>
       ) : (
         <ul className="space-y-1">
-          {sources.map((s) => (
+          {sources.map((s, i) => (
             <li
               key={s.id}
-              className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-neutral-900"
+              className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-neutral-900 transition-colors animate-card-in"
+              style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
             >
               <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400">
                 {KIND_LABEL[s.kind] ?? s.kind}

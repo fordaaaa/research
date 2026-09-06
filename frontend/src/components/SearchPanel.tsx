@@ -92,7 +92,8 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           {hits.map((h, i) => (
             <li
               key={`${h.source_id}-${i}`}
-              className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4"
+              className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 animate-card-in"
+              style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
             >
               <div className="flex items-center gap-2 text-xs text-neutral-400">
                 <span className="truncate font-medium">{h.source_title}</span>
@@ -113,8 +114,8 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
         <p className="text-sm text-neutral-500 text-center pt-6">No public results for “{query}”.</p>
       ) : (
         <ul className="space-y-2">
-          {webResults.map((result) => (
-            <li key={result.url} className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 animate-card-in">
+          {webResults.map((result, i) => (
+            <li key={result.url} className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 animate-card-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
               <a className="text-sm font-medium text-neutral-100 hover:underline" href={result.url} target="_blank" rel="noreferrer">
                 {result.title}
               </a>

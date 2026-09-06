@@ -49,8 +49,8 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
               No notebooks yet — create one above.
             </li>
           )}
-          {notebooks.map((nb) => (
-            <li key={nb.id} className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 animate-card-in">
+          {notebooks.map((nb, i) => (
+            <li key={nb.id} className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 transition-colors animate-card-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
               <button className="flex-1 text-left min-w-0" onClick={() => onOpen(nb)}>
                 <span className="text-sm font-medium">{nb.name}</span>
                 <span className="ml-3 text-xs text-neutral-500">
