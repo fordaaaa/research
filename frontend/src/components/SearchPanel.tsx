@@ -61,13 +61,13 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
         }}
       >
         <input
-          className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm outline-none focus:border-neutral-600"
+          className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm outline-none focus:border-neutral-500"
           placeholder={mode === "sources" ? "Search your sources…" : "Search the web…"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <button
-          className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
           type="submit"
           disabled={searching}
         >
@@ -92,7 +92,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           {hits.map((h, i) => (
             <li
               key={`${h.source_id}-${i}`}
-              className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 animate-card-in"
+              className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-colors hover:border-neutral-700 hover:bg-neutral-900/80 animate-card-in"
               style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
             >
               <div className="flex items-center gap-2 text-xs text-neutral-400">
@@ -115,14 +115,14 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
       ) : (
         <ul className="space-y-2">
           {webResults.map((result, i) => (
-            <li key={result.url} className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 animate-card-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+            <li key={result.url} className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-colors hover:border-neutral-700 hover:bg-neutral-900/80 animate-card-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
               <a className="text-sm font-medium text-neutral-100 hover:underline" href={result.url} target="_blank" rel="noreferrer">
                 {result.title}
               </a>
               <p className="mt-1 text-xs text-neutral-500 truncate">{result.url}</p>
               {result.snippet && <p className="mt-2 text-sm leading-relaxed text-neutral-300">{result.snippet}</p>}
               <button
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
                 disabled={importing === result.url}
                 onClick={async () => {
                   setImporting(result.url);

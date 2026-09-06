@@ -46,12 +46,22 @@ export default function ChatPanel({ configured, onAsk, onConfigure }: Props) {
           disabled={!configured}
           onChange={(event) => setMessage(event.target.value)}
         />
-        <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50" disabled={!configured || busy || !message.trim()} type="submit">
+        <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50" disabled={!configured || busy || !message.trim()} type="submit">
           {busy && <Spinner size={13} />}
           {busy ? "Thinking" : "Ask"}
         </button>
       </form>
       {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+      {busy && !answer && (
+        <div className="mt-4 flex items-center gap-2 border-t border-neutral-800 pt-4 text-xs text-neutral-500">
+          <span className="flex gap-1">
+            <span className="size-1.5 rounded-full bg-neutral-500 animate-pulse" />
+            <span className="size-1.5 rounded-full bg-neutral-500 animate-pulse [animation-delay:150ms]" />
+            <span className="size-1.5 rounded-full bg-neutral-500 animate-pulse [animation-delay:300ms]" />
+          </span>
+          reading your sources…
+        </div>
+      )}
       {answer && (
         <div className="mt-4 border-t border-neutral-800 pt-4 animate-card-in">
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">{answer.answer}</p>

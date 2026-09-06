@@ -30,13 +30,13 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
           }}
         >
           <input
-            className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm outline-none focus:border-neutral-600"
+            className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm outline-none focus:border-neutral-500"
             placeholder="New notebook name…"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <button
-            className="rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white disabled:opacity-50"
+            className="rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
             type="submit"
             disabled={busy}
           >

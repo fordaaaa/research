@@ -108,7 +108,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
           <p className="text-xs leading-relaxed text-neutral-500">{PROVIDERS[provider].helper}</p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center gap-2 pt-1">
-            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
+            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
               {busy && <Spinner size={13} />}
               {busy ? "Saving" : configured ? "Replace key" : "Enable AI"}
             </button>

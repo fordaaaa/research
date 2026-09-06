@@ -88,19 +88,19 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
           }}
         >
           <input
-            className="w-full rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-600"
+            className="w-full rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-500"
             placeholder="Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <textarea
-            className="w-full h-28 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-600"
+            className="w-full h-28 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-500"
             placeholder="Paste your text here…"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
           <button
-            className="rounded-lg bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-white disabled:opacity-50"
+            className="rounded-lg bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
             type="submit"
             disabled={busy}
           >

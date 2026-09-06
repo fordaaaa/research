@@ -155,7 +155,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             onChange={(event) => setTopic(event.target.value)}
           />
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >
@@ -169,7 +169,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
             {plan.queries.map((query) => (
-              <span key={query} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-800 px-3 py-1 text-xs">
+              <span key={query} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-800 px-3 py-1 text-xs transition-colors hover:bg-neutral-700 animate-pop-in">
                 {query}
                 <button
                   className="text-neutral-500 hover:text-red-400"
@@ -206,7 +206,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           )}
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
               disabled={busy || plan.queries.length === 0}
               onClick={runGather}
             >
@@ -228,12 +228,12 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
               return (
                 <label
                   key={candidate.url}
-                  className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 animate-card-in"
+                  className="flex items-start gap-3 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 transition-colors hover:border-neutral-700 animate-card-in"
                   style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
                 >
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 size-4 shrink-0 appearance-none rounded border border-neutral-600 bg-neutral-950 transition-colors checked:border-neutral-100 checked:bg-neutral-100"
                     checked={selected.has(candidate.url)}
                     disabled={phase === "adding"}
                     onChange={() => toggle(candidate.url)}
@@ -256,7 +256,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           {phase === "results" && (
             <div className="flex items-center gap-2">
               <button
-                className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+                className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
                 disabled={selected.size === 0}
                 onClick={runAdd}
               >
@@ -281,7 +281,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             </div>
           ) : (
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
               disabled={busy}
               onClick={runSynthesize}
             >
