@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
+import type { AIProvider } from "../api";
 
 interface Props {
   open: boolean;
@@ -7,10 +8,26 @@ interface Props {
   onChanged: (configured: boolean) => void;
 }
 
+const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: string; helper: string }> = {
+  gemini: {
+    name: "Google Gemini",
+    keyLabel: "Gemini API key",
+    model: "gemini-2.5-flash",
+    helper: "Create a key in Google AI Studio’s free tier. Availability and limits vary by region.",
+  },
+  openrouter: {
+    name: "OpenRouter",
+    keyLabel: "OpenRouter API key",
+    model: "meta-llama/llama-3.3-70b-instruct:free",
+    helper: "Create a key at openrouter.ai and pick any model ending in :free. Free model names change over time.",
+  },
+};
+
 export default function SettingsDialog({ open, onClose, onChanged }: Props) {
   const [configured, setConfigured] = useState(false);
+  const [provider, setProvider] = useState<AIProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState(PROVIDERS.gemini.model);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +37,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
     setApiKey("");
     api.getAISettings().then((settings) => {
       setConfigured(settings.configured);
+      if (settings.provider) setProvider(settings.provider);
       if (settings.model) setModel(settings.model);
     }).catch((err) => setError(err instanceof Error ? err.message : "could not load settings"));
   }, [open]);
@@ -32,7 +50,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-semibold">Optional AI</h2>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key stays on this Mac and is only sent to Gemini when you ask a question.</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key stays on this Mac and is only sent to your chosen AI provider when you ask a question.</p>
           </div>
           <button className="text-neutral-500 hover:text-white" onClick={onClose} aria-label="Close settings">×</button>
         </div>
@@ -44,7 +62,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
             setBusy(true);
             setError(null);
             try {
-              const settings = await api.saveAISettings(apiKey.trim(), model.trim());
+              const settings = await api.saveAISettings(apiKey.trim(), model.trim(), provider);
               setConfigured(settings.configured);
               onChanged(settings.configured);
               setApiKey("");
@@ -55,7 +73,21 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
             }
           }}
         >
-          <label className="block text-xs font-medium text-neutral-300">Gemini API key</label>
+          <label className="block text-xs font-medium text-neutral-300">Provider</label>
+          <select
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            value={provider}
+            onChange={(event) => {
+              const next = event.target.value as AIProvider;
+              setProvider(next);
+              setModel(PROVIDERS[next].model);
+            }}
+          >
+            {Object.entries(PROVIDERS).map(([value, info]) => (
+              <option key={value} value={value}>{info.name}</option>
+            ))}
+          </select>
+          <label className="block text-xs font-medium text-neutral-300">{PROVIDERS[provider].keyLabel}</label>
           <input
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-neutral-500"
             type="password"
@@ -70,7 +102,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
             value={model}
             onChange={(event) => setModel(event.target.value)}
           />
-          <p className="text-xs leading-relaxed text-neutral-500">Create a key in Google AI Studio’s free tier. Availability and limits vary by region.</p>
+          <p className="text-xs leading-relaxed text-neutral-500">{PROVIDERS[provider].helper}</p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center gap-2 pt-1">
             <button className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">

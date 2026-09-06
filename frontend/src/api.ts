@@ -30,9 +30,11 @@ export interface WebSearchResult {
   snippet: string;
 }
 
+export type AIProvider = "gemini" | "openrouter";
+
 export interface AISettings {
   configured: boolean;
-  provider: "gemini" | null;
+  provider: AIProvider | null;
   model: string | null;
 }
 
@@ -45,6 +47,7 @@ export interface Citation {
 export interface ChatResponse {
   answer: string;
   citations: Citation[];
+  model: string | null;
 }
 
 export interface UploadError {
@@ -119,11 +122,11 @@ export const searchWeb = (q: string) =>
 
 export const getAISettings = () => fetch(`${BASE}/settings/ai`).then(j<AISettings>);
 
-export const saveAISettings = (apiKey: string, model: string) =>
+export const saveAISettings = (apiKey: string, model: string, provider: AIProvider) =>
   fetch(`${BASE}/settings/ai`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey, model }),
+    body: JSON.stringify({ api_key: apiKey, model, provider }),
   }).then(j<AISettings>);
 
 export const clearAISettings = () =>

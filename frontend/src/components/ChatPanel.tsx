@@ -56,6 +56,7 @@ export default function ChatPanel({ configured, onAsk, onConfigure }: Props) {
           {answer.citations.length > 0 && (
             <p className="mt-3 text-xs text-neutral-500">Sources: {answer.citations.map((citation, index) => `[${index + 1}] ${citation.source_title}`).join(" · ")}</p>
           )}
+          {answer.model && <p className="mt-2 text-xs text-neutral-500">Answered by {answer.model}</p>}
         </div>
       )}
     </section>
