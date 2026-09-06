@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { AIProvider } from "../api";
 import Spinner from "./Spinner";
+import { useMountTransition } from "../useMountTransition";
 
 interface Props {
   open: boolean;
@@ -43,11 +44,12 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
     }).catch((err) => setError(err instanceof Error ? err.message : "could not load settings"));
   }, [open]);
 
-  if (!open) return null;
+  const mounted = useMountTransition(open, 150);
+  if (!mounted) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-page-in">
-      <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl animate-pop-in">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 ${open ? "animate-page-in" : "animate-fade-out pointer-events-none"}`}>
+      <div className={`w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-semibold">Optional AI</h2>
