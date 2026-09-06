@@ -29,10 +29,10 @@ def ingest_bytes(
     return _persist(store, notebook_id, _title_from(filename), kind, pages)
 
 
-def ingest_text(store: Store, notebook_id: str, title: str, text: str) -> Source:
+def ingest_text(store: Store, notebook_id: str, title: str, text: str, extra_meta: dict | None = None) -> Source:
     """Store pasted text as a single-page source."""
     return _persist(store, notebook_id, title.strip() or "Pasted note", "paste",
-                    [Page(number=1, text=text.strip())])
+                    [Page(number=1, text=text.strip())], extra_meta=extra_meta)
 
 
 def ingest_url(store: Store, notebook_id: str, url: str) -> Source:

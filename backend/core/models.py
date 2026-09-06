@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -128,4 +128,47 @@ class Citation(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     citations: list[Citation]
+    model: str | None = None
+
+
+_StrQuery = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class ResearchPlanRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=300)
+
+
+class ResearchPlanResponse(BaseModel):
+    topic: str
+    queries: list[str]
+    origin: Literal["ai", "heuristic"]
+
+
+class ResearchGatherRequest(BaseModel):
+    queries: list[_StrQuery] = Field(min_length=1, max_length=6)
+    per_query: int = Field(default=6, ge=3, le=10)
+
+
+class ResearchCandidate(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    score: int
+    matched_queries: list[str]
+
+
+class ResearchGatherResponse(BaseModel):
+    candidates: list[ResearchCandidate]
+    failed_queries: list[str]
+
+
+class ResearchSynthesizeRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=300)
+    queries: list[_StrQuery] = Field(default_factory=list, max_length=6)
+    source_ids: list[str] | None = None
+
+
+class ResearchSynthesisResponse(BaseModel):
+    source: SourceSummary
+    origin: Literal["ai", "digest"]
     model: str | None = None
