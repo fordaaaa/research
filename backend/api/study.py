@@ -9,8 +9,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from api.deps import get_store, notebook_or_404, safe_id
+from api.sources import _summary
+from core import ingest, study as study_core
 from core.models import CardCreate, CardUpdate, Flashcard, utcnow
-from core.store import new_id
+from core.store import Store, new_id
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -30,6 +32,18 @@ def _get_card(store, notebook_id: str, card_id: str) -> Flashcard:
     if card is None:
         raise HTTPException(status_code=404, detail="card not found")
     return card
+
+
+def _study_sources(store: Store, notebook_id: str) -> list:
+    summaries = store.list_sources(notebook_id)
+    sources = []
+    for summary in summaries:
+        source = store.get_source(notebook_id, summary.id)
+        if source:
+            sources.append(source)
+    if not sources:
+        raise HTTPException(status_code=400, detail="add a source before studying")
+    return sources
 
 
 def register(app: FastAPI) -> None:
@@ -83,7 +97,6 @@ def register(app: FastAPI) -> None:
 
     @app.get("/api/notebooks/{notebook_id}/cards/export")
     def export_cards(notebook_id: str):
-        """Download the deck as tab-separated values (imports straight into Anki)."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
         notebook = notebook_or_404(store, notebook_id)
@@ -97,4 +110,48 @@ def register(app: FastAPI) -> None:
             "\n".join(lines) + "\n",
             media_type="text/tab-separated-values",
             headers={"Content-Disposition": f'attachment; filename="{filename}-flashcards.tsv"'},
+        )
+
+    @app.get("/api/notebooks/{notebook_id}/guide")
+    def get_guide(notebook_id: str):
+        """Build a one-page study guide from the notebook's own sources."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook = notebook_or_404(store, notebook_id)
+        return {"markdown": study_core.build_study_guide(notebook.name, _study_sources(store, notebook_id))}
+
+    @app.post("/api/notebooks/{notebook_id}/guide", status_code=201)
+    def save_guide(notebook_id: str):
+        """Save the study guide as a notebook source so it exports with everything."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook = notebook_or_404(store, notebook_id)
+        sources = _study_sources(store, notebook_id)
+        markdown = study_core.build_study_guide(notebook.name, sources)
+        source = ingest.ingest_text(
+            store, notebook_id, f"Study guide: {notebook.name}", markdown,
+            extra_meta={"study_guide": True, "origin": "keyless"},
+        )
+        return {"source": _summary(source)}
+
+    @app.get("/api/notebooks/{notebook_id}/mindmap")
+    def get_mindmap(notebook_id: str):
+        """Notebook → sources → key-terms tree for the map UI."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook = notebook_or_404(store, notebook_id)
+        return study_core.build_mindmap(notebook.name, _study_sources(store, notebook_id))
+
+    @app.get("/api/notebooks/{notebook_id}/mindmap/export")
+    def export_mindmap(notebook_id: str):
+        """Download the mind map as a markdown outline."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook = notebook_or_404(store, notebook_id)
+        tree = study_core.build_mindmap(notebook.name, _study_sources(store, notebook_id))
+        filename = "".join(c if c.isalnum() else "-" for c in notebook.name).strip("-") or "mindmap"
+        return PlainTextResponse(
+            study_core.mindmap_markdown(tree),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}-mindmap.md"'},
         )

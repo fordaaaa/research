@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
-import type { Flashcard } from "../api";
+import type { Flashcard, MindmapNode } from "../api";
 import Spinner from "./Spinner";
-import { Button, Card, EmptyState, SectionHeader } from "./ui";
+import { Button, Card, EmptyState, SectionHeader, Tabs } from "./ui";
 import { inputCls } from "./ui";
 
 interface Props {
   notebookId: string;
+  onSourcesChanged: () => void;
 }
+
+type Section = "cards" | "guide" | "map";
 
 function shuffled<T>(items: T[]): T[] {
   const copy = [...items];
@@ -18,7 +21,8 @@ function shuffled<T>(items: T[]): T[] {
   return copy;
 }
 
-export default function StudyPanel({ notebookId }: Props) {
+export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
+  const [section, setSection] = useState<Section>("cards");
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
@@ -76,6 +80,17 @@ export default function StudyPanel({ notebookId }: Props) {
 
   return (
     <div className="space-y-5 animate-pop-in">
+      <Tabs
+        options={[
+          { value: "cards", label: "Flashcards" },
+          { value: "guide", label: "Study guide" },
+          { value: "map", label: "Mind map" },
+        ]}
+        value={section}
+        onChange={setSection}
+      />
+      {section === "cards" && (
+        <>
       <Card className="p-5">
         <SectionHeader
           title="Practice"
@@ -163,6 +178,132 @@ export default function StudyPanel({ notebookId }: Props) {
           </ul>
         )}
       </Card>
+        </>
+      )}
+      {section === "guide" && <GuideSection notebookId={notebookId} onSourcesChanged={onSourcesChanged} />}
+      {section === "map" && <MindmapSection notebookId={notebookId} />}
     </div>
+  );
+}
+
+function GuideSection({ notebookId, onSourcesChanged }: { notebookId: string; onSourcesChanged: () => void }) {
+  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const generate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setMarkdown((await api.getGuide(notebookId)).markdown);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "could not build guide");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="p-5 animate-pop-in">
+      <SectionHeader
+        title="Study guide"
+        sub="A one-page guide built from your sources: key terms, per-source points, self-test prompts. No key needed."
+      />
+      {!markdown ? (
+        <div className="mt-3">
+          <Button onClick={generate} disabled={busy}>
+            {busy && <Spinner size={13} />}
+            {busy ? "Building" : "Build guide"}
+          </Button>
+          {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">{markdown}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                await api.saveGuide(notebookId);
+                setSaved(true);
+                onSourcesChanged();
+                setTimeout(() => setSaved(false), 2000);
+              }}
+            >
+              Save as source
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await navigator.clipboard.writeText(markdown).catch(() => undefined);
+              }}
+            >
+              Copy
+            </Button>
+            {saved && <span className="text-xs text-emerald-400">Saved — it exports with your notebook</span>}
+          </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function MindmapSection({ notebookId }: { notebookId: string }) {
+  const [tree, setTree] = useState<MindmapNode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTree(null);
+    setError(null);
+    api.getMindmap(notebookId)
+      .then(setTree)
+      .catch((err) => setError(err instanceof Error ? err.message : "could not build map"));
+  }, [notebookId]);
+
+  return (
+    <Card className="p-5 animate-pop-in">
+      <SectionHeader
+        title="Mind map"
+        sub="Your notebook as a tree: sources branching into their key terms. No key needed."
+        right={tree ? <a className="text-xs text-neutral-400 underline hover:text-white" href={api.exportMindmapUrl(notebookId)} download>Export (.md)</a> : undefined}
+      />
+      <div className="mt-3">
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        {!error && !tree && (
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <Spinner /> Growing branches…
+          </div>
+        )}
+        {tree && (
+          <ul className="space-y-1.5">
+            {tree.children?.map((branch) => (
+              <li key={branch.name}>
+                <details className="group rounded-xl border border-neutral-800 bg-neutral-900/60" open>
+                  <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                    <span className="mr-2 inline-block text-neutral-600 transition-transform group-open:rotate-90">▸</span>
+                    {branch.name}
+                  </summary>
+                  <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                    {(branch.children ?? []).map((leaf) => (
+                      <span key={leaf.name} className="rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300">
+                        {leaf.name}
+                      </span>
+                    ))}
+                    {(branch.children ?? []).length === 0 && (
+                      <span className="text-xs text-neutral-600">no key terms found</span>
+                    )}
+                  </div>
+                </details>
+              </li>
+            ))}
+            {(tree.children ?? []).length === 0 && (
+              <EmptyState title="Nothing to map yet." hint="Add a source and the branches grow themselves." />
+            )}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 }

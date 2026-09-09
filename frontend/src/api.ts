@@ -376,3 +376,19 @@ export const deleteCard = (notebookId: string, cardId: string) =>
   });
 
 export const exportCardsUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/cards/export`;
+
+export const getGuide = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/guide`).then(j<{ markdown: string }>);
+
+export const saveGuide = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/guide`, { method: "POST" }).then(j<{ source: SourceSummary }>);
+
+export interface MindmapNode {
+  name: string;
+  children?: MindmapNode[];
+}
+
+export const getMindmap = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/mindmap`).then(j<MindmapNode>);
+
+export const exportMindmapUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/mindmap/export`;

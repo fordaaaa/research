@@ -51,3 +51,42 @@ def test_cards_export_tsv(client):
     assert "attachment" in response.headers["content-disposition"]
     assert response.text.splitlines()[0] == "Front\tBack\tTags"
     assert "Q1\tA1\tbio" in response.text
+
+
+def test_guide_requires_sources(client):
+    nb = _nb(client)
+    assert client.get(f"/api/notebooks/{nb['id']}/guide").status_code == 400
+    assert client.get(f"/api/notebooks/{nb['id']}/mindmap").status_code == 400
+
+
+def test_guide_builds_from_sources(client):
+    nb = _nb(client)
+    client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Mitosis", "text": "Mitosis divides the nucleus. Chromosomes condense in prophase."},
+    )
+    guide = client.get(f"/api/notebooks/{nb['id']}/guide").json()["markdown"]
+    assert "Study guide" in guide
+    assert "Mitosis" in guide
+    assert "Self-test" in guide
+
+    saved = client.post(f"/api/notebooks/{nb['id']}/guide")
+    assert saved.status_code == 201
+    assert saved.json()["source"]["title"].startswith("Study guide:")
+
+
+def test_mindmap_structure_and_export(client):
+    nb = _nb(client)
+    client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Mitosis", "text": "Mitosis divides the nucleus. Chromosomes condense in prophase."},
+    )
+    tree = client.get(f"/api/notebooks/{nb['id']}/mindmap").json()
+    assert tree["name"] == "Study"
+    assert tree["children"][0]["name"] == "Mitosis"
+    assert tree["children"][0]["children"]
+
+    exported = client.get(f"/api/notebooks/{nb['id']}/mindmap/export")
+    assert exported.status_code == 200
+    assert "attachment" in exported.headers["content-disposition"]
+    assert "- Mitosis" in exported.text
