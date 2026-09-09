@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "./api";
-import type { Notebook, SourceSummary } from "./api";
+import type { Notebook, SourceSummary, User } from "./api";
+import AuthPanel from "./components/AuthPanel";
 import NotebookPicker from "./components/NotebookPicker";
 import UploadZone from "./components/UploadZone";
 import SourceList from "./components/SourceList";
@@ -36,6 +37,8 @@ export default function App() {
   const [aiConfigured, setAIConfigured] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [readingId, setReadingId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const refreshNotebooks = useCallback(async () => {
     try {
@@ -55,12 +58,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
     refreshNotebooks();
-  }, [refreshNotebooks]);
+  }, [user, refreshNotebooks]);
 
   useEffect(() => {
-    api.getAISettings().then((settings) => setAIConfigured(settings.configured)).catch(() => setAIConfigured(false));
+    if (!api.getToken()) {
+      setAuthReady(true);
+      return;
+    }
+    api.me()
+      .then(setUser)
+      .catch(() => api.clearToken())
+      .finally(() => setAuthReady(true));
+    const onUnauthorized = () => {
+      setUser(null);
+      setNotebook(null);
+      setSources([]);
+      setNotebooks([]);
+    };
+    window.addEventListener("research:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("research:unauthorized", onUnauthorized);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    api.getAISettings().then((settings) => setAIConfigured(settings.configured)).catch(() => setAIConfigured(false));
+  }, [user]);
 
   useEffect(() => {
     if (notebook) {
@@ -70,6 +94,19 @@ export default function App() {
   }, [notebook, refreshSources]);
 
   const openNotebook = (nb: Notebook) => setNotebook(nb);
+
+  const logOut = async () => {
+    try {
+      await api.logout();
+    } catch {
+      api.clearToken();
+    }
+    setUser(null);
+    setNotebook(null);
+    setSources([]);
+    setNotebooks([]);
+    setAIConfigured(false);
+  };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
@@ -93,6 +130,17 @@ export default function App() {
         )}
         <div className="ml-auto flex items-center gap-2">
           {!backendUp && <Badge tone="warn">backend not reachable</Badge>}
+          {user && (
+            <>
+              <span className="hidden max-w-40 truncate text-xs text-neutral-500 sm:inline">{user.email}</span>
+              <button
+                className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100"
+                onClick={logOut}
+              >
+                Log out
+              </button>
+            </>
+          )}
           <button
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${aiConfigured ? "bg-emerald-950 text-emerald-300 hover:bg-emerald-900" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`}
             onClick={() => setShowSettings(true)}
@@ -102,7 +150,13 @@ export default function App() {
         </div>
       </header>
 
-      {!notebook ? (
+      {!authReady ? (
+        <main className="flex-1 overflow-y-auto p-8">
+          <p className="text-center text-sm text-neutral-500">Loading…</p>
+        </main>
+      ) : !user ? (
+        <AuthPanel onAuthed={setUser} />
+      ) : !notebook ? (
         <NotebookPicker
           notebooks={notebooks}
           onOpen={openNotebook}

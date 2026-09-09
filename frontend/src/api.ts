@@ -55,7 +55,35 @@ export interface UploadError {
   detail: string;
 }
 
+export interface User {
+  id: string;
+  email: string;
+}
+
+export interface AuthResult {
+  user: User;
+  token: string;
+}
+
+const TOKEN_KEY = "research_token";
+
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (token: string) => localStorage.setItem(TOKEN_KEY, token);
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return fetch(path, { ...init, headers });
+}
+
 async function j<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event("research:unauthorized"));
+    throw new Error("login required");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null) as { detail?: string } | null;
     throw new Error(body?.detail || `${res.status} ${res.statusText}`);
@@ -63,38 +91,60 @@ async function j<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export const register = (email: string, password: string) =>
+  apiFetch(`${BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  }).then(j<AuthResult>);
+
+export const login = (email: string, password: string) =>
+  apiFetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  }).then(j<AuthResult>);
+
+export const logout = () =>
+  apiFetch(`${BASE}/auth/logout`, { method: "POST" }).then((r) => {
+    clearToken();
+    if (!r.ok && r.status !== 401) throw new Error(`${r.status} ${r.statusText}`);
+  });
+
+export const me = () => apiFetch(`${BASE}/auth/me`).then(j<User>);
+
 const BASE = "/api";
 
-export const listNotebooks = () => fetch(`${BASE}/notebooks`).then(j<Notebook[]>);
+export const listNotebooks = () => apiFetch(`${BASE}/notebooks`).then(j<Notebook[]>);
 
 export const createNotebook = (name: string) =>
-  fetch(`${BASE}/notebooks`, {
+  apiFetch(`${BASE}/notebooks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   }).then(j<Notebook>);
 
 export const deleteNotebook = (id: string) =>
-  fetch(`${BASE}/notebooks/${id}`, { method: "DELETE" }).then((r) => {
+  apiFetch(`${BASE}/notebooks/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
 export const exportNotebookUrl = (id: string) => `${BASE}/notebooks/${id}/export`;
 
 export const listSources = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/sources`).then(j<SourceSummary[]>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/sources`).then(j<SourceSummary[]>);
 
 export const uploadFiles = (notebookId: string, files: File[]) => {
   const form = new FormData();
   files.forEach((f) => form.append("files", f));
-  return fetch(`${BASE}/notebooks/${notebookId}/sources`, {
+  return apiFetch(`${BASE}/notebooks/${notebookId}/sources`, {
     method: "POST",
     body: form,
   }).then(j<{ sources: SourceSummary[]; errors: UploadError[] }>);
 };
 
 export const addPaste = (notebookId: string, title: string, text: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/sources/text`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/sources/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, text }),
@@ -103,7 +153,7 @@ export const addPaste = (notebookId: string, title: string, text: string) =>
   });
 
 export const addUrl = (notebookId: string, url: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/sources/url`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/sources/url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
@@ -115,35 +165,35 @@ export interface SourceDetail extends SourceSummary {
 }
 
 export const getSource = (id: string) =>
-  fetch(`${BASE}/sources/${id}`).then(j<SourceDetail>);
+  apiFetch(`${BASE}/sources/${id}`).then(j<SourceDetail>);
 
 export const deleteSource = (id: string) =>
-  fetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
+  apiFetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
 export const createDemo = () =>
-  fetch(`${BASE}/demo`, { method: "POST" }).then(j<Notebook>);
+  apiFetch(`${BASE}/demo`, { method: "POST" }).then(j<Notebook>);
 
 export const search = (notebookId: string, q: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`).then(
+  apiFetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`).then(
     j<SearchHit[]>
   );
 
 export const searchWeb = (q: string) =>
-  fetch(`${BASE}/web/search?q=${encodeURIComponent(q)}`).then(j<WebSearchResult[]>);
+  apiFetch(`${BASE}/web/search?q=${encodeURIComponent(q)}`).then(j<WebSearchResult[]>);
 
-export const getAISettings = () => fetch(`${BASE}/settings/ai`).then(j<AISettings>);
+export const getAISettings = () => apiFetch(`${BASE}/settings/ai`).then(j<AISettings>);
 
 export const saveAISettings = (apiKey: string, model: string, provider: AIProvider) =>
-  fetch(`${BASE}/settings/ai`, {
+  apiFetch(`${BASE}/settings/ai`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_key: apiKey, model, provider }),
   }).then(j<AISettings>);
 
 export const clearAISettings = () =>
-  fetch(`${BASE}/settings/ai`, { method: "DELETE" }).then((res) => {
+  apiFetch(`${BASE}/settings/ai`, { method: "DELETE" }).then((res) => {
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   });
 
@@ -173,28 +223,28 @@ export interface ResearchSynthesis {
 }
 
 export const planResearch = (notebookId: string, topic: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/research/plan`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/research/plan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topic }),
   }).then(j<ResearchPlan>);
 
 export const gatherResearch = (notebookId: string, queries: string[]) =>
-  fetch(`${BASE}/notebooks/${notebookId}/research/gather`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/research/gather`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ queries }),
   }).then(j<ResearchGather>);
 
 export const synthesizeResearch = (notebookId: string, body: { topic: string; queries: string[] }) =>
-  fetch(`${BASE}/notebooks/${notebookId}/research/synthesize`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/research/synthesize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<ResearchSynthesis>);
 
 export const askNotebook = (notebookId: string, message: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/chat`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),
@@ -246,43 +296,43 @@ export interface OutlineReport {
 }
 
 export const listOutlines = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines`).then(j<ResearchOutline[]>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines`).then(j<ResearchOutline[]>);
 
 export const createOutline = (notebookId: string, body: { topic: string; items: { label: string }[]; fields: { label: string }[] }) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<ResearchOutline>);
 
 export const updateOutline = (notebookId: string, outlineId: string, body: { topic?: string; items?: OutlineItem[]; fields?: OutlineField[] }) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<ResearchOutline>);
 
 export const deleteOutline = (notebookId: string, outlineId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, { method: "DELETE" }).then((r) => {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
 export const draftOutline = (notebookId: string, topic: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines/draft`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/draft`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topic }),
   }).then(j<OutlineDraft>);
 
 export const deepOutline = (notebookId: string, outlineId: string, perItem = 4) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/deep`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/deep`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ per_item: perItem }),
   }).then(j<OutlineDeep>);
 
 export const reportOutline = (notebookId: string, outlineId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/report`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/report`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -306,14 +356,14 @@ export interface HumanizeRewrite {
 }
 
 export const analyzeHumanize = (text: string) =>
-  fetch(`${BASE}/humanize/analyze`, {
+  apiFetch(`${BASE}/humanize/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
   }).then(j<HumanizeAnalysis>);
 
 export const rewriteHumanize = (text: string, voiceSample?: string) =>
-  fetch(`${BASE}/humanize/rewrite`, {
+  apiFetch(`${BASE}/humanize/rewrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(voiceSample ? { text, voice_sample: voiceSample } : { text }),
@@ -328,25 +378,25 @@ export interface Skill {
   updated_at: string;
 }
 
-export const listSkills = () => fetch(`${BASE}/skills`).then(j<Skill[]>);
+export const listSkills = () => apiFetch(`${BASE}/skills`).then(j<Skill[]>);
 
 export const createSkill = (body: { name: string; instructions: string; triggers: string[] }) =>
-  fetch(`${BASE}/skills`, {
+  apiFetch(`${BASE}/skills`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<Skill>);
 
 export const deleteSkill = (id: string) =>
-  fetch(`${BASE}/skills/${id}`, { method: "DELETE" }).then((r) => {
+  apiFetch(`${BASE}/skills/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
 export const getMemory = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/memory`).then(j<{ notes: string }>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/memory`).then(j<{ notes: string }>);
 
 export const saveMemory = (notebookId: string, notes: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/memory`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/memory`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ notes }),
@@ -363,27 +413,27 @@ export interface Flashcard {
 }
 
 export const listCards = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/cards`).then(j<Flashcard[]>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards`).then(j<Flashcard[]>);
 
 export const createCard = (notebookId: string, body: { front: string; back: string }) =>
-  fetch(`${BASE}/notebooks/${notebookId}/cards`, {
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<Flashcard>);
 
 export const deleteCard = (notebookId: string, cardId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then((r) => {
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
 export const exportCardsUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/cards/export`;
 
 export const getGuide = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/guide`).then(j<{ markdown: string }>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/guide`).then(j<{ markdown: string }>);
 
 export const saveGuide = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/guide`, { method: "POST" }).then(j<{ source: SourceSummary }>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/guide`, { method: "POST" }).then(j<{ source: SourceSummary }>);
 
 export interface MindmapNode {
   name: string;
@@ -391,6 +441,6 @@ export interface MindmapNode {
 }
 
 export const getMindmap = (notebookId: string) =>
-  fetch(`${BASE}/notebooks/${notebookId}/mindmap`).then(j<MindmapNode>);
+  apiFetch(`${BASE}/notebooks/${notebookId}/mindmap`).then(j<MindmapNode>);
 
 export const exportMindmapUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/mindmap/export`;
