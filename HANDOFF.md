@@ -104,6 +104,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 ## Testing
 
 - `backend/tests/` — `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes a `client` fixture. Coverage: parsers, chunker, search, store-search, API, fetcher, export.
+- `showcase/` (gitignored) — panoply-showcase-skill workflow: scripted Chromium beat run (9/9 passing, 0 console errors) + Remotion edit → `out/research-showcase.mp4` (49.5s, H.264/yuv420p). See `showcase/README.md` to re-run.
 - Build checks: `cd backend && uv run pytest`; `cd frontend && npm run build`; then `sh scripts/build_macos_app.sh` for the arm64 app bundle and sidecar smoke test.
 
 ## Next milestones
