@@ -35,6 +35,3 @@ data/
 
 # codex local config (yolo/auto-approve) — do not commit
 .codex/
-
-# showcase video build area (frames, renders, scratch browser driver)
-showcase/
