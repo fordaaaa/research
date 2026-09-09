@@ -2,10 +2,10 @@
 skills and memory only reach a provider inside the AI endpoints that use them."""
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from api.deps import get_store, notebook_or_404, safe_id
-from core.models import MemoryResponse, MemoryUpdate, Skill, SkillCreate, SkillUpdate, utcnow
+from api.deps import get_current_user, get_store, notebook_or_404, safe_id
+from core.models import MemoryResponse, MemoryUpdate, Skill, SkillCreate, SkillUpdate, User, utcnow
 from core.store import new_id
 
 
@@ -22,14 +22,15 @@ def _clean_triggers(triggers: list[str]) -> list[str]:
 
 def register(app: FastAPI) -> None:
     @app.get("/api/skills", response_model=list[Skill])
-    def list_skills():
-        return get_store(app).list_skills()
+    def list_skills(user: User = Depends(get_current_user)):
+        return get_store(app).list_skills(user.id)
 
     @app.post("/api/skills", response_model=Skill, status_code=201)
-    def create_skill(body: SkillCreate):
+    def create_skill(body: SkillCreate, user: User = Depends(get_current_user)):
         now = utcnow()
         skill = Skill(
             id=new_id(),
+            user_id=user.id,
             name=body.name.strip(),
             instructions=body.instructions.strip(),
             triggers=_clean_triggers(body.triggers),
@@ -39,18 +40,18 @@ def register(app: FastAPI) -> None:
         return get_store(app).save_skill(skill)
 
     @app.get("/api/skills/{skill_id}", response_model=Skill)
-    def get_skill(skill_id: str):
+    def get_skill(skill_id: str, user: User = Depends(get_current_user)):
         skill_id = safe_id(skill_id, "skill_id")
-        skill = get_store(app).get_skill(skill_id)
+        skill = get_store(app).get_skill(user.id, skill_id)
         if skill is None:
             raise HTTPException(status_code=404, detail="skill not found")
         return skill
 
     @app.patch("/api/skills/{skill_id}", response_model=Skill)
-    def update_skill(skill_id: str, body: SkillUpdate):
+    def update_skill(skill_id: str, body: SkillUpdate, user: User = Depends(get_current_user)):
         skill_id = safe_id(skill_id, "skill_id")
         store = get_store(app)
-        skill = store.get_skill(skill_id)
+        skill = store.get_skill(user.id, skill_id)
         if skill is None:
             raise HTTPException(status_code=404, detail="skill not found")
         if body.name is not None:
@@ -63,21 +64,21 @@ def register(app: FastAPI) -> None:
         return store.save_skill(skill)
 
     @app.delete("/api/skills/{skill_id}", status_code=204)
-    def delete_skill(skill_id: str):
+    def delete_skill(skill_id: str, user: User = Depends(get_current_user)):
         skill_id = safe_id(skill_id, "skill_id")
-        if not get_store(app).delete_skill(skill_id):
+        if not get_store(app).delete_skill(user.id, skill_id):
             raise HTTPException(status_code=404, detail="skill not found")
 
     @app.get("/api/notebooks/{notebook_id}/memory", response_model=MemoryResponse)
-    def get_memory(notebook_id: str):
+    def get_memory(notebook_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         return MemoryResponse(notes=store.get_memory(notebook_id))
 
     @app.put("/api/notebooks/{notebook_id}/memory", response_model=MemoryResponse)
-    def put_memory(notebook_id: str, body: MemoryUpdate):
+    def put_memory(notebook_id: str, body: MemoryUpdate, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         return MemoryResponse(notes=store.set_memory(notebook_id, body.notes))

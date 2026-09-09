@@ -1,153 +1,352 @@
+"""SQLite-backed storage for users, notebooks, sources, and study data.
+
+Single-user JSON files are gone (see scripts/migrate_json_to_sqlite.py for the
+one-shot import). Every row belongs to a user; routes enforce ownership before
+touching notebook-scoped data. Swapping this class's internals must not change
+its interface (see AGENTS.md).
+"""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
-import shutil
-import uuid
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from core.models import (
+    AISettings,
+    AISettingsUpdate,
     Flashcard,
     Notebook,
+    OutlineField,
+    OutlineItem,
     ResearchOutline,
     SearchHit,
     Skill,
     Source,
     SourceSummary,
+    User,
     utcnow,
 )
 from core.search import EmptyQuery, parse_query, score_chunk, stemmed_words
 
 
 def new_id() -> str:
-    return uuid.uuid4().hex[:12]
+    return secrets.token_hex(6)
 
 
-def _read_json(path: Path, default: Any) -> Any:
+SESSION_DAYS = 30
+_PBKDF2_ITERATIONS = 600_000
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PBKDF2_ITERATIONS)
+    return f"pbkdf2${_PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return default
+        _, iterations, salt_hex, digest_hex = stored.split("$")
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations)
+        )
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def _session_token() -> tuple[str, str]:
+    raw = secrets.token_urlsafe(32)
+    return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    pw_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notebooks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notebooks_user ON notebooks(user_id);
+CREATE TABLE IF NOT EXISTS sources (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    meta TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    body TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_sources_notebook ON sources(notebook_id);
+CREATE TABLE IF NOT EXISTS outlines (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    topic TEXT NOT NULL,
+    items TEXT NOT NULL DEFAULT '[]',
+    fields TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cards (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    triggers TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS memory (
+    notebook_id TEXT PRIMARY KEY REFERENCES notebooks(id) ON DELETE CASCADE,
+    notes TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS ai_settings (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    api_key TEXT NOT NULL,
+    model TEXT NOT NULL
+);
+"""
 
 
 class Store:
-    """JSON-file-backed storage for notebooks, sources, and search.
-
-    Deliberately not SQLite — see AGENTS.md. Swapping this class's internals
-    (e.g. to SQLite FTS5) must not change its interface.
-    """
-
     def __init__(self, root: Path | None = None) -> None:
         env = os.environ.get("RESEARCH_DATA_DIR")
-        self.root = Path(env) if env else Path(__file__).resolve().parents[1] / "data"
-        self.notebooks_dir = self.root / "notebooks"
-        self.notebooks_dir.mkdir(parents=True, exist_ok=True)
-        self._index_path = self.root / "notebooks.json"
-        self._refresh_indexes()
+        if root is not None:
+            self.root = Path(root)
+        elif env:
+            self.root = Path(env)
+        else:
+            self.root = Path(__file__).resolve().parents[1] / "data"
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.db_path = self.root / "app.db"
+        with self._connect() as con:
+            con.executescript(_SCHEMA)
 
-    def _refresh_indexes(self) -> None:
-        """Reload notebooks.json and rebuild the in-memory id indexes."""
-        rows = self._load_index()
-        self._by_id: dict[str, dict] = {r["id"]: r for r in rows}
-        self._source_index: dict[str, str] = {}  # source_id -> notebook_id
-        for r in rows:
-            meta = _read_json(self._meta_path(r["id"]), {})
-            for s in meta.get("sources", []):
-                if "id" in s:
-                    self._source_index[s["id"]] = r["id"]
+    def _connect(self):
+        import sqlite3
 
-    # ---------- low-level helpers ----------
+        con = sqlite3.connect(str(self.db_path), timeout=30)
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA foreign_keys=ON")
+        return con
 
-    @staticmethod
-    def _write_json(path: Path, data: Any) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-        os.replace(tmp, path)
+    # ---------- users & sessions ----------
 
-    def _nb_dir(self, notebook_id: str) -> Path:
-        return self.notebooks_dir / notebook_id
+    def create_user(self, email: str, password: str) -> User:
+        user = User(id=new_id(), email=email.strip().lower(), created_at=utcnow())
+        try:
+            with self._connect() as con:
+                con.execute(
+                    "INSERT INTO users (id, email, pw_hash, created_at) VALUES (?, ?, ?, ?)",
+                    (user.id, user.email, hash_password(password), user.created_at.isoformat()),
+                )
+        except Exception as exc:
+            if "UNIQUE" in str(exc):
+                raise ValueError("email already registered") from exc
+            raise
+        return user
 
-    def _meta_path(self, notebook_id: str) -> Path:
-        return self._nb_dir(notebook_id) / "meta.json"
+    def get_user(self, user_id: str) -> User | None:
+        with self._connect() as con:
+            row = con.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return _user_from_row(row) if row else None
 
-    def _source_path(self, notebook_id: str, source_id: str) -> Path:
-        return self._nb_dir(notebook_id) / f"{source_id}.json"
+    def get_user_by_email(self, email: str) -> tuple[User, str] | None:
+        """Return (user, pw_hash) for login; None if unknown."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM users WHERE email = ?", (email.strip().lower(),)
+            ).fetchone()
+        if not row:
+            return None
+        return _user_from_row(row), row["pw_hash"]
 
-    def _load_index(self) -> list[dict]:
-        return _read_json(self._index_path, [])
+    def create_session(self, user_id: str) -> tuple[str, datetime]:
+        raw, digest = _session_token()
+        now = utcnow()
+        expires = now + timedelta(days=SESSION_DAYS)
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO sessions (token_hash, user_id, created_at, expires_at)"
+                " VALUES (?, ?, ?, ?)",
+                (digest, user_id, now.isoformat(), expires.isoformat()),
+            )
+        return raw, expires
 
-    def _save_index(self, rows: list[dict]) -> None:
-        self._write_json(self._index_path, rows)
+    def get_session_user(self, token: str) -> User | None:
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT u.* FROM users u JOIN sessions s ON s.user_id = u.id"
+                " WHERE s.token_hash = ? AND s.expires_at > ?",
+                (digest, utcnow().isoformat()),
+            ).fetchone()
+        return _user_from_row(row) if row else None
+
+    def delete_session(self, token: str) -> None:
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        with self._connect() as con:
+            con.execute("DELETE FROM sessions WHERE token_hash = ?", (digest,))
+
+    # ---------- AI settings (per user) ----------
+
+    def get_ai_settings(self, user_id: str) -> AISettings:
+        from core.models import AI_DEFAULT_MODELS  # noqa: PLC0415
+
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM ai_settings WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        if not row or not row["api_key"]:
+            return AISettings(configured=False)
+        provider = row["provider"] if row["provider"] in ("gemini", "openrouter") else "gemini"
+        model = row["model"] or AI_DEFAULT_MODELS[provider]
+        return AISettings(configured=True, provider=provider, model=model)  # type: ignore[arg-type]
+
+    def ai_key(self, user_id: str) -> str | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT api_key FROM ai_settings WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        return row["api_key"] if row and row["api_key"] else None
+
+    def save_ai_settings(self, user_id: str, body: AISettingsUpdate) -> AISettings:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO ai_settings (user_id, provider, api_key, model)"
+                " VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET provider=excluded.provider,"
+                " api_key=excluded.api_key, model=excluded.model",
+                (user_id, body.provider, body.api_key, body.model),
+            )
+        return AISettings(configured=True, provider=body.provider, model=body.model)
+
+    def clear_ai_settings(self, user_id: str) -> None:
+        with self._connect() as con:
+            con.execute("DELETE FROM ai_settings WHERE user_id = ?", (user_id,))
 
     # ---------- notebooks ----------
 
-    def list_notebooks(self) -> list[Notebook]:
-        rows = self._load_index()
-        return [Notebook.model_validate(r) for r in rows]
+    def list_notebooks(self, user_id: str) -> list[Notebook]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM notebooks WHERE user_id = ? ORDER BY created_at",
+                (user_id,),
+            ).fetchall()
+        return [_notebook_from_row(r) for r in rows]
 
-    def create_notebook(self, name: str) -> Notebook:
+    def create_notebook(self, user_id: str, name: str) -> Notebook:
         nb = Notebook(id=new_id(), name=name.strip(), created_at=utcnow())
-        rows = self._load_index()
-        rows.append(nb.model_dump(mode="json"))
-        self._save_index(rows)
-        self._write_json(self._meta_path(nb.id), {"sources": []})
-        self._by_id[nb.id] = nb.model_dump(mode="json")
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO notebooks (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
+                (nb.id, user_id, nb.name, nb.created_at.isoformat()),
+            )
         return nb
 
-    def get_notebook(self, notebook_id: str) -> Notebook | None:
-        row = self._by_id.get(notebook_id)
-        return Notebook.model_validate(row) if row else None
+    def get_notebook(self, user_id: str, notebook_id: str) -> Notebook | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM notebooks WHERE id = ? AND user_id = ?",
+                (notebook_id, user_id),
+            ).fetchone()
+        return _notebook_from_row(row) if row else None
 
-    def delete_notebook(self, notebook_id: str) -> bool:
-        rows = self._load_index()
-        kept = [r for r in rows if r.get("id") != notebook_id]
-        if len(kept) == len(rows):
-            return False
-        self._save_index(kept)
-        shutil.rmtree(self._nb_dir(notebook_id), ignore_errors=True)
-        self._by_id.pop(notebook_id, None)
-        for sid, nid in list(self._source_index.items()):
-            if nid == notebook_id:
-                self._source_index.pop(sid, None)
-        return True
+    def delete_notebook(self, user_id: str, notebook_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM notebooks WHERE id = ? AND user_id = ?",
+                (notebook_id, user_id),
+            )
+            return cur.rowcount > 0
 
     # ---------- sources ----------
 
-    def _load_meta(self, notebook_id: str) -> list[dict]:
-        return _read_json(self._meta_path(notebook_id), {}).get("sources", [])
-
-    def _save_meta(self, notebook_id: str, sources: list[dict]) -> None:
-        self._write_json(self._meta_path(notebook_id), {"sources": sources})
-
     def list_sources(self, notebook_id: str) -> list[SourceSummary]:
-        return [SourceSummary.model_validate(r) for r in self._load_meta(notebook_id)]
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT id, notebook_id, kind, title, tags, meta, created_at, chunk_count"
+                " FROM sources WHERE notebook_id = ? ORDER BY created_at",
+                (notebook_id,),
+            ).fetchall()
+        return [_summary_from_row(r) for r in rows]
 
     def create_source(self, source: Source) -> SourceSummary:
-        self._write_json(
-            self._source_path(source.notebook_id, source.id),
-            source.model_dump(mode="json"),
-        )
         summary = SourceSummary(
             **{k: v for k, v in source.model_dump().items() if k not in ("pages", "chunks")},
             chunk_count=len(source.chunks),
         )
-        sources = self._load_meta(source.notebook_id)
-        sources.append(summary.model_dump(mode="json"))
-        self._save_meta(source.notebook_id, sources)
-        self._source_index[source.id] = source.notebook_id
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO sources (id, notebook_id, kind, title, tags, meta,"
+                " created_at, chunk_count, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    source.id,
+                    source.notebook_id,
+                    source.kind,
+                    source.title,
+                    json.dumps(source.tags),
+                    json.dumps(source.meta),
+                    source.created_at.isoformat(),
+                    len(source.chunks),
+                    source.model_dump_json(),
+                ),
+            )
         return summary
 
     def get_source(self, notebook_id: str, source_id: str) -> Source | None:
-        data = _read_json(self._source_path(notebook_id, source_id), None)
-        return Source.model_validate(data) if data else None
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT body FROM sources WHERE id = ? AND notebook_id = ?",
+                (source_id, notebook_id),
+            ).fetchone()
+        return Source.model_validate_json(row["body"]) if row else None
 
     def find_source(self, source_id: str) -> Source | None:
-        notebook_id = self._source_index.get(source_id)
-        if notebook_id is None:
-            return None
-        return self.get_source(notebook_id, source_id)
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT body FROM sources WHERE id = ?", (source_id,)
+            ).fetchone()
+        return Source.model_validate_json(row["body"]) if row else None
+
+    def find_source_for_user(self, user_id: str, source_id: str) -> Source | None:
+        """Global lookup that refuses cross-user access."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT s.body FROM sources s JOIN notebooks n ON n.id = s.notebook_id"
+                " WHERE s.id = ? AND n.user_id = ?",
+                (source_id, user_id),
+            ).fetchone()
+        return Source.model_validate_json(row["body"]) if row else None
 
     def update_source(
         self,
@@ -157,7 +356,6 @@ class Store:
         title: str | None = None,
         tags: list[str] | None = None,
     ) -> Source | None:
-        """Rename and/or retag a source, persisting both the file and the index."""
         src = self.get_source(notebook_id, source_id)
         if not src:
             return None
@@ -165,160 +363,174 @@ class Store:
             src.title = title.strip()
         if tags is not None:
             src.tags = [t.strip().lower() for t in tags if t.strip()]
-        self._write_json(
-            self._source_path(notebook_id, source_id), src.model_dump(mode="json")
-        )
-        sources = self._load_meta(notebook_id)
-        changed = False
-        for s in sources:
-            if s.get("id") == source_id:
-                s["title"] = src.title
-                s["tags"] = src.tags
-                changed = True
-        if changed:
-            self._save_meta(notebook_id, sources)
+        with self._connect() as con:
+            con.execute(
+                "UPDATE sources SET title = ?, tags = ?, body = ?"
+                " WHERE id = ? AND notebook_id = ?",
+                (src.title, json.dumps(src.tags), src.model_dump_json(), source_id, notebook_id),
+            )
         return src
 
     def delete_source(self, notebook_id: str, source_id: str) -> bool:
-        sources = self._load_meta(notebook_id)
-        kept = [s for s in sources if s.get("id") != source_id]
-        if len(kept) == len(sources):
-            return False
-        self._save_meta(notebook_id, kept)
-        path = self._source_path(notebook_id, source_id)
-        if path.exists():
-            path.unlink()
-        self._source_index.pop(source_id, None)
-        return True
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM sources WHERE id = ? AND notebook_id = ?",
+                (source_id, notebook_id),
+            )
+            return cur.rowcount > 0
 
     # ---------- research outlines ----------
 
-    def _outlines_path(self, notebook_id: str) -> Path:
-        return self._nb_dir(notebook_id) / "outlines.json"
-
-    def _load_outlines(self, notebook_id: str) -> list[dict]:
-        return _read_json(self._outlines_path(notebook_id), [])
-
-    def _save_outlines(self, notebook_id: str, outlines: list[dict]) -> None:
-        self._write_json(self._outlines_path(notebook_id), outlines)
-
     def list_outlines(self, notebook_id: str) -> list[ResearchOutline]:
-        return [ResearchOutline.model_validate(r) for r in self._load_outlines(notebook_id)]
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM outlines WHERE notebook_id = ? ORDER BY created_at",
+                (notebook_id,),
+            ).fetchall()
+        return [_outline_from_row(r) for r in rows]
 
     def get_outline(self, notebook_id: str, outline_id: str) -> ResearchOutline | None:
-        for row in self._load_outlines(notebook_id):
-            if row.get("id") == outline_id:
-                return ResearchOutline.model_validate(row)
-        return None
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM outlines WHERE id = ? AND notebook_id = ?",
+                (outline_id, notebook_id),
+            ).fetchone()
+        return _outline_from_row(row) if row else None
 
     def save_outline(self, outline: ResearchOutline) -> ResearchOutline:
-        rows = self._load_outlines(outline.notebook_id)
-        payload = outline.model_dump(mode="json")
-        for index, row in enumerate(rows):
-            if row.get("id") == outline.id:
-                rows[index] = payload
-                break
-        else:
-            rows.append(payload)
-        self._save_outlines(outline.notebook_id, rows)
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO outlines (id, notebook_id, topic, items, fields, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET topic=excluded.topic, items=excluded.items,"
+                " fields=excluded.fields, updated_at=excluded.updated_at",
+                (
+                    outline.id,
+                    outline.notebook_id,
+                    outline.topic,
+                    json.dumps([i.model_dump() for i in outline.items]),
+                    json.dumps([f.model_dump() for f in outline.fields]),
+                    outline.created_at.isoformat(),
+                    outline.updated_at.isoformat(),
+                ),
+            )
         return outline
 
     def delete_outline(self, notebook_id: str, outline_id: str) -> bool:
-        rows = self._load_outlines(notebook_id)
-        kept = [r for r in rows if r.get("id") != outline_id]
-        if len(kept) == len(rows):
-            return False
-        self._save_outlines(notebook_id, kept)
-        return True
-
-    # ---------- skills library (global) ----------
-
-    def _skills_path(self) -> Path:
-        return self.root / "skills.json"
-
-    def _load_skills(self) -> list[dict]:
-        return _read_json(self._skills_path(), [])
-
-    def list_skills(self) -> list[Skill]:
-        return [Skill.model_validate(r) for r in self._load_skills()]
-
-    def get_skill(self, skill_id: str) -> Skill | None:
-        for row in self._load_skills():
-            if row.get("id") == skill_id:
-                return Skill.model_validate(row)
-        return None
-
-    def save_skill(self, skill: Skill) -> Skill:
-        rows = self._load_skills()
-        payload = skill.model_dump(mode="json")
-        for index, row in enumerate(rows):
-            if row.get("id") == skill.id:
-                rows[index] = payload
-                break
-        else:
-            rows.append(payload)
-        self._write_json(self._skills_path(), rows)
-        return skill
-
-    def delete_skill(self, skill_id: str) -> bool:
-        rows = self._load_skills()
-        kept = [r for r in rows if r.get("id") != skill_id]
-        if len(kept) == len(rows):
-            return False
-        self._write_json(self._skills_path(), kept)
-        return True
-
-    # ---------- notebook memory ----------
-
-    def _memory_path(self, notebook_id: str) -> Path:
-        return self._nb_dir(notebook_id) / "memory.json"
-
-    def get_memory(self, notebook_id: str) -> str:
-        return str(_read_json(self._memory_path(notebook_id), {}).get("notes", ""))
-
-    def set_memory(self, notebook_id: str, notes: str) -> str:
-        self._write_json(self._memory_path(notebook_id), {"notes": notes})
-        return notes
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM outlines WHERE id = ? AND notebook_id = ?",
+                (outline_id, notebook_id),
+            )
+            return cur.rowcount > 0
 
     # ---------- flashcards ----------
 
-    def _cards_path(self, notebook_id: str) -> Path:
-        return self._nb_dir(notebook_id) / "cards.json"
-
-    def _load_cards(self, notebook_id: str) -> list[dict]:
-        return _read_json(self._cards_path(notebook_id), [])
-
-    def _save_cards(self, notebook_id: str, cards: list[dict]) -> None:
-        self._write_json(self._cards_path(notebook_id), cards)
-
     def list_cards(self, notebook_id: str) -> list[Flashcard]:
-        return [Flashcard.model_validate(r) for r in self._load_cards(notebook_id)]
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM cards WHERE notebook_id = ? ORDER BY created_at",
+                (notebook_id,),
+            ).fetchall()
+        return [_card_from_row(r) for r in rows]
 
     def get_card(self, notebook_id: str, card_id: str) -> Flashcard | None:
-        for row in self._load_cards(notebook_id):
-            if row.get("id") == card_id:
-                return Flashcard.model_validate(row)
-        return None
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM cards WHERE id = ? AND notebook_id = ?",
+                (card_id, notebook_id),
+            ).fetchone()
+        return _card_from_row(row) if row else None
 
     def save_card(self, card: Flashcard) -> Flashcard:
-        rows = self._load_cards(card.notebook_id)
-        payload = card.model_dump(mode="json")
-        for index, row in enumerate(rows):
-            if row.get("id") == card.id:
-                rows[index] = payload
-                break
-        else:
-            rows.append(payload)
-        self._save_cards(card.notebook_id, rows)
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO cards (id, notebook_id, front, back, tags, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET front=excluded.front, back=excluded.back,"
+                " tags=excluded.tags, updated_at=excluded.updated_at",
+                (
+                    card.id,
+                    card.notebook_id,
+                    card.front,
+                    card.back,
+                    json.dumps(card.tags),
+                    card.created_at.isoformat(),
+                    card.updated_at.isoformat(),
+                ),
+            )
         return card
 
     def delete_card(self, notebook_id: str, card_id: str) -> bool:
-        rows = self._load_cards(notebook_id)
-        kept = [r for r in rows if r.get("id") != card_id]
-        if len(kept) == len(rows):
-            return False
-        self._save_cards(notebook_id, kept)
-        return True
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM cards WHERE id = ? AND notebook_id = ?",
+                (card_id, notebook_id),
+            )
+            return cur.rowcount > 0
+
+    # ---------- skills library (per user) ----------
+
+    def list_skills(self, user_id: str) -> list[Skill]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM skills WHERE user_id = ? ORDER BY created_at", (user_id,)
+            ).fetchall()
+        return [_skill_from_row(r) for r in rows]
+
+    def get_skill(self, user_id: str, skill_id: str) -> Skill | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM skills WHERE id = ? AND user_id = ?",
+                (skill_id, user_id),
+            ).fetchone()
+        return _skill_from_row(row) if row else None
+
+    def save_skill(self, skill: Skill) -> Skill:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO skills (id, user_id, name, instructions, triggers, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(id) DO UPDATE SET name=excluded.name,"
+                " instructions=excluded.instructions, triggers=excluded.triggers,"
+                " updated_at=excluded.updated_at",
+                (
+                    skill.id,
+                    skill.user_id,
+                    skill.name,
+                    skill.instructions,
+                    json.dumps(skill.triggers),
+                    skill.created_at.isoformat(),
+                    skill.updated_at.isoformat(),
+                ),
+            )
+        return skill
+
+    def delete_skill(self, user_id: str, skill_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM skills WHERE id = ? AND user_id = ?",
+                (skill_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    # ---------- notebook memory ----------
+
+    def get_memory(self, notebook_id: str) -> str:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT notes FROM memory WHERE notebook_id = ?", (notebook_id,)
+            ).fetchone()
+        return row["notes"] if row else ""
+
+    def set_memory(self, notebook_id: str, notes: str) -> str:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO memory (notebook_id, notes) VALUES (?, ?)"
+                " ON CONFLICT(notebook_id) DO UPDATE SET notes=excluded.notes",
+                (notebook_id, notes),
+            )
+        return notes
 
     # ---------- search ----------
 
@@ -382,6 +594,65 @@ class Store:
                 )
         hits.sort(key=lambda h: h.score, reverse=True)
         return hits[offset : offset + limit]
+
+
+def _user_from_row(row: Any) -> User:
+    return User(id=row["id"], email=row["email"], created_at=datetime.fromisoformat(row["created_at"]))
+
+
+def _notebook_from_row(row: Any) -> Notebook:
+    return Notebook(
+        id=row["id"], name=row["name"], created_at=datetime.fromisoformat(row["created_at"])
+    )
+
+
+def _summary_from_row(row: Any) -> SourceSummary:
+    return SourceSummary(
+        id=row["id"],
+        notebook_id=row["notebook_id"],
+        kind=row["kind"],
+        title=row["title"],
+        tags=json.loads(row["tags"]),
+        meta=json.loads(row["meta"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        chunk_count=row["chunk_count"],
+    )
+
+
+def _outline_from_row(row: Any) -> ResearchOutline:
+    return ResearchOutline(
+        id=row["id"],
+        notebook_id=row["notebook_id"],
+        topic=row["topic"],
+        items=[OutlineItem.model_validate(i) for i in json.loads(row["items"])],
+        fields=[OutlineField.model_validate(f) for f in json.loads(row["fields"])],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _card_from_row(row: Any) -> Flashcard:
+    return Flashcard(
+        id=row["id"],
+        notebook_id=row["notebook_id"],
+        front=row["front"],
+        back=row["back"],
+        tags=json.loads(row["tags"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _skill_from_row(row: Any) -> Skill:
+    return Skill(
+        id=row["id"],
+        user_id=row["user_id"],
+        name=row["name"],
+        instructions=row["instructions"],
+        triggers=json.loads(row["triggers"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
 
 
 def _snippet(original: str, terms: list[str], width: int = 80) -> str:

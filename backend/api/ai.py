@@ -1,34 +1,34 @@
 """Optional, cited notebook chat backed by a user-supplied free-tier key."""
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from api.deps import get_store, notebook_or_404, safe_id
-from core import providers, settings, skills
+from api.deps import get_current_user, get_store, notebook_or_404, safe_id
+from core import providers, skills
 from core.context import build_context
-from core.models import AISettingsUpdate, ChatRequest, ChatResponse
+from core.models import AISettingsUpdate, ChatRequest, ChatResponse, User
 
 
 def register(app: FastAPI) -> None:
     @app.get("/api/settings/ai")
-    def get_settings():
-        return settings.get_ai_settings(get_store(app).root)
+    def get_settings(user: User = Depends(get_current_user)):
+        return get_store(app).get_ai_settings(user.id)
 
     @app.put("/api/settings/ai")
-    def update_settings(body: AISettingsUpdate):
-        return settings.save_ai_settings(get_store(app).root, body)
+    def update_settings(body: AISettingsUpdate, user: User = Depends(get_current_user)):
+        return get_store(app).save_ai_settings(user.id, body)
 
     @app.delete("/api/settings/ai", status_code=204)
-    def delete_settings():
-        settings.clear_ai_settings(get_store(app).root)
+    def delete_settings(user: User = Depends(get_current_user)):
+        get_store(app).clear_ai_settings(user.id)
 
     @app.post("/api/notebooks/{notebook_id}/chat", response_model=ChatResponse)
-    def chat(notebook_id: str, body: ChatRequest):
+    def chat(notebook_id: str, body: ChatRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        notebook_or_404(store, user.id, notebook_id)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if not key or not configured.model:
             raise HTTPException(status_code=503, detail="add an AI provider key in Settings to use AI chat")
 
@@ -40,7 +40,7 @@ def register(app: FastAPI) -> None:
             "Use citation markers like [1] that match the supplied excerpt numbers.\n\n"
             f"QUESTION: {body.message}\n\nSOURCES:\n" + "\n\n".join(excerpts)
         )
-        matched = skills.match_skills(store.list_skills(), body.message)
+        matched = skills.match_skills(store.list_skills(user.id), body.message)
         if matched:
             prompt += "\n\n" + skills.skills_section(matched)
         notes = store.get_memory(notebook_id)

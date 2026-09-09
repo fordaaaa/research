@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from time import sleep
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from api.deps import get_store, notebook_or_404, safe_id
+from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from api.sources import _summary
-from core import ingest, providers, research, settings, skills
+from core import ingest, providers, research, skills
 from core.context import build_context
 from core.models import (
     ResearchCandidate,
@@ -19,6 +19,7 @@ from core.models import (
     ResearchPlanResponse,
     ResearchSynthesizeRequest,
     ResearchSynthesisResponse,
+    User,
 )
 from core.websearch import WebSearchError, search_web
 
@@ -27,14 +28,14 @@ QUERY_DELAY = 0.35
 
 def register(app: FastAPI) -> None:
     @app.post("/api/notebooks/{notebook_id}/research/plan", response_model=ResearchPlanResponse)
-    def plan(notebook_id: str, body: ResearchPlanRequest):
+    def plan(notebook_id: str, body: ResearchPlanRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         origin = "heuristic"
         queries = research.plan_queries(body.topic)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if key and configured.model:
             try:
                 answer, _ = providers.generate(
@@ -48,10 +49,10 @@ def register(app: FastAPI) -> None:
         return ResearchPlanResponse(topic=body.topic, queries=queries, origin=origin)
 
     @app.post("/api/notebooks/{notebook_id}/research/gather", response_model=ResearchGatherResponse)
-    def gather(notebook_id: str, body: ResearchGatherRequest):
+    def gather(notebook_id: str, body: ResearchGatherRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         results_per_query: list[tuple[str, list]] = []
         failed_queries: list[str] = []
         for index, query in enumerate(body.queries):
@@ -79,10 +80,10 @@ def register(app: FastAPI) -> None:
         response_model=ResearchSynthesisResponse,
         status_code=201,
     )
-    def synthesize(notebook_id: str, body: ResearchSynthesizeRequest):
+    def synthesize(notebook_id: str, body: ResearchSynthesizeRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         summaries = store.list_sources(notebook_id)
         if body.source_ids is not None:
             known = {summary.id for summary in summaries}
@@ -100,13 +101,13 @@ def register(app: FastAPI) -> None:
 
         origin, model = "digest", None
         text = research.build_digest(body.topic, body.queries, sources)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if key and configured.model:
             try:
                 excerpts, citations = build_context(store, notebook_id, source_ids=set(body.source_ids) if body.source_ids else None)
                 prompt = research.build_synthesis_prompt(body.topic, excerpts)
-                matched = skills.match_skills(store.list_skills(), body.topic)
+                matched = skills.match_skills(store.list_skills(user.id), body.topic)
                 if matched:
                     prompt += "\n\n" + skills.skills_section(matched)
                 notes = store.get_memory(notebook_id)

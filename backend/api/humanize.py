@@ -2,16 +2,17 @@
 when the user configured a provider key. Analysis never needs a key."""
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from api.deps import get_store
-from core import humanize, providers, settings
+from api.deps import get_current_user, get_store
+from core import humanize, providers
 from core.models import (
     HumanizeAnalyzeRequest,
     HumanizeAnalyzeResponse,
     HumanizeFinding,
     HumanizeRewriteRequest,
     HumanizeRewriteResponse,
+    User,
 )
 
 
@@ -22,10 +23,10 @@ def register(app: FastAPI) -> None:
         return HumanizeAnalyzeResponse(findings=findings, signal_count=len(findings))
 
     @app.post("/api/humanize/rewrite", response_model=HumanizeRewriteResponse)
-    def rewrite(body: HumanizeRewriteRequest):
+    def rewrite(body: HumanizeRewriteRequest, user: User = Depends(get_current_user)):
         store = get_store(app)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if not key or not configured.model:
             raise HTTPException(
                 status_code=503,

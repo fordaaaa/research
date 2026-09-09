@@ -282,6 +282,7 @@ class HumanizeRewriteResponse(BaseModel):
 
 class Skill(BaseModel):
     id: str
+    user_id: str = ""
     name: str
     instructions: str
     triggers: list[str] = Field(default_factory=list)
@@ -307,6 +308,32 @@ class MemoryUpdate(BaseModel):
 
 class MemoryResponse(BaseModel):
     notes: str
+
+
+class User(BaseModel):
+    id: str
+    email: str
+    created_at: datetime
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: str
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AuthResponse(BaseModel):
+    user: UserPublic
+    token: str
 
 
 class Flashcard(BaseModel):

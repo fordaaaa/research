@@ -5,13 +5,13 @@ frontend session — the backend only stores the deck.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
-from api.deps import get_store, notebook_or_404, safe_id
+from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from api.sources import _summary
 from core import ingest, study as study_core
-from core.models import CardCreate, CardUpdate, Flashcard, utcnow
+from core.models import CardCreate, CardUpdate, Flashcard, User, utcnow
 from core.store import Store, new_id
 
 
@@ -48,17 +48,17 @@ def _study_sources(store: Store, notebook_id: str) -> list:
 
 def register(app: FastAPI) -> None:
     @app.get("/api/notebooks/{notebook_id}/cards", response_model=list[Flashcard])
-    def list_cards(notebook_id: str):
+    def list_cards(notebook_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         return store.list_cards(notebook_id)
 
     @app.post("/api/notebooks/{notebook_id}/cards", response_model=Flashcard, status_code=201)
-    def create_card(notebook_id: str, body: CardCreate):
+    def create_card(notebook_id: str, body: CardCreate, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         now = utcnow()
         card = Flashcard(
             id=new_id(),
@@ -72,10 +72,10 @@ def register(app: FastAPI) -> None:
         return store.save_card(card)
 
     @app.patch("/api/notebooks/{notebook_id}/cards/{card_id}", response_model=Flashcard)
-    def update_card(notebook_id: str, card_id: str, body: CardUpdate):
+    def update_card(notebook_id: str, card_id: str, body: CardUpdate, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         card = _get_card(store, notebook_id, card_id)
         if body.front is not None:
             card.front = " ".join(body.front.split())
@@ -87,19 +87,19 @@ def register(app: FastAPI) -> None:
         return store.save_card(card)
 
     @app.delete("/api/notebooks/{notebook_id}/cards/{card_id}", status_code=204)
-    def delete_card(notebook_id: str, card_id: str):
+    def delete_card(notebook_id: str, card_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         card_id = safe_id(card_id, "card_id")
         if not store.delete_card(notebook_id, card_id):
             raise HTTPException(status_code=404, detail="card not found")
 
     @app.get("/api/notebooks/{notebook_id}/cards/export")
-    def export_cards(notebook_id: str):
+    def export_cards(notebook_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook = notebook_or_404(store, notebook_id)
+        notebook = notebook_or_404(store, user.id, notebook_id)
         lines = ["Front\tBack\tTags"]
         for card in store.list_cards(notebook_id):
             front = card.front.replace("\t", " ").replace("\n", " ")
@@ -113,19 +113,19 @@ def register(app: FastAPI) -> None:
         )
 
     @app.get("/api/notebooks/{notebook_id}/guide")
-    def get_guide(notebook_id: str):
+    def get_guide(notebook_id: str, user: User = Depends(get_current_user)):
         """Build a one-page study guide from the notebook's own sources."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook = notebook_or_404(store, notebook_id)
+        notebook = notebook_or_404(store, user.id, notebook_id)
         return {"markdown": study_core.build_study_guide(notebook.name, _study_sources(store, notebook_id))}
 
     @app.post("/api/notebooks/{notebook_id}/guide", status_code=201)
-    def save_guide(notebook_id: str):
+    def save_guide(notebook_id: str, user: User = Depends(get_current_user)):
         """Save the study guide as a notebook source so it exports with everything."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook = notebook_or_404(store, notebook_id)
+        notebook = notebook_or_404(store, user.id, notebook_id)
         sources = _study_sources(store, notebook_id)
         markdown = study_core.build_study_guide(notebook.name, sources)
         source = ingest.ingest_text(
@@ -135,19 +135,19 @@ def register(app: FastAPI) -> None:
         return {"source": _summary(source)}
 
     @app.get("/api/notebooks/{notebook_id}/mindmap")
-    def get_mindmap(notebook_id: str):
+    def get_mindmap(notebook_id: str, user: User = Depends(get_current_user)):
         """Notebook → sources → key-terms tree for the map UI."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook = notebook_or_404(store, notebook_id)
+        notebook = notebook_or_404(store, user.id, notebook_id)
         return study_core.build_mindmap(notebook.name, _study_sources(store, notebook_id))
 
     @app.get("/api/notebooks/{notebook_id}/mindmap/export")
-    def export_mindmap(notebook_id: str):
+    def export_mindmap(notebook_id: str, user: User = Depends(get_current_user)):
         """Download the mind map as a markdown outline."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook = notebook_or_404(store, notebook_id)
+        notebook = notebook_or_404(store, user.id, notebook_id)
         tree = study_core.build_mindmap(notebook.name, _study_sources(store, notebook_id))
         filename = "".join(c if c.isalnum() else "-" for c in notebook.name).strip("-") or "mindmap"
         return PlainTextResponse(

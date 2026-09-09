@@ -19,9 +19,9 @@ def slugify(name: str) -> str:
     return slug or "untitled"
 
 
-def export_notebook(store: Store, notebook_id: str) -> tuple[bytes, str]:
+def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes, str]:
     """Return (zip file bytes, suggested download filename)."""
-    notebook = store.get_notebook(notebook_id)
+    notebook = store.get_notebook(user_id, notebook_id)
     if not notebook:
         raise KeyError(notebook_id)
     summaries = store.list_sources(notebook_id)

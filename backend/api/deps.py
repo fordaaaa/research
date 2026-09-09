@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import re
 
-from fastapi import HTTPException, Path
+from fastapi import HTTPException, Path, Request
 
+from core.models import User
 from core.store import Store
 
 # IDs are produced by core.store.new_id() as 12 lowercase hex chars. Anything else
@@ -28,9 +29,20 @@ def get_store(app) -> Store:
     return app.state.store
 
 
-def notebook_or_404(store: Store, notebook_id: str):
-    """Look up a notebook by id; raise 404 if absent."""
-    nb = store.get_notebook(notebook_id)
+def notebook_or_404(store: Store, user_id: str, notebook_id: str):
+    """Look up a notebook by id for its owner; raise 404 if absent or foreign."""
+    nb = store.get_notebook(user_id, notebook_id)
     if not nb:
         raise HTTPException(status_code=404, detail="notebook not found")
     return nb
+
+
+def get_current_user(request: Request) -> User:
+    """Bearer-token auth: missing, unknown, or expired token → 401."""
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="login required")
+    user = request.app.state.store.get_session_user(auth[7:].strip())
+    if not user:
+        raise HTTPException(status_code=401, detail="login required")
+    return user

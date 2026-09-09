@@ -4,7 +4,11 @@ from core.store import Store, new_id
 
 
 def _store(tmp_path) -> Store:
-    return Store(root=tmp_path / "data")
+    from core.store import new_id as _new_id
+
+    store = Store(root=tmp_path / "data")
+    store._test_uid = store.create_user(f"u{_new_id()}@example.com", "password123").id
+    return store
 
 
 def _tagged_source(store: Store, nb_id: str, title: str, text: str, tags: list[str]) -> None:
@@ -24,7 +28,7 @@ def _tagged_source(store: Store, nb_id: str, title: str, text: str, tags: list[s
 
 def test_search_phrase_wins_over_loose(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Bio")
+    nb = store.create_notebook(store._test_uid, "Bio")
     ingest.ingest_text(
         store, nb.id, "Lecture",
         "Mitochondria are the powerhouse of the cell. Mitochondria produce energy.",
@@ -41,7 +45,7 @@ def test_search_phrase_wins_over_loose(tmp_path):
 
 def test_search_filter_by_kind(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Filter")
+    nb = store.create_notebook(store._test_uid, "Filter")
     ingest.ingest_text(store, nb.id, "Pasted", "photosynthesis happens in leaves")
     assert len(store.search(nb.id, "photosynthesis", kind="paste")) == 1
     assert len(store.search(nb.id, "photosynthesis", kind="pdf")) == 0
@@ -49,7 +53,7 @@ def test_search_filter_by_kind(tmp_path):
 
 def test_search_filter_by_source_ids(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Sources")
+    nb = store.create_notebook(store._test_uid, "Sources")
     a = ingest.ingest_text(store, nb.id, "A", "mitochondria produce energy")
     ingest.ingest_text(store, nb.id, "B", "chlorophyll captures light")
     hits = store.search(nb.id, "light", source_ids=[a.id])
@@ -58,7 +62,7 @@ def test_search_filter_by_source_ids(tmp_path):
 
 def test_search_filter_by_tag(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Tags")
+    nb = store.create_notebook(store._test_uid, "Tags")
     _tagged_source(store, nb.id, "Cell notes", "mitochondria produce energy", ["biology"])
     _tagged_source(store, nb.id, "Plant notes", "chlorophyll captures light", ["botany"])
     hits = store.search(nb.id, "light", tags=["botany"])
@@ -69,7 +73,7 @@ def test_search_filter_by_tag(tmp_path):
 
 def test_search_offset_and_limit(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Paging")
+    nb = store.create_notebook(store._test_uid, "Paging")
     for i in range(5):
         ingest.ingest_text(store, nb.id, f"src{i}", f"shared term elephant {i}")
     all_hits = store.search(nb.id, "elephant")
@@ -81,7 +85,7 @@ def test_search_offset_and_limit(tmp_path):
 
 def test_search_uses_source_document_frequency(tmp_path):
     store = _store(tmp_path)
-    nb = store.create_notebook("Ranking")
+    nb = store.create_notebook(store._test_uid, "Ranking")
     rare = ingest.ingest_text(store, nb.id, "Rare", "quasar")
     ingest.ingest_text(store, nb.id, "Common A", "biology")
     ingest.ingest_text(store, nb.id, "Common B", "biology")

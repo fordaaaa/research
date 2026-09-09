@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from time import sleep
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from api.deps import get_store, notebook_or_404, safe_id
+from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from api.sources import _summary
-from core import deepresearch, ingest, providers, research, settings, skills
+from core import deepresearch, ingest, providers, research, skills
 from core.context import build_context
 from core.models import (
     OutlineCreate,
@@ -25,6 +25,7 @@ from core.models import (
     OutlineUpdate,
     ResearchCandidate,
     ResearchOutline,
+    User,
     utcnow,
 )
 from core.store import Store, new_id
@@ -48,17 +49,17 @@ def _short_id() -> str:
 
 def register(app: FastAPI) -> None:
     @app.get("/api/notebooks/{notebook_id}/outlines", response_model=list[ResearchOutline])
-    def list_outlines(notebook_id: str):
+    def list_outlines(notebook_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         return store.list_outlines(notebook_id)
 
     @app.post("/api/notebooks/{notebook_id}/outlines", response_model=ResearchOutline, status_code=201)
-    def create_outline(notebook_id: str, body: OutlineCreate):
+    def create_outline(notebook_id: str, body: OutlineCreate, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         now = utcnow()
         outline = ResearchOutline(
             id=new_id(),
@@ -72,17 +73,17 @@ def register(app: FastAPI) -> None:
         return store.save_outline(outline)
 
     @app.get("/api/notebooks/{notebook_id}/outlines/{outline_id}", response_model=ResearchOutline)
-    def get_outline(notebook_id: str, outline_id: str):
+    def get_outline(notebook_id: str, outline_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         return _get_outline(store, notebook_id, outline_id)
 
     @app.patch("/api/notebooks/{notebook_id}/outlines/{outline_id}", response_model=ResearchOutline)
-    def update_outline(notebook_id: str, outline_id: str, body: OutlineUpdate):
+    def update_outline(notebook_id: str, outline_id: str, body: OutlineUpdate, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         outline = _get_outline(store, notebook_id, outline_id)
         if body.topic is not None:
             outline.topic = body.topic.strip()
@@ -98,23 +99,23 @@ def register(app: FastAPI) -> None:
         return store.save_outline(outline)
 
     @app.delete("/api/notebooks/{notebook_id}/outlines/{outline_id}", status_code=204)
-    def delete_outline(notebook_id: str, outline_id: str):
+    def delete_outline(notebook_id: str, outline_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         outline_id = safe_id(outline_id, "outline_id")
         if not store.delete_outline(notebook_id, outline_id):
             raise HTTPException(status_code=404, detail="outline not found")
 
     @app.post("/api/notebooks/{notebook_id}/outlines/draft", response_model=OutlineDraftResponse)
-    def draft_outline(notebook_id: str, body: OutlineDraftRequest):
+    def draft_outline(notebook_id: str, body: OutlineDraftRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         origin = "heuristic"
         items, fields = deepresearch.draft_heuristic(body.topic)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if key and configured.model:
             try:
                 answer, _ = providers.generate(
@@ -131,10 +132,10 @@ def register(app: FastAPI) -> None:
         return OutlineDraftResponse(topic=body.topic, items=items, fields=fields, origin=origin)
 
     @app.post("/api/notebooks/{notebook_id}/outlines/{outline_id}/deep", response_model=OutlineDeepResponse)
-    def deep_outline(notebook_id: str, outline_id: str, body: OutlineDeepRequest):
+    def deep_outline(notebook_id: str, outline_id: str, body: OutlineDeepRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         outline = _get_outline(store, notebook_id, outline_id)
         if not outline.items:
             raise HTTPException(status_code=400, detail="add an outline item before deep research")
@@ -180,10 +181,10 @@ def register(app: FastAPI) -> None:
         response_model=OutlineReportResponse,
         status_code=201,
     )
-    def report_outline(notebook_id: str, outline_id: str, body: OutlineReportRequest):
+    def report_outline(notebook_id: str, outline_id: str, body: OutlineReportRequest, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
-        notebook_or_404(store, notebook_id)
+        notebook_or_404(store, user.id, notebook_id)
         outline = _get_outline(store, notebook_id, outline_id)
         summaries = store.list_sources(notebook_id)
         if body.source_ids is not None:
@@ -202,8 +203,8 @@ def register(app: FastAPI) -> None:
 
         origin, model = "digest", None
         text = deepresearch.build_report_digest(outline.topic, outline.items, outline.fields, sources)
-        key = settings.api_key(store.root)
-        configured = settings.get_ai_settings(store.root)
+        key = store.ai_key(user.id)
+        configured = store.get_ai_settings(user.id)
         if key and configured.model:
             try:
                 excerpts, citations = build_context(
@@ -211,7 +212,7 @@ def register(app: FastAPI) -> None:
                     source_ids=set(body.source_ids) if body.source_ids else None,
                 )
                 prompt = deepresearch.build_report_prompt(outline.topic, outline.items, excerpts)
-                matched = skills.match_skills(store.list_skills(), outline.topic)
+                matched = skills.match_skills(store.list_skills(user.id), outline.topic)
                 if matched:
                     prompt += "\n\n" + skills.skills_section(matched)
                 notes = store.get_memory(notebook_id)

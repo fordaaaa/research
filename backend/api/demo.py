@@ -5,11 +5,11 @@ outline, and memory notes. Nothing is fetched and no key is needed.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
-from api.deps import get_store
+from api.deps import get_current_user, get_store
 from core import ingest
-from core.models import Notebook, OutlineField, OutlineItem, ResearchOutline, utcnow
+from core.models import Notebook, OutlineField, OutlineItem, ResearchOutline, User, utcnow
 from core.store import new_id
 
 
@@ -84,9 +84,9 @@ DEMO_MEMORY = "Bio 101, midterm covers cells and energetics, prefer bullet point
 
 def register(app: FastAPI) -> None:
     @app.post("/api/demo", response_model=Notebook, status_code=201)
-    def create_demo():
+    def create_demo(user: User = Depends(get_current_user)):
         store = get_store(app)
-        notebook = store.create_notebook("Cell biology demo")
+        notebook = store.create_notebook(user.id, "Cell biology demo")
         for title, text in DEMO_SOURCES:
             ingest.ingest_text(store, notebook.id, title, text)
         now = utcnow()

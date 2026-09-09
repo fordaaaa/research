@@ -3,18 +3,25 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from core import gemini, openrouter, providers, settings
+from core import gemini, openrouter, providers
 from core.models import AISettingsUpdate
+from core.store import Store
+
+
+def _user(tmp_path):
+    store = Store(root=tmp_path / "data")
+    return store, store.create_user("ai@example.com", "password123").id
 
 
 def test_ai_settings_never_return_the_api_key(tmp_path):
-    saved = settings.save_ai_settings(
-        tmp_path,
+    store, uid = _user(tmp_path)
+    saved = store.save_ai_settings(
+        uid,
         AISettingsUpdate(api_key="secret-key-which-is-long-enough", model="gemini-test"),
     )
     assert saved.model_dump() == {"configured": True, "provider": "gemini", "model": "gemini-test"}
-    assert settings.api_key(tmp_path) == "secret-key-which-is-long-enough"
-    assert "secret" not in str(settings.get_ai_settings(tmp_path).model_dump())
+    assert store.ai_key(uid) == "secret-key-which-is-long-enough"
+    assert "secret" not in str(store.get_ai_settings(uid).model_dump())
 
 
 def test_gemini_extracts_text(monkeypatch):
@@ -141,8 +148,9 @@ def test_all_models_failing_raises_generic_error(monkeypatch):
 
 
 def test_ai_settings_roundtrip_openrouter(tmp_path):
-    saved = settings.save_ai_settings(
-        tmp_path,
+    store, uid = _user(tmp_path)
+    saved = store.save_ai_settings(
+        uid,
         AISettingsUpdate(provider="openrouter", api_key="sk-or-long-enough-key"),
     )
     assert saved.model_dump() == {
@@ -150,19 +158,18 @@ def test_ai_settings_roundtrip_openrouter(tmp_path):
         "provider": "openrouter",
         "model": "meta-llama/llama-3.3-70b-instruct:free",
     }
-    assert settings.api_key(tmp_path) == "sk-or-long-enough-key"
-    assert settings.get_ai_settings(tmp_path).provider == "openrouter"
+    assert store.ai_key(uid) == "sk-or-long-enough-key"
+    assert store.get_ai_settings(uid).provider == "openrouter"
 
 
-def test_legacy_settings_without_provider_default_to_gemini(tmp_path):
-    settings.save_ai_settings(
-        tmp_path,
+def test_ai_settings_start_unconfigured_then_clear(tmp_path):
+    store, uid = _user(tmp_path)
+    assert store.get_ai_settings(uid).configured is False
+    assert store.ai_key(uid) is None
+    store.save_ai_settings(
+        uid,
         AISettingsUpdate(api_key="secret-key-which-is-long-enough", model="gemini-test"),
     )
-    path = tmp_path / "settings.json"
-    import json
-
-    data = json.loads(path.read_text())
-    del data["ai"]["provider"]
-    path.write_text(json.dumps(data))
-    assert settings.get_ai_settings(tmp_path).provider == "gemini"
+    assert store.get_ai_settings(uid).configured is True
+    store.clear_ai_settings(uid)
+    assert store.get_ai_settings(uid).configured is False

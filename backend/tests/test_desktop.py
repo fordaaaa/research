@@ -19,10 +19,15 @@ def test_desktop_app_serves_web_and_persists_to_configured_data_dir(
     with TestClient(create_app(web)) as client:
         assert client.get("/").text == '<main id="research">Research</main>'
         assert client.get("/app.js").text == "console.log('research')"
-        notebook = client.post("/api/notebooks", json={"name": "Desktop"}).json()
+        token = client.post(
+            "/api/auth/register",
+            json={"email": "desk@example.com", "password": "password123"},
+        ).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        notebook = client.post("/api/notebooks", json={"name": "Desktop"}, headers=headers).json()
         assert client.get("/api/health").json() == {"ok": True}
 
-    assert (data / "notebooks.json").is_file()
+    assert (data / "app.db").is_file()
     assert notebook["name"] == "Desktop"
 
 
@@ -48,5 +53,13 @@ def test_desktop_session_protects_notebook_data(tmp_path, monkeypatch):
         response = client.get("/?desktop_token=only-this-launch")
         assert response.status_code == 200
         assert response.text == "desktop"
-        assert client.get("/api/notebooks").status_code == 200
+        # desktop session cookie is not a login: API still needs a bearer token
+        assert client.get("/api/notebooks").status_code == 401
+        token = client.post(
+            "/api/auth/register",
+            json={"email": "desk@example.com", "password": "password123"},
+        ).json()["token"]
+        assert client.get(
+            "/api/notebooks", headers={"Authorization": f"Bearer {token}"}
+        ).status_code == 200
         assert response.headers["x-frame-options"] == "DENY"
