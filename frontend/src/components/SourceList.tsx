@@ -10,10 +10,11 @@ const KIND_LABEL: Record<string, string> = {
 
 interface Props {
   sources: SourceSummary[];
+  onOpen: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
-export default function SourceList({ sources, onDelete }: Props) {
+export default function SourceList({ sources, onOpen, onDelete }: Props) {
   return (
     <div>
       <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">
@@ -33,7 +34,9 @@ export default function SourceList({ sources, onDelete }: Props) {
                 {KIND_LABEL[s.kind] ?? s.kind}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm truncate">{s.title}</p>
+                <button className="block w-full truncate text-left text-sm hover:underline" onClick={() => onOpen(s.id)}>
+                  {s.title}
+                </button>
                 <p className="text-[11px] text-neutral-500">
                   {s.meta?.page_count ?? 1} page(s) · {s.chunk_count} chunks
                   {s.meta?.word_count ? ` · ${s.meta.word_count} words` : ""}

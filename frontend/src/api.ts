@@ -107,10 +107,21 @@ export const addUrl = (notebookId: string, url: string) =>
     body: JSON.stringify({ url }),
   }).then(j<SourceSummary>);
 
+export interface SourceDetail extends SourceSummary {
+  pages: { number: number; text: string }[];
+  chunks: { seq: number; pages: number[]; text: string }[];
+}
+
+export const getSource = (id: string) =>
+  fetch(`${BASE}/sources/${id}`).then(j<SourceDetail>);
+
 export const deleteSource = (id: string) =>
   fetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
+
+export const createDemo = () =>
+  fetch(`${BASE}/demo`, { method: "POST" }).then(j<Notebook>);
 
 export const search = (notebookId: string, q: string) =>
   fetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`).then(

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as api from "../api";
 import type { Notebook } from "../api";
 import { Button, Card, EmptyState } from "./ui";
 import { inputCls } from "./ui";
@@ -19,6 +20,7 @@ const WORKFLOWS = [
 export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }: Props) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -61,6 +63,28 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             </Button>
           </form>
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+          <div className="mt-3 flex items-center gap-2 border-t border-neutral-800 pt-3">
+            <p className="text-xs text-neutral-500">New here?</p>
+            <button
+              type="button"
+              className="text-xs font-medium text-neutral-200 underline hover:text-white disabled:opacity-50"
+              disabled={demoBusy}
+              onClick={async () => {
+                setDemoBusy(true);
+                setError(null);
+                try {
+                  const nb = await api.createDemo();
+                  onOpen(nb);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "could not create demo");
+                } finally {
+                  setDemoBusy(false);
+                }
+              }}
+            >
+              {demoBusy ? "Building demo…" : "Open a demo notebook →"}
+            </button>
+          </div>
         </Card>
 
         <section>

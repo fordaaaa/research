@@ -11,6 +11,7 @@ import SettingsDialog from "./components/SettingsDialog";
 import OutlinePanel from "./components/OutlinePanel";
 import HumanizerPanel from "./components/HumanizerPanel";
 import SkillsPanel from "./components/SkillsPanel";
+import ReaderModal from "./components/ReaderModal";
 import { Badge, Card, Tabs } from "./components/ui";
 
 type View = "research" | "deep" | "ask" | "search" | "write" | "skills";
@@ -32,6 +33,7 @@ export default function App() {
   const [backendUp, setBackendUp] = useState(true);
   const [aiConfigured, setAIConfigured] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [readingId, setReadingId] = useState<string | null>(null);
 
   const refreshNotebooks = useCallback(async () => {
     try {
@@ -131,6 +133,7 @@ export default function App() {
             <Card className="p-5">
               <SourceList
                 sources={sources}
+                onOpen={setReadingId}
                 onDelete={async (id) => {
                   await api.deleteSource(id);
                   await refreshSources(notebook.id);
@@ -180,6 +183,7 @@ export default function App() {
         onClose={() => setShowSettings(false)}
         onChanged={setAIConfigured}
       />
+      <ReaderModal sourceId={readingId} onClose={() => setReadingId(null)} />
     </div>
   );
 }
