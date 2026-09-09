@@ -51,7 +51,7 @@ export default function ReaderModal({ sourceId, onClose }: Props) {
               </p>
             )}
           </div>
-          <button className="shrink-0 text-neutral-500 hover:text-white" onClick={onClose} aria-label="Close reader">×</button>
+          <button className="shrink-0 text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close reader">×</button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {error && <p className="text-sm text-red-400">{error}</p>}

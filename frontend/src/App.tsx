@@ -75,7 +75,7 @@ export default function App() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <header className="sticky top-0 z-40 border-b border-neutral-800/80 bg-neutral-950/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 shrink-0">
         <button
-          className="text-lg font-semibold tracking-tight hover:text-white"
+          className="text-lg font-semibold tracking-tight hover:text-neutral-100"
           onClick={() => setNotebook(null)}
         >
           research
@@ -143,7 +143,7 @@ export default function App() {
               />
               <div className="mt-4 border-t border-neutral-800 pt-3">
                 <a
-                  className="text-xs font-medium text-neutral-300 underline hover:text-white"
+                  className="text-xs font-medium text-neutral-300 underline hover:text-neutral-100"
                   href={api.exportNotebookUrl(notebook.id)}
                   download
                 >

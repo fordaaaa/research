@@ -155,7 +155,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             onChange={(event) => setTopic(event.target.value)}
           />
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >
@@ -206,7 +206,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           )}
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
               disabled={busy || plan.queries.length === 0}
               onClick={runGather}
             >
@@ -256,13 +256,13 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           {phase === "results" && (
             <div className="flex items-center gap-2">
               <button
-                className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+                className="rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
                 disabled={selected.size === 0}
                 onClick={runAdd}
               >
                 Add {selected.size} source{selected.size === 1 ? "" : "s"}
               </button>
-              <button className="px-2 py-2 text-xs text-neutral-500 hover:text-white" onClick={() => setPhase("plan")}>
+              <button className="px-2 py-2 text-xs text-neutral-500 hover:text-neutral-100" onClick={() => setPhase("plan")}>
                 Edit queries
               </button>
             </div>
@@ -281,7 +281,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             </div>
           ) : (
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
               disabled={busy}
               onClick={runSynthesize}
             >
@@ -291,10 +291,10 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
           )}
           {!synthesis && !aiConfigured && <p className="text-xs text-neutral-600">structured digest — no key needed</p>}
           <div className="flex items-center gap-2">
-            <button className="px-2 py-1 text-xs text-neutral-500 hover:text-white" onClick={startOver}>
+            <button className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-100" onClick={startOver}>
               Start over
             </button>
-            <button className="px-2 py-1 text-xs text-neutral-500 hover:text-white" onClick={() => setPhase("plan")}>
+            <button className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-100" onClick={() => setPhase("plan")}>
               Edit queries
             </button>
           </div>

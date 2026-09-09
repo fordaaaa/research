@@ -67,7 +67,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             <p className="text-xs text-neutral-500">New here?</p>
             <button
               type="button"
-              className="text-xs font-medium text-neutral-200 underline hover:text-white disabled:opacity-50"
+              className="text-xs font-medium text-neutral-200 underline hover:text-neutral-100 disabled:opacity-50"
               disabled={demoBusy}
               onClick={async () => {
                 setDemoBusy(true);
@@ -108,7 +108,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
                         {new Date(nb.created_at).toLocaleDateString()}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs text-neutral-500 group-hover:text-white">Open →</span>
+                    <span className="shrink-0 text-xs text-neutral-500 group-hover:text-neutral-100">Open →</span>
                     <span
                       role="button"
                       tabIndex={0}

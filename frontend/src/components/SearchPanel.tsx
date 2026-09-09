@@ -43,7 +43,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           <button
             key={option}
             type="button"
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === option ? "bg-neutral-700 text-white" : "text-neutral-500 hover:text-neutral-200"}`}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${mode === option ? "bg-neutral-100 text-neutral-950" : "text-neutral-500 hover:text-neutral-200"}`}
             onClick={() => {
               setMode(option);
               setError(null);
@@ -67,7 +67,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
         <button
-          className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
           type="submit"
           disabled={searching}
         >
@@ -122,7 +122,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
               <p className="mt-1 text-xs text-neutral-500 truncate">{result.url}</p>
               {result.snippet && <p className="mt-2 text-sm leading-relaxed text-neutral-300">{result.snippet}</p>}
               <button
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
                 disabled={importing === result.url}
                 onClick={async () => {
                   setImporting(result.url);

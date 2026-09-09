@@ -55,7 +55,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
             <h2 className="font-semibold">Optional AI</h2>
             <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key stays on this Mac and is only sent to your chosen AI provider when you ask a question.</p>
           </div>
-          <button className="text-neutral-500 hover:text-white" onClick={onClose} aria-label="Close settings">×</button>
+          <button className="text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close settings">×</button>
         </div>
         <form
           className="mt-5 space-y-3"
@@ -108,7 +108,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
           <p className="text-xs leading-relaxed text-neutral-500">{PROVIDERS[provider].helper}</p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center gap-2 pt-1">
-            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-white transition active:scale-[0.98] disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
+            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
               {busy && <Spinner size={13} />}
               {busy ? "Saving" : configured ? "Replace key" : "Enable AI"}
             </button>

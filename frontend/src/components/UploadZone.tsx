@@ -100,7 +100,7 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
             onChange={(e) => setText(e.target.value)}
           />
           <button
-            className="rounded-lg bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
+            className="rounded-lg bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
             type="submit"
             disabled={busy}
           >

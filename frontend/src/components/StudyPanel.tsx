@@ -95,7 +95,7 @@ export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
         <SectionHeader
           title="Practice"
           sub="Self-quiz your deck. Cards shuffle every round; your score stays in this session."
-          right={cards.length > 0 ? <a className="text-xs text-neutral-400 underline hover:text-white" href={api.exportCardsUrl(notebookId)} download>Export for Anki (.tsv)</a> : undefined}
+          right={cards.length > 0 ? <a className="text-xs text-neutral-400 underline hover:text-neutral-100" href={api.exportCardsUrl(notebookId)} download>Export for Anki (.tsv)</a> : undefined}
         />
         {cards.length === 0 ? (
           <div className="mt-3">
@@ -267,7 +267,7 @@ function MindmapSection({ notebookId }: { notebookId: string }) {
       <SectionHeader
         title="Mind map"
         sub="Your notebook as a tree: sources branching into their key terms. No key needed."
-        right={tree ? <a className="text-xs text-neutral-400 underline hover:text-white" href={api.exportMindmapUrl(notebookId)} download>Export (.md)</a> : undefined}
+        right={tree ? <a className="text-xs text-neutral-400 underline hover:text-neutral-100" href={api.exportMindmapUrl(notebookId)} download>Export (.md)</a> : undefined}
       />
       <div className="mt-3">
         {error && <p className="text-xs text-red-400">{error}</p>}
@@ -281,7 +281,7 @@ function MindmapSection({ notebookId }: { notebookId: string }) {
             {tree.children?.map((branch) => (
               <li key={branch.name}>
                 <details className="group rounded-xl border border-neutral-800 bg-neutral-900/60" open>
-                  <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                  <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium transition-colors hover:text-neutral-100 [&::-webkit-details-marker]:hidden">
                     <span className="mr-2 inline-block text-neutral-600 transition-transform group-open:rotate-90">▸</span>
                     {branch.name}
                   </summary>
