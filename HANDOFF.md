@@ -2,18 +2,19 @@
 
 Live state of the project. **Read this first** before doing anything.
 
-> Status: branch `main`, M0–M2 plus the native macOS alpha are committed. The
-> working tree is green; backend tests pass (136) and the packaged macOS smoke
-> test has passed on this Apple-silicon machine.
+> Status: branch `main`, hosted multi-user pivot landed (SQLite + email auth,
+> per-user data). The working tree is green; backend tests pass (143).
+> Owner direction: hosted backend (`research-server`) with thin clients, App
+> Store later ($99 program budgeted then, not now). Login order: email (done)
+> → Google → Apple last.
 
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
-- **Owner direction (latest): macOS and keyless research first.** The native app
-  must be a useful source-management and public-discovery tool without any key,
-  account, or model. Keep the web UI focused; native integration should earn its
-  complexity.
-- Run it: `cd backend && uv run uvicorn api.main:app --reload` + `cd frontend && npm run dev` → http://localhost:5173
+- **Owner direction (latest): hosted multi-user backend first.** Accounts are
+  required on every data route; AI keys stay optional and per-user. License is
+  MIT (matches fordaaaa/panoply). Google OAuth next, Apple at App Store time.
+- Run it: `cd backend && uv run uvicorn api.main:app --reload` + `cd frontend && npm run dev` → http://localhost:5173 (register a local account — free, instant)
 - Tests: `cd backend && uv run pytest` · Frontend check: `cd frontend && npm run build`
 
 ## Native macOS alpha
@@ -49,12 +50,12 @@ Live state of the project. **Read this first** before doing anything.
 
 ## Locked owner decisions
 
-1. **$0 and keyless-first forever** — core workflows require no paid service, account, or API key.
+1. **Accounts required, AI optional** — login (email done, Google next, Apple at App Store time) gates every data route; AI keys stay optional and per-user. Self-hosting stays $0.
 2. **No local LLMs** (no Ollama) — optional remote AI is not a product dependency.
 3. **No-AI mode is first-class** — ingest/search/web discovery/reader/exports work with no provider configured.
 4. **Python backend (FastAPI + uv) + React frontend** — two languages accepted for best PDF/DOCX ecosystem.
 5. **Commits: conventional prefixes, single line, no body, no Co-Authored-By.**
-6. **SQLite deferred** — M1+ uses a JSON file store; revisit when embeddings (M3+) or scale demand it. Swap inside `core/store.py` only.
+6. **SQLite store** — multi-user data lives in `app.db` (WAL) under the data dir; per-user rows everywhere, cross-user access is 404. Swap inside `core/store.py` only. One-shot JSON import: `backend/scripts/migrate_json_to_sqlite.py`.
 
 ## Environment facts (this machine)
 
@@ -65,18 +66,19 @@ Live state of the project. **Read this first** before doing anything.
 
 ## Stack versions
 
-FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tailwind 4.3.3 + TypeScript (frontend) · storage: JSON files under `backend/data/` (gitignored). Note newer fix commits: streamed uploads (50 MB cap mid-stream), path-id validation via `api/deps.safe_id`, generic 500 handler, capped query/paste lengths.
+FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tailwind 4.3.3 + TypeScript (frontend) · storage: SQLite `app.db` under the data dir (gitignored). Note newer fix commits: streamed uploads (50 MB cap mid-stream), path-id validation via `api/deps.safe_id`, generic 500 handler, capped query/paste lengths.
 
 ## Backend map (current)
 
 - `api/main.py` — FastAPI factory; lifespan sets `app.state.store`; global exception handler returns generic 500 (no stack leak); can mount built web assets for the desktop sidecar.
 - `desktop.py` — ephemeral loopback Uvicorn entrypoint for the native app.
-- `api/deps.py` — `safe_id()` (regex `^[a-f0-9]{12}$`, rejects path traversal), `get_store(app)`, `notebook_or_404()`.
+- `api/deps.py` — `safe_id()` (regex `^[a-f0-9]{12}$`), `get_store(app)`, `notebook_or_404(store, user_id, ...)` (ownership-checked), `get_current_user()` (Bearer → 401).
+- `api/auth.py` — `POST /api/auth/register|login` (pbkdf2, 30-day sessions), `POST /api/auth/logout`, `GET /api/auth/me`. Google OAuth next, Apple last.
 - `api/notebooks.py` — `POST/GET /api/notebooks`, `DELETE /api/notebooks/{id}`, `GET /api/notebooks/{id}/export` (Obsidian-style markdown zip).
 - `api/sources.py` — upload (multipart, ≤50 MB streamed cap, ≤20 files, per-file errors), paste (`/sources/text`), URL (`/sources/url`), list, get, chunks (offset/limit), `PATCH /api/sources/{id}` (rename + tags), delete.
 - `api/outlines.py` — persistent deep-research outlines per notebook: CRUD, `POST /outlines/draft` (heuristic angles + optional AI items/fields), `POST /outlines/{id}/deep` (per-item web pass, never ingests), `POST /outlines/{id}/report` (outline-structured digest or AI report saved as a source).
 - `api/humanize.py` — `POST /api/humanize/analyze` (keyless pattern flags, no notebook needed), `POST /api/humanize/rewrite` (optional AI rewrite with voice sample; 503 without a key).
-- `api/skills.py` — global skills library CRUD (`/api/skills`) + per-notebook memory notes (`GET/PUT /api/notebooks/{id}/memory`). Matched skills + memory are appended to chat/synthesis/report prompts only when AI is configured.
+- `api/skills.py` — per-user skills library CRUD (`/api/skills`) + per-notebook memory notes (`GET/PUT /api/notebooks/{id}/memory`). Matched skills + memory are appended to chat/synthesis/report prompts only when AI is configured.
 - `api/demo.py` — `POST /api/demo` builds a "Cell biology demo" notebook (3 original study sources + outline + memory) so new users can try everything with one click.
 - `api/study.py` — keyless study tools: flashcard CRUD (`/cards`), Anki-ready TSV export, one-page study guide (`GET/POST /guide`, saveable as a source), mind map tree + markdown export (`/mindmap`).
 - `api/search.py` — `GET /api/notebooks/{id}/search?q=&kind=&source=&tag=&limit=&offset=`; delegates to `store.search(...)`.
@@ -89,26 +91,27 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `core/skills.py` — trigger matching (substring, cap 3) + prompt-section builders for skills and memory.
 - `core/study.py` — term-frequency key terms, markdown study-guide builder, mind-map tree + markdown serializers (all keyless).
 - `core/websearch.py` — keyless DDGS public-web discovery.
-- `core/settings.py` — local optional-key storage; provider-aware (`gemini` | `openrouter`), legacy files without provider default to gemini.
 - `core/gemini.py` / `core/openrouter.py` — provider REST clients; errors carry `status` + `retry_after`.
 - `core/providers.py` — dispatch `generate(provider, key, model, prompt) -> (answer, model)`; retry on 429/5xx, skip to backup models on 404/400, abort on 401/403; `FALLBACK_MODELS`/`DEFAULT_MODELS` constants live here.
-- `core/store.py` — JSON store: notebooks index, per-source files with `pages[]`/`chunks[]`; atomic writes; in-memory `_by_id`/`_source_index`; `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
+- `core/store.py` — SQLite store (`app.db`, WAL): users (pbkdf2), sessions (hashed tokens, 30d), per-user notebooks/sources/outlines/cards/skills/memory/AI-settings; `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
 - `core/ingest.py` — `ingest_bytes` (files), `ingest_text` (paste), `ingest_url` (calls `fetcher`).
 - `core/fetcher.py` — httpx GET + trafilatura article extraction; `FetchError` → mapped to HTTP status.
 - `core/export.py` — notebook → `index.md` + per-source `.md` with YAML frontmatter, zipped.
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` (only fetch layer) · `src/components/` — NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (flashcards + practice + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header + sidebar (sources + notebook export) + tabbed workspace (Research/Deep/Ask/Search/Study/Humanize/Skills). Light theme via inverted neutral scale — see the convention block at the top of `src/index.css`; write classes as if `neutral-950` is the page bg and `neutral-100` is the primary button, never use raw `white`/`black` for text or fills, no `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
+`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (flashcards + practice + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header (email + log out) + sidebar (sources + notebook export) + tabbed workspace (Research/Deep/Ask/Search/Study/Humanize/Skills). Light theme via inverted neutral scale — see the convention block at the top of `src/index.css`; write classes as if `neutral-950` is the page bg and `neutral-100` is the primary button, never use raw `white`/`black` for text or fills, no `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
 
 ## Testing
 
-- `backend/tests/` — `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes a `client` fixture. Coverage: parsers, chunker, search, store-search, API, fetcher, export.
+- `backend/tests/` — `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes an **authed** `client` fixture (registers one user, sends its bearer token). See `test_auth.py` for register/login/logout/isolation coverage.
 - Build checks: `cd backend && uv run pytest`; `cd frontend && npm run build`; then `sh scripts/build_macos_app.sh` for the arm64 app bundle and sidecar smoke test.
 
 ## Next milestones
 
 - **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
+- **M7 — SHIPPED (multi-user):** SQLite store, email auth (pbkdf2 + 30d sessions), per-user everything, login UI, JSON→SQLite migration script, private `research-server` self-host repo.
+- **Next: Google OAuth**, then Apple at App Store time ($99 program).
 - **M5 — SHIPPED (student-ready v1):** flashcards with practice mode + Anki TSV export, keyless one-page study guides (saveable as sources), keyless mind maps (collapsible UI + markdown export), in-app source reader, one-click demo notebook, notebook zip export in the sidebar.
 - **M4 polish** — possible follow-ups: persist research plans per notebook, cap bulk-add selections, retry failed adds.
 

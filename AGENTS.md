@@ -11,10 +11,22 @@ product goal.
 
 Non-negotiables:
 
-- **Keyless-first** — no core research, discovery, study, or export feature may require an API key, account, or paid service. Remote providers are optional experiments, never a primary workflow.
+- **Hosted multi-user direction** — the product is one hosted backend
+  (`research-server`) with thin clients. Every notebook, source, outline,
+  card, skill, note, and AI key belongs to exactly one user; routes enforce
+  ownership and cross-user access is always 404. (Supersedes the old
+  keyless/no-account rule by owner decision, 2026-09-09.)
+- **$0 to run, $99 later** — self-hosting stays free (SQLite file, no paid
+  service). The Apple Developer Program ($99/yr) is budgeted only when App
+  Store submission approaches.
 - **No local LLMs** — Ollama etc. intentionally excluded by owner decision.
-- **No-AI mode is first-class** — every feature must remain useful when all remote providers are absent.
-- **Privacy** — user data stays in the local data directory (`backend/data/` in development; Application Support in the packaged app). Never commit `.env`, keys, or data files.
+- **No-AI mode is first-class** — every feature must remain useful when no
+  provider key is configured. Auth is required; AI is not.
+- **License: MIT** — keep it open source (matches fordaaaa/panoply).
+- **Privacy** — user data stays in the data directory (`backend/data/` in
+  development as `app.db`; `./data` in the hosted container). Passwords are
+  pbkdf2 hashes, sessions are hashed bearer tokens. Never commit `.env`,
+  keys, or data files.
 
 Inspiration: NotebookLM (notebooks of sources, grounded chat, generated artifacts: quizzes/mind maps/audio) and Obsidian (local markdown, everything exportable). See also teng-lin/notebooklm-py for the feature surface.
 
