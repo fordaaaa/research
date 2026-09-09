@@ -274,3 +274,34 @@ export const reportOutline = (notebookId: string, outlineId: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   }).then(j<OutlineReport>);
+
+export interface HumanizeFinding {
+  pattern: string;
+  label: string;
+  excerpt: string;
+  suggestion: string;
+}
+
+export interface HumanizeAnalysis {
+  findings: HumanizeFinding[];
+  signal_count: number;
+}
+
+export interface HumanizeRewrite {
+  text: string;
+  model: string | null;
+}
+
+export const analyzeHumanize = (text: string) =>
+  fetch(`${BASE}/humanize/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }).then(j<HumanizeAnalysis>);
+
+export const rewriteHumanize = (text: string, voiceSample?: string) =>
+  fetch(`${BASE}/humanize/rewrite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(voiceSample ? { text, voice_sample: voiceSample } : { text }),
+  }).then(j<HumanizeRewrite>);

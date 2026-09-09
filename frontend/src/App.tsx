@@ -9,15 +9,17 @@ import ResearchPanel from "./components/ResearchPanel";
 import ChatPanel from "./components/ChatPanel";
 import SettingsDialog from "./components/SettingsDialog";
 import OutlinePanel from "./components/OutlinePanel";
+import HumanizerPanel from "./components/HumanizerPanel";
 import { Badge, Card, Tabs } from "./components/ui";
 
-type View = "research" | "deep" | "ask" | "search";
+type View = "research" | "deep" | "ask" | "search" | "write";
 
 const VIEWS: { value: View; label: string }[] = [
   { value: "research", label: "Research" },
   { value: "deep", label: "Deep research" },
   { value: "ask", label: "Ask" },
   { value: "search", label: "Search" },
+  { value: "write", label: "Humanize" },
 ];
 
 export default function App() {
@@ -166,6 +168,7 @@ export default function App() {
                 }}
               />
             )}
+            {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
           </main>
         </div>
       )}

@@ -252,3 +252,29 @@ class OutlineReportResponse(BaseModel):
     source: SourceSummary
     origin: Literal["ai", "digest"]
     model: str | None = None
+
+
+class HumanizeFinding(BaseModel):
+    pattern: str
+    label: str
+    excerpt: str
+    suggestion: str
+
+
+class HumanizeAnalyzeRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+
+
+class HumanizeAnalyzeResponse(BaseModel):
+    findings: list[HumanizeFinding]
+    signal_count: int
+
+
+class HumanizeRewriteRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+    voice_sample: str | None = Field(default=None, min_length=1, max_length=5_000)
+
+
+class HumanizeRewriteResponse(BaseModel):
+    text: str
+    model: str | None = None
