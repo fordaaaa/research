@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { Notebook } from "../api";
+import { Button, Card, EmptyState } from "./ui";
+import { inputCls } from "./ui";
 
 interface Props {
   notebooks: Notebook[];
@@ -8,64 +10,114 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
+const WORKFLOWS = [
+  { title: "Collect", text: "Drop in PDFs, docs, pasted notes, or public web pages. Everything stays on your machine." },
+  { title: "Research", text: "Plan sub-queries, gather ranked public sources, and write an overview — no key needed." },
+  { title: "Study", text: "Search your sources, ask grounded questions, and export it all to Obsidian-style markdown." },
+];
+
 export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }: Props) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <main className="flex-1 overflow-y-auto p-8 animate-page-in">
-      <div className="max-w-xl mx-auto space-y-6">
-        <form
-          className="flex gap-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!name.trim() || busy) return;
-            setBusy(true);
-            try {
-              await onCreate(name.trim());
-              setName("");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <input
-            className="flex-1 rounded-lg bg-neutral-900 border border-neutral-800 px-4 py-2 text-sm outline-none focus:border-neutral-500"
-            placeholder="New notebook name…"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button
-            className="rounded-lg bg-neutral-100 text-neutral-900 px-4 py-2 text-sm font-medium hover:bg-white transition active:scale-[0.98] disabled:opacity-50"
-            type="submit"
-            disabled={busy}
+    <main className="flex-1 overflow-y-auto animate-page-in">
+      <div className="mx-auto w-full max-w-3xl space-y-8 p-4 sm:p-8">
+        <section className="pt-6 text-center sm:pt-10">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">research, locally</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
+            A keyless notebook for school: collect sources, search them, research the public web, and export your work. No account, no API key, nothing leaves your machine.
+          </p>
+        </section>
+
+        <Card className="p-5">
+          <form
+            className="flex flex-col gap-2 sm:flex-row"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!name.trim() || busy) return;
+              setBusy(true);
+              setError(null);
+              try {
+                await onCreate(name.trim());
+                setName("");
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "could not create notebook");
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
-            Create
-          </button>
-        </form>
-        <ul className="divide-y divide-neutral-800 border border-neutral-800 rounded-xl overflow-hidden">
-          {notebooks.length === 0 && (
-            <li className="px-4 py-10 text-center text-sm text-neutral-500">
-              No notebooks yet — create one above.
-            </li>
+            <input
+              className={inputCls}
+              placeholder="New notebook name… e.g. Biology 101"
+              value={name}
+              maxLength={120}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button type="submit" disabled={busy || !name.trim()} className="shrink-0">
+              Create
+            </Button>
+          </form>
+          {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        </Card>
+
+        <section>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Notebooks
+          </h2>
+          {notebooks.length === 0 ? (
+            <EmptyState title="No notebooks yet — create one above." hint="Each notebook holds its own sources, research, and exports." />
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {notebooks.map((nb, i) => (
+                <li key={nb.id}>
+                  <button
+                    className="group flex w-full items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-900/80 animate-card-in"
+                    style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
+                    onClick={() => onOpen(nb)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{nb.name}</span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">
+                        {new Date(nb.created_at).toLocaleDateString()}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-neutral-500 group-hover:text-white">Open →</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Delete ${nb.name}`}
+                      className="shrink-0 text-xs text-neutral-600 hover:text-red-400"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(nb.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.stopPropagation();
+                          onDelete(nb.id);
+                        }
+                      }}
+                    >
+                      delete
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
-          {notebooks.map((nb, i) => (
-            <li key={nb.id} className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-900 transition-colors animate-card-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
-              <button className="flex-1 text-left min-w-0" onClick={() => onOpen(nb)}>
-                <span className="text-sm font-medium">{nb.name}</span>
-                <span className="ml-3 text-xs text-neutral-500">
-                  {new Date(nb.created_at).toLocaleDateString()}
-                </span>
-              </button>
-              <button
-                className="text-xs text-neutral-500 hover:text-red-400"
-                onClick={() => onDelete(nb.id)}
-              >
-                delete
-              </button>
-            </li>
+        </section>
+
+        <section className="grid gap-2 pb-8 sm:grid-cols-3">
+          {WORKFLOWS.map((w) => (
+            <div key={w.title} className="rounded-2xl border border-neutral-800/80 p-4">
+              <p className="text-sm font-semibold">{w.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-500">{w.text}</p>
+            </div>
           ))}
-        </ul>
+        </section>
       </div>
     </main>
   );
