@@ -79,6 +79,8 @@ export const deleteNotebook = (id: string) =>
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
 
+export const exportNotebookUrl = (id: string) => `${BASE}/notebooks/${id}/export`;
+
 export const listSources = (notebookId: string) =>
   fetch(`${BASE}/notebooks/${notebookId}/sources`).then(j<SourceSummary[]>);
 

@@ -3,7 +3,7 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, M0–M2 plus the native macOS alpha are committed. The
-> working tree is green; backend tests pass (128) and the packaged macOS smoke
+> working tree is green; backend tests pass (136) and the packaged macOS smoke
 > test has passed on this Apple-silicon machine.
 
 ## Current state
@@ -77,6 +77,8 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `api/outlines.py` — persistent deep-research outlines per notebook: CRUD, `POST /outlines/draft` (heuristic angles + optional AI items/fields), `POST /outlines/{id}/deep` (per-item web pass, never ingests), `POST /outlines/{id}/report` (outline-structured digest or AI report saved as a source).
 - `api/humanize.py` — `POST /api/humanize/analyze` (keyless pattern flags, no notebook needed), `POST /api/humanize/rewrite` (optional AI rewrite with voice sample; 503 without a key).
 - `api/skills.py` — global skills library CRUD (`/api/skills`) + per-notebook memory notes (`GET/PUT /api/notebooks/{id}/memory`). Matched skills + memory are appended to chat/synthesis/report prompts only when AI is configured.
+- `api/demo.py` — `POST /api/demo` builds a "Cell biology demo" notebook (3 original study sources + outline + memory) so new users can try everything with one click.
+- `api/study.py` — keyless study tools: flashcard CRUD (`/cards`), Anki-ready TSV export, one-page study guide (`GET/POST /guide`, saveable as a source), mind map tree + markdown export (`/mindmap`).
 - `api/search.py` — `GET /api/notebooks/{id}/search?q=&kind=&source=&tag=&limit=&offset=`; delegates to `store.search(...)`.
 - `core/models.py` — pydantic: `Page`, `Chunk`, `Source` (`tags`, `meta`), `SourceSummary`, `Notebook`, `SearchHit`, `NotebookCreate`, `PasteCreate`, `SourceUpdate`, `UrlCreate`. `SourceKind` includes `"url"`.
 - `core/parsers.py` — magic-byte + ext + content-type detection; PDF→pages via PyMuPDF, DOCX via python-docx (single page), txt/md utf-8. Unknown → 415 (`IngestError`).
@@ -85,6 +87,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `core/deepresearch.py` — outline draft/parse helpers, per-item query builder, outline-structured report digest + prompt.
 - `core/humanize.py` — 13 deterministic AI-writing pattern checks + rewrite prompt builder (all keyless; rewrite itself needs a provider).
 - `core/skills.py` — trigger matching (substring, cap 3) + prompt-section builders for skills and memory.
+- `core/study.py` — term-frequency key terms, markdown study-guide builder, mind-map tree + markdown serializers (all keyless).
 - `core/websearch.py` — keyless DDGS public-web discovery.
 - `core/settings.py` — local optional-key storage; provider-aware (`gemini` | `openrouter`), legacy files without provider default to gemini.
 - `core/gemini.py` / `core/openrouter.py` — provider REST clients; errors carry `status` + `retry_after`.
@@ -96,7 +99,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` (only fetch layer) · `src/components/` — NotebookPicker (home dashboard), UploadZone, SourceList, SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header + sidebar (sources) + tabbed workspace (Research/Deep/Ask/Search/Humanize/Skills). Dark neutral theme. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
+`src/api.ts` (only fetch layer) · `src/components/` — NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (flashcards + practice + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header + sidebar (sources + notebook export) + tabbed workspace (Research/Deep/Ask/Search/Study/Humanize/Skills). Dark neutral theme. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
 
 ## Testing
 
@@ -106,7 +109,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 ## Next milestones
 
 - **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
-- **M5** — keyless study tools: manual flashcards, quizzes, study guides, exportable mind maps.
+- **M5 — SHIPPED (student-ready v1):** flashcards with practice mode + Anki TSV export, keyless one-page study guides (saveable as sources), keyless mind maps (collapsible UI + markdown export), in-app source reader, one-click demo notebook, notebook zip export in the sidebar.
 - **M4 polish** — possible follow-ups: persist research plans per notebook, cap bulk-add selections, retry failed adds.
 
 ## Keyless research mode (M4, shipped)
@@ -117,7 +120,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - **Deep-research outlines (Deep-Research-skills-inspired, shipped):** persistent per-notebook outlines (`outlines.json`) with editable items + fields, human-in-the-loop at every stage (draft → edit → per-item deep pass → bulk add → outline-structured report). Heuristic draft reuses the 5 plan angles + 4 default fields; AI draft upgrades to concrete items/fields when configured. Same keyless guarantees as quick research (never ingests during deep pass, digest fallback, 503 only on total failure). UI: `OutlinePanel.tsx` under the Deep research tab.
 - **Humanizer (humanizer-skill-inspired, shipped):** `core/humanize.py` implements 13 of the 25 public patterns as deterministic regex checks (staging, AI vocab, inflation, formatting, chat residue, rhythm). `POST /api/humanize/analyze` is keyless and notebook-free; `POST /api/humanize/rewrite` needs a configured key and accepts an optional voice sample. UI: `HumanizerPanel.tsx` under the Humanize tab.
 - **Skills + memory (hermes-agent-inspired, shipped keyless subset):** global skills library (`data/skills.json`, trigger-word matching, cap 3) and per-notebook memory notes. Both are local JSON, work with no key, and only reach a provider as prompt sections in chat/synthesis/report when AI is configured. Deliberately NOT vendored: Hermes gateway, messaging platforms, cron, subagents, TUI — all require keys/servers and would break keyless-first. UI: `SkillsPanel.tsx` under the Skills tab.
-- **M5** — keyless study tools: manual flashcards, quizzes, study guides, and exportable mind maps.
+- **M5 — shipped**, see Next milestones (study kit: flashcards, guides, mind maps, reader, demo).
 - **M6** — only then assess optional remote AI experiments; they must never gate the product.
 
 ## Parking lot

@@ -141,6 +141,16 @@ export default function App() {
                   await refreshSources(notebook.id);
                 }}
               />
+              <div className="mt-4 border-t border-neutral-800 pt-3">
+                <a
+                  className="text-xs font-medium text-neutral-300 underline hover:text-white"
+                  href={api.exportNotebookUrl(notebook.id)}
+                  download
+                >
+                  Export notebook (.zip)
+                </a>
+                <p className="mt-1 text-[11px] text-neutral-600">Obsidian-style markdown, including guides and reports.</p>
+              </div>
             </Card>
           </aside>
           <main className="min-w-0 space-y-5">

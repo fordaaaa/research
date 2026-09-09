@@ -12,9 +12,9 @@ interface Props {
 }
 
 const WORKFLOWS = [
-  { title: "Collect", text: "Drop in PDFs, docs, pasted notes, or public web pages. Everything stays on your machine." },
-  { title: "Research", text: "Plan sub-queries, gather ranked public sources, and write an overview — no key needed." },
-  { title: "Study", text: "Search your sources, ask grounded questions, and export it all to Obsidian-style markdown." },
+  { title: "Collect", text: "Drop in PDFs, docs, pasted notes, or public web pages. Read everything in-app. It all stays on your machine." },
+  { title: "Research", text: "Plan searches, run deep-research outlines, and write cited overviews — no key, no account, no paywall." },
+  { title: "Study", text: "Flashcards with practice mode, one-page guides, mind maps, Anki export, and Obsidian export. Free forever." },
 ];
 
 export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }: Props) {
@@ -29,7 +29,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
         <section className="pt-6 text-center sm:pt-10">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">research, locally</h1>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
-            A keyless notebook for school: collect sources, search them, research the public web, and export your work. No account, no API key, nothing leaves your machine.
+            A free study app that lives on your machine: collect sources, research any topic, and study with flashcards, guides, and mind maps. No account, no API key, nothing leaves your laptop.
           </p>
         </section>
 

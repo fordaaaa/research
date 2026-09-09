@@ -1,9 +1,10 @@
 # research
 
-A free, local-first NotebookLM alternative for school. Import sources, search,
-read, discover public material, and export your work with no account or API key.
-Runs on your machine; your core research workflow never depends on a model or a
-remote provider.
+A free, local-first study app for school. Collect sources, read them in-app,
+research the public web, and study with flashcards, one-page guides, and mind
+maps — with no account or API key. Try the one-click demo notebook to see every
+workflow in seconds. Runs on your machine; your core study workflow never
+depends on a model or a remote provider.
 
 ## Stack
 
@@ -61,5 +62,5 @@ Native macOS packaging and keyless research are the current priorities.
 - [x] M2 — search & information management (ranked search, filters, tags, rename, URL ingest, markdown export)
 - [ ] M3 — native macOS app polish and distribution readiness
 - [x] M4 — keyless research mode (plan → web search → gather → cited source collection)
-- [ ] M5 — keyless study tools (manual flashcards, quizzes, and study guides)
+- [x] M5 — keyless study tools (flashcards + practice mode, study guides, mind maps, Anki/Obsidian export)
 - [ ] M6 — optional remote AI experiments, only if they add value without becoming required
