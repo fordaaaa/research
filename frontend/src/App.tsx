@@ -11,16 +11,18 @@ import SettingsDialog from "./components/SettingsDialog";
 import OutlinePanel from "./components/OutlinePanel";
 import HumanizerPanel from "./components/HumanizerPanel";
 import SkillsPanel from "./components/SkillsPanel";
+import StudyPanel from "./components/StudyPanel";
 import ReaderModal from "./components/ReaderModal";
 import { Badge, Card, Tabs } from "./components/ui";
 
-type View = "research" | "deep" | "ask" | "search" | "write" | "skills";
+type View = "research" | "deep" | "ask" | "search" | "study" | "write" | "skills";
 
 const VIEWS: { value: View; label: string }[] = [
   { value: "research", label: "Research" },
   { value: "deep", label: "Deep research" },
   { value: "ask", label: "Ask" },
   { value: "search", label: "Search" },
+  { value: "study", label: "Study" },
   { value: "write", label: "Humanize" },
   { value: "skills", label: "Skills" },
 ];
@@ -173,6 +175,7 @@ export default function App() {
                 }}
               />
             )}
+            {view === "study" && <StudyPanel notebookId={notebook.id} />}
             {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
             {view === "skills" && <SkillsPanel notebookId={notebook.id} />}
           </main>

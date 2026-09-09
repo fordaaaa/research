@@ -307,3 +307,25 @@ class MemoryUpdate(BaseModel):
 
 class MemoryResponse(BaseModel):
     notes: str
+
+
+class Flashcard(BaseModel):
+    id: str
+    notebook_id: str
+    front: str
+    back: str
+    tags: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class CardCreate(BaseModel):
+    front: str = Field(min_length=1, max_length=500)
+    back: str = Field(min_length=1, max_length=2_000)
+    tags: list[str] = Field(default_factory=list, max_length=10)
+
+
+class CardUpdate(BaseModel):
+    front: str | None = Field(default=None, min_length=1, max_length=500)
+    back: str | None = Field(default=None, min_length=1, max_length=2_000)
+    tags: list[str] | None = Field(default=None, max_length=10)

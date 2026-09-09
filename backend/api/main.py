@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai, demo, humanize, notebooks, outlines, research, search, skills, sources, web
+from api import ai, demo, humanize, notebooks, outlines, research, search, skills, sources, study, web
 from core.store import Store
 
 logger = logging.getLogger("api")
@@ -83,6 +83,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     ai.register(app)
     humanize.register(app)
     skills.register(app)
+    study.register(app)
     research.register(app)
     outlines.register(app)
     if web_dir is not None:

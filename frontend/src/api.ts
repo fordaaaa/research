@@ -349,3 +349,30 @@ export const saveMemory = (notebookId: string, notes: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ notes }),
   }).then(j<{ notes: string }>);
+
+export interface Flashcard {
+  id: string;
+  notebook_id: string;
+  front: string;
+  back: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export const listCards = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/cards`).then(j<Flashcard[]>);
+
+export const createCard = (notebookId: string, body: { front: string; back: string }) =>
+  fetch(`${BASE}/notebooks/${notebookId}/cards`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<Flashcard>);
+
+export const deleteCard = (notebookId: string, cardId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then((r) => {
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  });
+
+export const exportCardsUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/cards/export`;

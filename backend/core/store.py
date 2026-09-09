@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.models import (
+    Flashcard,
     Notebook,
     ResearchOutline,
     SearchHit,
@@ -278,6 +279,46 @@ class Store:
     def set_memory(self, notebook_id: str, notes: str) -> str:
         self._write_json(self._memory_path(notebook_id), {"notes": notes})
         return notes
+
+    # ---------- flashcards ----------
+
+    def _cards_path(self, notebook_id: str) -> Path:
+        return self._nb_dir(notebook_id) / "cards.json"
+
+    def _load_cards(self, notebook_id: str) -> list[dict]:
+        return _read_json(self._cards_path(notebook_id), [])
+
+    def _save_cards(self, notebook_id: str, cards: list[dict]) -> None:
+        self._write_json(self._cards_path(notebook_id), cards)
+
+    def list_cards(self, notebook_id: str) -> list[Flashcard]:
+        return [Flashcard.model_validate(r) for r in self._load_cards(notebook_id)]
+
+    def get_card(self, notebook_id: str, card_id: str) -> Flashcard | None:
+        for row in self._load_cards(notebook_id):
+            if row.get("id") == card_id:
+                return Flashcard.model_validate(row)
+        return None
+
+    def save_card(self, card: Flashcard) -> Flashcard:
+        rows = self._load_cards(card.notebook_id)
+        payload = card.model_dump(mode="json")
+        for index, row in enumerate(rows):
+            if row.get("id") == card.id:
+                rows[index] = payload
+                break
+        else:
+            rows.append(payload)
+        self._save_cards(card.notebook_id, rows)
+        return card
+
+    def delete_card(self, notebook_id: str, card_id: str) -> bool:
+        rows = self._load_cards(notebook_id)
+        kept = [r for r in rows if r.get("id") != card_id]
+        if len(kept) == len(rows):
+            return False
+        self._save_cards(notebook_id, kept)
+        return True
 
     # ---------- search ----------
 
