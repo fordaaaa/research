@@ -7,7 +7,14 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from core.models import Notebook, SearchHit, Source, SourceSummary, utcnow
+from core.models import (
+    Notebook,
+    ResearchOutline,
+    SearchHit,
+    Source,
+    SourceSummary,
+    utcnow,
+)
 from core.search import EmptyQuery, parse_query, score_chunk, stemmed_words
 
 
@@ -180,6 +187,46 @@ class Store:
         if path.exists():
             path.unlink()
         self._source_index.pop(source_id, None)
+        return True
+
+    # ---------- research outlines ----------
+
+    def _outlines_path(self, notebook_id: str) -> Path:
+        return self._nb_dir(notebook_id) / "outlines.json"
+
+    def _load_outlines(self, notebook_id: str) -> list[dict]:
+        return _read_json(self._outlines_path(notebook_id), [])
+
+    def _save_outlines(self, notebook_id: str, outlines: list[dict]) -> None:
+        self._write_json(self._outlines_path(notebook_id), outlines)
+
+    def list_outlines(self, notebook_id: str) -> list[ResearchOutline]:
+        return [ResearchOutline.model_validate(r) for r in self._load_outlines(notebook_id)]
+
+    def get_outline(self, notebook_id: str, outline_id: str) -> ResearchOutline | None:
+        for row in self._load_outlines(notebook_id):
+            if row.get("id") == outline_id:
+                return ResearchOutline.model_validate(row)
+        return None
+
+    def save_outline(self, outline: ResearchOutline) -> ResearchOutline:
+        rows = self._load_outlines(outline.notebook_id)
+        payload = outline.model_dump(mode="json")
+        for index, row in enumerate(rows):
+            if row.get("id") == outline.id:
+                rows[index] = payload
+                break
+        else:
+            rows.append(payload)
+        self._save_outlines(outline.notebook_id, rows)
+        return outline
+
+    def delete_outline(self, notebook_id: str, outline_id: str) -> bool:
+        rows = self._load_outlines(notebook_id)
+        kept = [r for r in rows if r.get("id") != outline_id]
+        if len(kept) == len(rows):
+            return False
+        self._save_outlines(notebook_id, kept)
         return True
 
     # ---------- search ----------

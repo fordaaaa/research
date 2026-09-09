@@ -8,12 +8,14 @@ import SearchPanel from "./components/SearchPanel";
 import ResearchPanel from "./components/ResearchPanel";
 import ChatPanel from "./components/ChatPanel";
 import SettingsDialog from "./components/SettingsDialog";
+import OutlinePanel from "./components/OutlinePanel";
 import { Badge, Card, Tabs } from "./components/ui";
 
-type View = "research" | "ask" | "search";
+type View = "research" | "deep" | "ask" | "search";
 
 const VIEWS: { value: View; label: string }[] = [
   { value: "research", label: "Research" },
+  { value: "deep", label: "Deep research" },
   { value: "ask", label: "Ask" },
   { value: "search", label: "Search" },
 ];
@@ -136,6 +138,13 @@ export default function App() {
             <Tabs options={VIEWS} value={view} onChange={setView} />
             {view === "research" && (
               <ResearchPanel
+                notebookId={notebook.id}
+                aiConfigured={aiConfigured}
+                onSourcesChanged={() => refreshSources(notebook.id)}
+              />
+            )}
+            {view === "deep" && (
+              <OutlinePanel
                 notebookId={notebook.id}
                 aiConfigured={aiConfigured}
                 onSourcesChanged={() => refreshSources(notebook.id)}

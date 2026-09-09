@@ -186,3 +186,91 @@ export const askNotebook = (notebookId: string, message: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),
   }).then(j<ChatResponse>);
+
+export interface OutlineItem {
+  id: string;
+  label: string;
+}
+
+export interface OutlineField {
+  id: string;
+  label: string;
+}
+
+export interface ResearchOutline {
+  id: string;
+  notebook_id: string;
+  topic: string;
+  items: OutlineItem[];
+  fields: OutlineField[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OutlineDraft {
+  topic: string;
+  items: string[];
+  fields: string[];
+  origin: "ai" | "heuristic";
+}
+
+export interface OutlineDeepItem {
+  item_id: string;
+  label: string;
+  queries: string[];
+  candidates: ResearchCandidate[];
+}
+
+export interface OutlineDeep {
+  results: OutlineDeepItem[];
+  failed_items: string[];
+}
+
+export interface OutlineReport {
+  source: SourceSummary;
+  origin: "ai" | "digest";
+  model: string | null;
+}
+
+export const listOutlines = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines`).then(j<ResearchOutline[]>);
+
+export const createOutline = (notebookId: string, body: { topic: string; items: { label: string }[]; fields: { label: string }[] }) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<ResearchOutline>);
+
+export const updateOutline = (notebookId: string, outlineId: string, body: { topic?: string; items?: OutlineItem[]; fields?: OutlineField[] }) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<ResearchOutline>);
+
+export const deleteOutline = (notebookId: string, outlineId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, { method: "DELETE" }).then((r) => {
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  });
+
+export const draftOutline = (notebookId: string, topic: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines/draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic }),
+  }).then(j<OutlineDraft>);
+
+export const deepOutline = (notebookId: string, outlineId: string, perItem = 4) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/deep`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ per_item: perItem }),
+  }).then(j<OutlineDeep>);
+
+export const reportOutline = (notebookId: string, outlineId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  }).then(j<OutlineReport>);

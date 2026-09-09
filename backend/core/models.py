@@ -172,3 +172,83 @@ class ResearchSynthesisResponse(BaseModel):
     source: SourceSummary
     origin: Literal["ai", "digest"]
     model: str | None = None
+
+
+class OutlineItem(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    label: str = Field(min_length=1, max_length=200)
+
+
+class OutlineField(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    label: str = Field(min_length=1, max_length=120)
+
+
+class ResearchOutline(BaseModel):
+    id: str
+    notebook_id: str
+    topic: str
+    items: list[OutlineItem] = Field(default_factory=list)
+    fields: list[OutlineField] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class OutlineItemInput(BaseModel):
+    id: str | None = Field(default=None, min_length=1, max_length=32)
+    label: str = Field(min_length=1, max_length=200)
+
+
+class OutlineFieldInput(BaseModel):
+    id: str | None = Field(default=None, min_length=1, max_length=32)
+    label: str = Field(min_length=1, max_length=120)
+
+
+class OutlineCreate(BaseModel):
+    topic: str = Field(min_length=3, max_length=300)
+    items: list[OutlineItemInput] = Field(default_factory=list, max_length=30)
+    fields: list[OutlineFieldInput] = Field(default_factory=list, max_length=15)
+
+
+class OutlineUpdate(BaseModel):
+    topic: str | None = Field(default=None, min_length=3, max_length=300)
+    items: list[OutlineItemInput] | None = Field(default=None, max_length=30)
+    fields: list[OutlineFieldInput] | None = Field(default=None, max_length=15)
+
+
+class OutlineDraftRequest(BaseModel):
+    topic: str = Field(min_length=3, max_length=300)
+
+
+class OutlineDraftResponse(BaseModel):
+    topic: str
+    items: list[str]
+    fields: list[str]
+    origin: Literal["ai", "heuristic"]
+
+
+class OutlineDeepRequest(BaseModel):
+    per_item: int = Field(default=4, ge=1, le=6)
+    per_query: int = Field(default=5, ge=3, le=10)
+
+
+class OutlineDeepItemResult(BaseModel):
+    item_id: str
+    label: str
+    queries: list[str]
+    candidates: list[ResearchCandidate]
+
+
+class OutlineDeepResponse(BaseModel):
+    results: list[OutlineDeepItemResult]
+    failed_items: list[str]
+
+
+class OutlineReportRequest(BaseModel):
+    source_ids: list[str] | None = None
+
+
+class OutlineReportResponse(BaseModel):
+    source: SourceSummary
+    origin: Literal["ai", "digest"]
+    model: str | None = None
