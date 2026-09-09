@@ -278,3 +278,32 @@ class HumanizeRewriteRequest(BaseModel):
 class HumanizeRewriteResponse(BaseModel):
     text: str
     model: str | None = None
+
+
+class Skill(BaseModel):
+    id: str
+    name: str
+    instructions: str
+    triggers: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class SkillCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    instructions: str = Field(min_length=1, max_length=4_000)
+    triggers: list[str] = Field(default_factory=list, max_length=10)
+
+
+class SkillUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    instructions: str | None = Field(default=None, min_length=1, max_length=4_000)
+    triggers: list[str] | None = Field(default=None, max_length=10)
+
+
+class MemoryUpdate(BaseModel):
+    notes: str = Field(max_length=10_000)
+
+
+class MemoryResponse(BaseModel):
+    notes: str

@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 
 from api.deps import get_store, notebook_or_404, safe_id
-from core import providers, settings
+from core import providers, settings, skills
 from core.context import build_context
 from core.models import AISettingsUpdate, ChatRequest, ChatResponse
 
@@ -40,6 +40,12 @@ def register(app: FastAPI) -> None:
             "Use citation markers like [1] that match the supplied excerpt numbers.\n\n"
             f"QUESTION: {body.message}\n\nSOURCES:\n" + "\n\n".join(excerpts)
         )
+        matched = skills.match_skills(store.list_skills(), body.message)
+        if matched:
+            prompt += "\n\n" + skills.skills_section(matched)
+        notes = store.get_memory(notebook_id)
+        if notes.strip():
+            prompt += "\n\n" + skills.memory_section(notes.strip())
         try:
             answer, used_model = providers.generate(configured.provider, key, configured.model, prompt)
         except providers.AIError as exc:

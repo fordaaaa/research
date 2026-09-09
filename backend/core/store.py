@@ -11,6 +11,7 @@ from core.models import (
     Notebook,
     ResearchOutline,
     SearchHit,
+    Skill,
     Source,
     SourceSummary,
     utcnow,
@@ -228,6 +229,55 @@ class Store:
             return False
         self._save_outlines(notebook_id, kept)
         return True
+
+    # ---------- skills library (global) ----------
+
+    def _skills_path(self) -> Path:
+        return self.root / "skills.json"
+
+    def _load_skills(self) -> list[dict]:
+        return _read_json(self._skills_path(), [])
+
+    def list_skills(self) -> list[Skill]:
+        return [Skill.model_validate(r) for r in self._load_skills()]
+
+    def get_skill(self, skill_id: str) -> Skill | None:
+        for row in self._load_skills():
+            if row.get("id") == skill_id:
+                return Skill.model_validate(row)
+        return None
+
+    def save_skill(self, skill: Skill) -> Skill:
+        rows = self._load_skills()
+        payload = skill.model_dump(mode="json")
+        for index, row in enumerate(rows):
+            if row.get("id") == skill.id:
+                rows[index] = payload
+                break
+        else:
+            rows.append(payload)
+        self._write_json(self._skills_path(), rows)
+        return skill
+
+    def delete_skill(self, skill_id: str) -> bool:
+        rows = self._load_skills()
+        kept = [r for r in rows if r.get("id") != skill_id]
+        if len(kept) == len(rows):
+            return False
+        self._write_json(self._skills_path(), kept)
+        return True
+
+    # ---------- notebook memory ----------
+
+    def _memory_path(self, notebook_id: str) -> Path:
+        return self._nb_dir(notebook_id) / "memory.json"
+
+    def get_memory(self, notebook_id: str) -> str:
+        return str(_read_json(self._memory_path(notebook_id), {}).get("notes", ""))
+
+    def set_memory(self, notebook_id: str, notes: str) -> str:
+        self._write_json(self._memory_path(notebook_id), {"notes": notes})
+        return notes
 
     # ---------- search ----------
 

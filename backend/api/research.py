@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 
 from api.deps import get_store, notebook_or_404, safe_id
 from api.sources import _summary
-from core import ingest, providers, research, settings
+from core import ingest, providers, research, settings, skills
 from core.context import build_context
 from core.models import (
     ResearchCandidate,
@@ -105,11 +105,18 @@ def register(app: FastAPI) -> None:
         if key and configured.model:
             try:
                 excerpts, citations = build_context(store, notebook_id, source_ids=set(body.source_ids) if body.source_ids else None)
+                prompt = research.build_synthesis_prompt(body.topic, excerpts)
+                matched = skills.match_skills(store.list_skills(), body.topic)
+                if matched:
+                    prompt += "\n\n" + skills.skills_section(matched)
+                notes = store.get_memory(notebook_id)
+                if notes.strip():
+                    prompt += "\n\n" + skills.memory_section(notes.strip())
                 answer, model = providers.generate(
                     configured.provider,
                     key,
                     configured.model,
-                    research.build_synthesis_prompt(body.topic, excerpts),
+                    prompt,
                 )
                 lines = [answer, "", "Sources:"]
                 lines.extend(

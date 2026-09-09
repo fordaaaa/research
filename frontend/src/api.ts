@@ -305,3 +305,36 @@ export const rewriteHumanize = (text: string, voiceSample?: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(voiceSample ? { text, voice_sample: voiceSample } : { text }),
   }).then(j<HumanizeRewrite>);
+
+export interface Skill {
+  id: string;
+  name: string;
+  instructions: string;
+  triggers: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export const listSkills = () => fetch(`${BASE}/skills`).then(j<Skill[]>);
+
+export const createSkill = (body: { name: string; instructions: string; triggers: string[] }) =>
+  fetch(`${BASE}/skills`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<Skill>);
+
+export const deleteSkill = (id: string) =>
+  fetch(`${BASE}/skills/${id}`, { method: "DELETE" }).then((r) => {
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  });
+
+export const getMemory = (notebookId: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/memory`).then(j<{ notes: string }>);
+
+export const saveMemory = (notebookId: string, notes: string) =>
+  fetch(`${BASE}/notebooks/${notebookId}/memory`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+  }).then(j<{ notes: string }>);

@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 
 from api.deps import get_store, notebook_or_404, safe_id
 from api.sources import _summary
-from core import deepresearch, ingest, providers, research, settings
+from core import deepresearch, ingest, providers, research, settings, skills
 from core.context import build_context
 from core.models import (
     OutlineCreate,
@@ -210,9 +210,15 @@ def register(app: FastAPI) -> None:
                     store, notebook_id,
                     source_ids=set(body.source_ids) if body.source_ids else None,
                 )
+                prompt = deepresearch.build_report_prompt(outline.topic, outline.items, excerpts)
+                matched = skills.match_skills(store.list_skills(), outline.topic)
+                if matched:
+                    prompt += "\n\n" + skills.skills_section(matched)
+                notes = store.get_memory(notebook_id)
+                if notes.strip():
+                    prompt += "\n\n" + skills.memory_section(notes.strip())
                 answer, model = providers.generate(
-                    configured.provider, key, configured.model,
-                    deepresearch.build_report_prompt(outline.topic, outline.items, excerpts),
+                    configured.provider, key, configured.model, prompt,
                 )
                 lines = [answer, "", "Sources:"]
                 lines.extend(
