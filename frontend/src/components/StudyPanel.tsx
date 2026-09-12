@@ -28,6 +28,8 @@ export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
   const [back, setBack] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   // practice session state (local only — the deck stays the source of truth)
   const [order, setOrder] = useState<Flashcard[]>([]);
   const [index, setIndex] = useState(0);
@@ -37,6 +39,7 @@ export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
 
   useEffect(() => {
     setError(null);
+    setExportError(null);
     setOrder([]);
     api.listCards(notebookId).then(setCards).catch(() => setCards([]));
   }, [notebookId]);
@@ -78,6 +81,19 @@ export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
   const finished = order.length > 0 && index >= order.length;
   const current = practicing ? order[index] : null;
 
+  const handleExportCards = async () => {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      await api.downloadCards(notebookId);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "export failed");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-5 animate-pop-in">
       <Tabs
@@ -95,8 +111,23 @@ export default function StudyPanel({ notebookId, onSourcesChanged }: Props) {
         <SectionHeader
           title="Practice"
           sub="Self-quiz your deck. Cards shuffle every round; your score stays in this session."
-          right={cards.length > 0 ? <a className="text-xs text-neutral-400 underline hover:text-neutral-100" href={api.exportCardsUrl(notebookId)} download>Export for Anki (.tsv)</a> : undefined}
+          right={
+            cards.length > 0 ? (
+              <button
+                className="text-xs text-neutral-400 underline hover:text-neutral-100 disabled:opacity-50"
+                onClick={handleExportCards}
+                disabled={exportBusy}
+              >
+                {exportBusy ? "Exporting…" : "Export for Anki (.tsv)"}
+              </button>
+            ) : undefined
+          }
         />
+        {exportError && (
+          <p role="alert" className="mt-2 text-xs text-red-400">
+            Export failed: {exportError}
+          </p>
+        )}
         {cards.length === 0 ? (
           <div className="mt-3">
             <EmptyState title="No cards yet — add your first one below." hint="Close the source, write what you remember: that's active recall." />
@@ -253,24 +284,55 @@ function GuideSection({ notebookId, onSourcesChanged }: { notebookId: string; on
 function MindmapSection({ notebookId }: { notebookId: string }) {
   const [tree, setTree] = useState<MindmapNode | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     setTree(null);
     setError(null);
+    setExportError(null);
     api.getMindmap(notebookId)
       .then(setTree)
       .catch((err) => setError(err instanceof Error ? err.message : "could not build map"));
   }, [notebookId]);
+
+  const handleExportMindmap = async () => {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      await api.downloadMindmap(notebookId);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "export failed");
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   return (
     <Card className="p-5 animate-pop-in">
       <SectionHeader
         title="Mind map"
         sub="Your notebook as a tree: sources branching into their key terms. No key needed."
-        right={tree ? <a className="text-xs text-neutral-400 underline hover:text-neutral-100" href={api.exportMindmapUrl(notebookId)} download>Export (.md)</a> : undefined}
+        right={
+          tree ? (
+            <button
+              className="text-xs text-neutral-400 underline hover:text-neutral-100 disabled:opacity-50"
+              onClick={handleExportMindmap}
+              disabled={exportBusy}
+            >
+              {exportBusy ? "Exporting…" : "Export (.md)"}
+            </button>
+          ) : undefined
+        }
       />
       <div className="mt-3">
         {error && <p className="text-xs text-red-400">{error}</p>}
+        {exportError && (
+          <p role="alert" className="text-xs text-red-400">
+            Export failed: {exportError}
+          </p>
+        )}
         {!error && !tree && (
           <div className="flex items-center gap-2 text-sm text-neutral-500">
             <Spinner /> Growing branches…

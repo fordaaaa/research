@@ -131,13 +131,16 @@ export const deleteNotebook = (id: string) =>
 
 export const exportNotebookUrl = (id: string) => `${BASE}/notebooks/${id}/export`;
 
-// Authenticated notebook export: apiFetch attaches `Authorization: Bearer`.
-// Prefer downloadNotebook() over the plain exportNotebookUrl anchor, which
-// cannot send the bearer token and fails with 401 when login is required.
-export interface NotebookExport {
+// Shared authenticated download: apiFetch attaches `Authorization: Bearer`.
+// Plain `<a href>` anchors cannot send the bearer token and fail with 401
+// when login is required, so prefer fetchDownload/downloadFile (and the
+// per-resource wrappers below) over the plain *Url helpers.
+export interface DownloadedFile {
   blob: Blob;
   filename: string;
 }
+
+export type NotebookExport = DownloadedFile;
 
 export function filenameFromContentDisposition(header: string | null, fallback: string): string {
   if (!header) return fallback;
@@ -156,8 +159,8 @@ export function filenameFromContentDisposition(header: string | null, fallback: 
   return name || fallback;
 }
 
-export async function fetchNotebookExport(id: string): Promise<NotebookExport> {
-  const res = await apiFetch(`${BASE}/notebooks/${id}/export`);
+export async function fetchDownload(path: string, fallbackFilename: string): Promise<DownloadedFile> {
+  const res = await apiFetch(path);
   if (res.status === 401) {
     clearToken();
     window.dispatchEvent(new Event("research:unauthorized"));
@@ -168,10 +171,7 @@ export async function fetchNotebookExport(id: string): Promise<NotebookExport> {
     throw new Error(body?.detail || `${res.status} ${res.statusText}`);
   }
   const blob = await res.blob();
-  const filename = filenameFromContentDisposition(
-    res.headers.get("Content-Disposition"),
-    `notebook-${id}.zip`
-  );
+  const filename = filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackFilename);
   return { blob, filename };
 }
 
@@ -186,10 +186,18 @@ export function saveBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export async function downloadNotebook(id: string): Promise<NotebookExport> {
-  const result = await fetchNotebookExport(id);
+export async function downloadFile(path: string, fallbackFilename: string): Promise<DownloadedFile> {
+  const result = await fetchDownload(path, fallbackFilename);
   saveBlob(result.blob, result.filename);
   return result;
+}
+
+export async function fetchNotebookExport(id: string): Promise<NotebookExport> {
+  return fetchDownload(`${BASE}/notebooks/${id}/export`, `notebook-${id}.zip`);
+}
+
+export async function downloadNotebook(id: string): Promise<NotebookExport> {
+  return downloadFile(`${BASE}/notebooks/${id}/export`, `notebook-${id}.zip`);
 }
 
 export const listSources = (notebookId: string) =>
@@ -490,6 +498,16 @@ export const deleteCard = (notebookId: string, cardId: string) =>
 
 export const exportCardsUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/cards/export`;
 
+// Prefer downloadCards() over the plain exportCardsUrl anchor, which cannot
+// send the bearer token and fails with 401 when login is required.
+export async function fetchCardsExport(notebookId: string): Promise<DownloadedFile> {
+  return fetchDownload(`${BASE}/notebooks/${notebookId}/cards/export`, `notebook-${notebookId}-flashcards.tsv`);
+}
+
+export async function downloadCards(notebookId: string): Promise<DownloadedFile> {
+  return downloadFile(`${BASE}/notebooks/${notebookId}/cards/export`, `notebook-${notebookId}-flashcards.tsv`);
+}
+
 export const getGuide = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/guide`).then(j<{ markdown: string }>);
 
@@ -505,3 +523,16 @@ export const getMindmap = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/mindmap`).then(j<MindmapNode>);
 
 export const exportMindmapUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/mindmap/export`;
+
+// Prefer downloadMindmap() over the plain exportMindmapUrl anchor, which
+// cannot send the bearer token and fails with 401 when login is required.
+export async function fetchMindmapExport(notebookId: string): Promise<DownloadedFile> {
+  return fetchDownload(
+    `${BASE}/notebooks/${notebookId}/mindmap/export`,
+    `notebook-${notebookId}-mindmap.md`
+  );
+}
+
+export async function downloadMindmap(notebookId: string): Promise<DownloadedFile> {
+  return downloadFile(`${BASE}/notebooks/${notebookId}/mindmap/export`, `notebook-${notebookId}-mindmap.md`);
+}
