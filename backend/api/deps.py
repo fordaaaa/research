@@ -13,7 +13,8 @@ from core.models import User
 from core.store import Store
 
 # IDs are produced by core.store.new_id() as 12 lowercase hex chars. Anything else
-# is rejected at the route boundary to prevent path traversal in the JSON store.
+# is rejected at the route boundary to keep resource identifiers canonical/safe
+# and preserve consistent lookup/404 behavior.
 _ID = re.compile(r"^[a-f0-9]{12}$")
 
 

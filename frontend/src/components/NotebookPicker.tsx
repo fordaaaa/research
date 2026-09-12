@@ -12,9 +12,9 @@ interface Props {
 }
 
 const WORKFLOWS = [
-  { title: "Collect", text: "Drop in PDFs, docs, pasted notes, or public web pages. Read everything in-app. It all stays on your machine." },
-  { title: "Research", text: "Plan searches, run deep-research outlines, and write cited overviews — no key, no account, no paywall." },
-  { title: "Study", text: "Flashcards with practice mode, one-page guides, mind maps, Anki export, and Obsidian export. Free forever." },
+  { title: "Collect", text: "Drop in PDFs, docs, pasted notes, or public web pages. Read everything in-app. Your sources stay private to your signed-in account." },
+  { title: "Research", text: "Plan searches, run deep-research outlines, and write cited overviews — no AI key needed, no paywall for local use." },
+  { title: "Study", text: "Flashcards with practice mode, one-page guides, mind maps, Anki export, and Obsidian export. Free for local use." },
 ];
 
 export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }: Props) {
@@ -29,7 +29,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
         <section className="pt-6 text-center sm:pt-10">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">research, locally</h1>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
-            A free study app that lives on your machine: collect sources, research any topic, and study with flashcards, guides, and mind maps. No account, no API key, nothing leaves your laptop.
+            A free study app for school: collect sources, research any topic, and study with flashcards, guides, and mind maps. Needs a free account — no AI key needed for core workflows, no paywall for local use.
           </p>
         </section>
 
