@@ -39,6 +39,8 @@ export default function App() {
   const [readingId, setReadingId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const refreshNotebooks = useCallback(async () => {
     try {
@@ -90,8 +92,22 @@ export default function App() {
     if (notebook) {
       refreshSources(notebook.id);
       setView("research");
+      setExportError(null);
     }
   }, [notebook, refreshSources]);
+
+  const handleExport = async () => {
+    if (!notebook || exportBusy) return;
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      await api.downloadNotebook(notebook.id);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "export failed");
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   const openNotebook = (nb: Notebook) => setNotebook(nb);
 
@@ -196,13 +212,18 @@ export default function App() {
                 }}
               />
               <div className="mt-4 border-t border-neutral-800 pt-3">
-                <a
-                  className="text-xs font-medium text-neutral-300 underline hover:text-neutral-100"
-                  href={api.exportNotebookUrl(notebook.id)}
-                  download
+                <button
+                  className="text-xs font-medium text-neutral-300 underline hover:text-neutral-100 disabled:opacity-50"
+                  onClick={handleExport}
+                  disabled={exportBusy}
                 >
-                  Export notebook (.zip)
-                </a>
+                  {exportBusy ? "Exporting…" : "Export notebook (.zip)"}
+                </button>
+                {exportError && (
+                  <p role="alert" className="mt-1 text-[11px] text-red-400">
+                    Export failed: {exportError}
+                  </p>
+                )}
                 <p className="mt-1 text-[11px] text-neutral-600">Obsidian-style markdown, including guides and reports.</p>
               </div>
             </Card>

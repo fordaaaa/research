@@ -131,6 +131,67 @@ export const deleteNotebook = (id: string) =>
 
 export const exportNotebookUrl = (id: string) => `${BASE}/notebooks/${id}/export`;
 
+// Authenticated notebook export: apiFetch attaches `Authorization: Bearer`.
+// Prefer downloadNotebook() over the plain exportNotebookUrl anchor, which
+// cannot send the bearer token and fails with 401 when login is required.
+export interface NotebookExport {
+  blob: Blob;
+  filename: string;
+}
+
+export function filenameFromContentDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const star = header.match(/filename\*\s*=\s*(?:UTF-8''|utf-8'')?([^;]+)/i);
+  if (star?.[1]) {
+    try {
+      const decoded = decodeURIComponent(star[1].trim().replace(/^"|"$/g, ""));
+      if (decoded) return decoded;
+    } catch {
+      // fall through to the plain filename= form below
+    }
+  }
+  const quoted =
+    header.match(/filename\s*=\s*"([^"]+)"/i) ?? header.match(/filename\s*=\s*([^;]+)/i);
+  const name = quoted?.[1]?.trim().replace(/^"|"$/g, "");
+  return name || fallback;
+}
+
+export async function fetchNotebookExport(id: string): Promise<NotebookExport> {
+  const res = await apiFetch(`${BASE}/notebooks/${id}/export`);
+  if (res.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event("research:unauthorized"));
+    throw new Error("login required");
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  const filename = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    `notebook-${id}.zip`
+  );
+  return { blob, filename };
+}
+
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadNotebook(id: string): Promise<NotebookExport> {
+  const result = await fetchNotebookExport(id);
+  saveBlob(result.blob, result.filename);
+  return result;
+}
+
 export const listSources = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/sources`).then(j<SourceSummary[]>);
 
