@@ -113,6 +113,21 @@ export const logout = () =>
 
 export const me = () => apiFetch(`${BASE}/auth/me`).then(j<User>);
 
+export interface GoogleStatus {
+  enabled: boolean;
+  client_id: string | null;
+}
+
+export const googleStatus = () =>
+  apiFetch(`${BASE}/auth/google/status`).then(j<GoogleStatus>);
+
+export const googleLogin = (idToken: string) =>
+  apiFetch(`${BASE}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: idToken }),
+  }).then(j<AuthResult>);
+
 const BASE = "/api";
 
 export const listNotebooks = () => apiFetch(`${BASE}/notebooks`).then(j<Notebook[]>);

@@ -336,6 +336,10 @@ class AuthResponse(BaseModel):
     token: str
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str = Field(min_length=10, max_length=8000)
+
+
 class Flashcard(BaseModel):
     id: str
     notebook_id: str

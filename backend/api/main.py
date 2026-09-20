@@ -62,7 +62,12 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self';"
+            " script-src 'self' https://accounts.google.com;"
+            " frame-src https://accounts.google.com;"
+            " connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com"
+        )
         return response
 
     @app.exception_handler(Exception)

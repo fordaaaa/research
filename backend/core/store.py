@@ -149,6 +149,14 @@ class Store:
         self.db_path = self.root / "app.db"
         with self._connect() as con:
             con.executescript(_SCHEMA)
+            try:
+                con.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+            except Exception:
+                pass
+            con.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub"
+                " ON users(google_sub)"
+            )
 
     def _connect(self):
         import sqlite3
@@ -189,6 +197,49 @@ class Store:
         if not row:
             return None
         return _user_from_row(row), row["pw_hash"]
+
+    def get_user_by_google_sub(self, google_sub: str) -> User | None:
+        with self._connect() as con:
+            try:
+                row = con.execute(
+                    "SELECT * FROM users WHERE google_sub = ?", (google_sub,)
+                ).fetchone()
+            except Exception:
+                return None
+        return _user_from_row(row) if row else None
+
+    def create_google_user(self, email: str, google_sub: str) -> User:
+        user = User(id=new_id(), email=email.strip().lower(), created_at=utcnow())
+        try:
+            with self._connect() as con:
+                con.execute(
+                    "INSERT INTO users (id, email, pw_hash, created_at, google_sub)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (
+                        user.id,
+                        user.email,
+                        f"google${secrets.token_hex(16)}",
+                        user.created_at.isoformat(),
+                        google_sub,
+                    ),
+                )
+        except Exception as exc:
+            if "UNIQUE" in str(exc):
+                raise ValueError("email already registered") from exc
+            raise
+        return user
+
+    def set_user_google_sub(self, user_id: str, google_sub: str) -> None:
+        try:
+            with self._connect() as con:
+                con.execute(
+                    "UPDATE users SET google_sub = ? WHERE id = ?",
+                    (google_sub, user_id),
+                )
+        except Exception as exc:
+            if "UNIQUE" in str(exc):
+                raise ValueError("Google account already linked") from exc
+            raise
 
     def create_session(self, user_id: str) -> tuple[str, datetime]:
         raw, digest = _session_token()

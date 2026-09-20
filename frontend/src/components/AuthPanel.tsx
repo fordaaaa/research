@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { User } from "../api";
 import Spinner from "./Spinner";
@@ -9,12 +9,92 @@ interface Props {
   onAuthed: (user: User) => void;
 }
 
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opts: {
+            client_id: string;
+            callback: (res: { credential?: string }) => void;
+          }) => void;
+          renderButton: (
+            el: HTMLElement,
+            opts: { theme?: string; size?: string; width?: number }
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
+const GIS_SRC = "https://accounts.google.com/gsi/client";
+
 export default function AuthPanel({ onAuthed }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    api
+      .googleStatus()
+      .then((s) => {
+        if (s.enabled && s.client_id) setGoogleClientId(s.client_id);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!googleClientId) return;
+    const render = () => {
+      const g = window.google;
+      if (!g || !googleBtnRef.current) return false;
+      g.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (res) => {
+          if (!res.credential) {
+            setError("Google sign-in failed");
+            return;
+          }
+          setGoogleBusy(true);
+          setError(null);
+          try {
+            const out = await api.googleLogin(res.credential);
+            api.setToken(out.token);
+            onAuthed(out.user);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Google sign-in failed");
+          } finally {
+            setGoogleBusy(false);
+          }
+        },
+      });
+      googleBtnRef.current.innerHTML = "";
+      g.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 320,
+      });
+      return true;
+    };
+    if (render()) return;
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => render());
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = GIS_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => render();
+    document.head.appendChild(script);
+  }, [googleClientId, onAuthed]);
 
   const submit = async () => {
     if (!email.trim() || !password || busy) return;
@@ -89,6 +169,21 @@ export default function AuthPanel({ onAuthed }: Props) {
             </Button>
           </form>
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+          {googleClientId && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 text-[11px] text-neutral-600">
+                <span className="h-px flex-1 bg-neutral-800" />
+                or
+                <span className="h-px flex-1 bg-neutral-800" />
+              </div>
+              <div ref={googleBtnRef} className="flex justify-center" />
+              {googleBusy && (
+                <p className="flex items-center justify-center gap-2 text-xs text-neutral-500">
+                  <Spinner size={13} /> Signing in with Google…
+                </p>
+              )}
+            </div>
+          )}
           {mode === "register" && (
             <p className="mt-3 text-xs leading-relaxed text-neutral-600">
               One account per email. Passwords are hashed — they never touch the disk in the clear.
