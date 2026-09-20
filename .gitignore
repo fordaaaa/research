@@ -35,3 +35,6 @@ data/
 
 # codex local config (yolo/auto-approve) — do not commit
 .codex/
+
+# local Brig code indexes
+/index/
