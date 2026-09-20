@@ -1,22 +1,25 @@
 @import "tailwindcss";
 
 /*
- * LIGHT THEME via inverted neutral scale.
+ * LIGHT THEME via inverted neutral scale, ocean brand (locked 2026-09-19).
  *
  * Convention: this app is light-first. The `neutral-*` utilities below are
  * remapped so that existing class names render light while keeping every
  * contrast relationship intact:
- *   neutral-950 ↔ #fafafa (page background; was near-black)
- *   neutral-900 ↔ #f5f5f5 (_cards_ / panels)
- *   neutral-800 ↔ #e5e5e5 (borders, dividers)
- *   neutral-700 ↔ #d4d4d4
- *   neutral-600 ↔ #a3a3a3 (muted text on light)
- *   neutral-500 ↔ #737373 (secondary text)
- *   neutral-400 ↔ #737373
- *   neutral-300 ↔ #404040
- *   neutral-200 ↔ #262626
- *   neutral-100 ↔ #171717 (primary buttons; was near-white)
+ *   neutral-950 ↔ #edf5f1 (seafoam page background; was near-black)
+ *   neutral-900 ↔ #f4faf7 (_cards_ / panels)
+ *   neutral-800 ↔ #d3e2dd (borders, dividers)
+ *   neutral-700 ↔ #c4d8d2
+ *   neutral-600 ↔ #52787f (muted text on light)
+ *   neutral-500 ↔ #3f6167 (secondary text)
+ *   neutral-400 ↔ #3f6167
+ *   neutral-300 ↔ #24434c
+ *   neutral-200 ↔ #0a2e38
+ *   neutral-100 ↔ #06303e (primary buttons: deep sea; was near-black)
  *   neutral-50  ↔ #0a0a0a
+ * Brand tokens: --color-brand (#06303e), --color-aqua (#0a5f57, links/focus),
+ * --color-seafoam (#edf5f1), --color-mark (#f2faf8, on-dark art).
+ * Type: --font-sans Inter (body), --font-display Fraunces (wordmark/headings).
  * Accent scales used for status color (red-400, emerald-*, amber-*) are
  * remapped to their light-theme readable counterparts.
  *
@@ -28,16 +31,27 @@
 
 @theme {
   --color-neutral-50: #0a0a0a;
-  --color-neutral-100: #171717;
-  --color-neutral-200: #262626;
-  --color-neutral-300: #404040;
-  --color-neutral-400: #737373;
-  --color-neutral-500: #737373;
-  --color-neutral-600: #a3a3a3;
-  --color-neutral-700: #d4d4d4;
-  --color-neutral-800: #e5e5e5;
-  --color-neutral-900: #f5f5f5;
-  --color-neutral-950: #fafafa;
+  --color-neutral-100: #06303e;
+  --color-neutral-200: #0a2e38;
+  --color-neutral-300: #24434c;
+  --color-neutral-400: #3f6167;
+  --color-neutral-500: #3f6167;
+  --color-neutral-600: #52787f;
+  --color-neutral-700: #c4d8d2;
+  --color-neutral-800: #d3e2dd;
+  --color-neutral-900: #f4faf7;
+  --color-neutral-950: #edf5f1;
+
+  --color-brand: #06303e;
+  --color-brand-deep: #04222c;
+  --color-wave: #0e5a6b;
+  --color-aqua: #0a5f57;
+  --color-aquabright: #19b8a6;
+  --color-seafoam: #edf5f1;
+  --color-mark: #f2faf8;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
 
   --color-red-400: #dc2626;
 
