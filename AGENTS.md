@@ -2,6 +2,30 @@
 
 Guide for AI agents (and humans) working in this repo.
 
+## OpenCode bridge startup gate
+
+Before any code work, list the available MCP tools and confirm that the
+`opencode-bridge` server exposes `ask_opencode`, `list_opencode_models`, and
+`zen_chat`. Run `list_opencode_models` with `freeOnly=true` to verify that the
+`opencode` CLI works.
+
+For work that benefits from delegation, always prefer the bridge's
+`ask_opencode` tool over native subagents. Unless a task says otherwise, use
+`opencode/muse-spark-1.3-contributor-free` at `xhigh` effort. Never silently
+substitute native subagents when the bridge is unavailable.
+
+If any required bridge tool is missing or the CLI check fails, stop before
+code work and report:
+
+- the MCP servers that are visible;
+- the bridge's exact error; and
+- this recovery procedure: run `npm run build` in
+  `/Users/user/Documents/GitHub/cline`, verify that `node dist/index.js` and
+  `opencode models` work, confirm the client MCP configuration points to
+  `/Users/user/Documents/GitHub/cline/dist/index.js`, then restart the client.
+
+Wait for the user before attempting a workaround.
+
 ## What this is
 
 **research** — a free, local-first NotebookLM alternative for school. Sources

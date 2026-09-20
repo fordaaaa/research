@@ -14,6 +14,25 @@ Live state of the project. **Read this first** before doing anything.
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
 
+## Uncommitted feature batch (2026-09-20)
+
+- Mobile workspace now has reachable Library, Discover, Learn, Write, and AI
+  destinations, larger touch targets, accessible keyboard tabs, source-row
+  swipe actions, and swipe/keyboard reader paging with reduced-motion support.
+- First-class Markdown notes have owned SQLite CRUD, optimistic revision
+  protection, autosave UI, source/chunk citations, and Obsidian export files.
+- URL ingestion now performs bounded, SSRF-aware HTML fetching, deterministic
+  structure extraction, and explainable important-passage ranking without AI;
+  the reader displays those passages and article metadata.
+- Humanizer now exposes deterministic local fix buttons separately from the
+  optional AI rewrite.
+- Optional AI chat now has persisted notebook-scoped sessions and messages,
+  readable history without a key, clickable source citations, bounded history,
+  and grounding from sources and/or Markdown notes.
+- Verification: backend `171 passed`; frontend `34 passed`; `npm run build`,
+  `git diff --check`, and `sh scripts/build_macos_app.sh` pass. No commit has
+  been created; reviewer approval is still required.
+
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
