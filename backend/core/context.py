@@ -23,3 +23,22 @@ def build_context(store, notebook_id: str, source_ids: set[str] | None = None) -
             citations.append(Citation(source_id=source.id, source_title=source.title, pages=chunk.pages))
             size += addition
     return excerpts, citations
+
+
+def build_note_excerpts(store, notebook_id: str, max_chars: int = 3_000) -> list[str]:
+    """Return a bounded set of persisted Markdown note excerpts for prompting."""
+    excerpts: list[str] = []
+    size = 0
+    for summary in store.list_notes(notebook_id):
+        note = store.get_note(notebook_id, summary.id)
+        if not note:
+            continue
+        text = f"# {note.title}\n{note.body}".strip()
+        if not text:
+            continue
+        remaining = max_chars - size
+        if remaining <= 0:
+            break
+        excerpts.append(text[:remaining])
+        size += min(len(text), remaining)
+    return excerpts

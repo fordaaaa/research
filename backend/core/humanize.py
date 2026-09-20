@@ -143,6 +143,74 @@ _PATTERNS: list[Pattern] = [
 _EM_DASH = re.compile(r"—|--")
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
+FIX_OPERATIONS = {
+    "straighten_quotes",
+    "remove_decoration",
+    "remove_staged_runup",
+    "reduce_repeated_openings",
+}
+_SMART_QUOTES = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"})
+_DECORATION_EMOJI = re.compile(r"[\U0001F300-\U0001FAFF\u2794\u279c\u2192\u2190]")
+_BOLD_MARKERS = re.compile(r"\*\*([^*\n]{1,60})\*\*")
+_STAGED_SENTENCE = re.compile(
+    r"(?i)(?<!\w)(?:let's dive in|lets dive in|delve into|honestly\?|"
+    r"in today's(?: fast-paced)? world|it is important to note|it's worth noting|"
+    r"in conclusion|at the end of the day)(?:[.!?])?\s*"
+)
+
+
+def _tidy_fixed_text(text: str) -> str:
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\s+([,.;!?])", r"\1", text)
+    text = re.sub(r"([.!?])\s+(?=[.!?])", r"\1", text)
+    return text.strip()
+
+
+def _remove_repeated_openings(text: str) -> tuple[str, int]:
+    sentences = _SENTENCE_SPLIT.split(text)
+    changed = 0
+    output: list[str] = []
+    for sentence in sentences:
+        if output:
+            previous_words = output[-1].split()
+            words = sentence.split()
+            if len(previous_words) >= 4 and len(words) >= 4 and previous_words[0].lower() == words[0].lower():
+                output[-1] = output[-1].rstrip(".!?") + " and " + sentence[:1].lower() + sentence[1:]
+                changed += 1
+                continue
+        output.append(sentence)
+    return _tidy_fixed_text(" ".join(output)), changed
+
+
+def apply_fixes(text: str, ops: list[str]) -> dict:
+    """Apply a small, deterministic set of meaning-preserving cleanups.
+
+    The return value is suitable for a button preview: transformed text and one
+    count per requested operation. Operations are ordered and idempotent.
+    """
+    unknown = [operation for operation in ops if operation not in FIX_OPERATIONS]
+    if unknown:
+        raise ValueError(f"unknown humanize operation: {unknown[0]}")
+
+    result = text
+    applied: list[dict[str, int | str]] = []
+    for operation in ops:
+        count = 0
+        if operation == "straighten_quotes":
+            count = sum(result.count(mark) for mark in ("“", "”", "‘", "’"))
+            result = result.translate(_SMART_QUOTES)
+        elif operation == "remove_decoration":
+            result, bold_count = _BOLD_MARKERS.subn(r"\1", result)
+            result, emoji_count = _DECORATION_EMOJI.subn("", result)
+            count = bold_count + emoji_count
+        elif operation == "remove_staged_runup":
+            result, count = _STAGED_SENTENCE.subn("", result)
+        elif operation == "reduce_repeated_openings":
+            result, count = _remove_repeated_openings(result)
+        result = _tidy_fixed_text(result)
+        applied.append({"operation": operation, "count": count})
+    return {"text": result, "operations": applied}
+
 
 def _excerpt(text: str, start: int, end: int, width: int = 60) -> str:
     lo = max(0, start - width)

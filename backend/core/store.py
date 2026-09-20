@@ -19,7 +19,13 @@ from typing import Any
 from core.models import (
     AISettings,
     AISettingsUpdate,
+    ChatMessage,
+    ChatSession,
+    Citation,
     Flashcard,
+    Note,
+    NoteCitation,
+    NoteSummary,
     Notebook,
     OutlineField,
     OutlineItem,
@@ -114,6 +120,18 @@ CREATE TABLE IF NOT EXISTS cards (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    citations TEXT NOT NULL DEFAULT '[]',
+    rev INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notes_notebook ON notes(notebook_id);
 CREATE TABLE IF NOT EXISTS skills (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -127,6 +145,24 @@ CREATE TABLE IF NOT EXISTS memory (
     notebook_id TEXT PRIMARY KEY REFERENCES notebooks(id) ON DELETE CASCADE,
     notes TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_notebook ON chat_sessions(notebook_id, updated_at);
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+    text TEXT NOT NULL,
+    citations TEXT NOT NULL DEFAULT '[]',
+    model TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at);
 CREATE TABLE IF NOT EXISTS ai_settings (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     provider TEXT NOT NULL,
@@ -520,6 +556,81 @@ class Store:
             )
             return cur.rowcount > 0
 
+    # ---------- notebook notes ----------
+
+    def list_notes(self, notebook_id: str) -> list[NoteSummary]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM notes WHERE notebook_id = ? ORDER BY updated_at DESC, created_at DESC",
+                (notebook_id,),
+            ).fetchall()
+        return [_note_summary_from_row(row) for row in rows]
+
+    def get_note(self, notebook_id: str, note_id: str) -> Note | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM notes WHERE id = ? AND notebook_id = ?",
+                (note_id, notebook_id),
+            ).fetchone()
+        return _note_from_row(row) if row else None
+
+    def create_note(self, note: Note) -> Note:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO notes (id, notebook_id, title, body, tags, citations, rev, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    note.id,
+                    note.notebook_id,
+                    note.title,
+                    note.body,
+                    json.dumps(note.tags),
+                    json.dumps([citation.model_dump() for citation in note.citations]),
+                    note.rev,
+                    note.created_at.isoformat(),
+                    note.updated_at.isoformat(),
+                ),
+            )
+        return note
+
+    def update_note(
+        self,
+        notebook_id: str,
+        note_id: str,
+        base_rev: int,
+        *,
+        title: str,
+        body: str,
+        tags: list[str],
+        citations: list[NoteCitation],
+        updated_at: datetime,
+    ) -> Note | None:
+        with self._connect() as con:
+            cur = con.execute(
+                "UPDATE notes SET title = ?, body = ?, tags = ?, citations = ?, rev = rev + 1, updated_at = ?"
+                " WHERE id = ? AND notebook_id = ? AND rev = ?",
+                (
+                    title,
+                    body,
+                    json.dumps(tags),
+                    json.dumps([citation.model_dump() for citation in citations]),
+                    updated_at.isoformat(),
+                    note_id,
+                    notebook_id,
+                    base_rev,
+                ),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_note(notebook_id, note_id)
+
+    def delete_note(self, notebook_id: str, note_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM notes WHERE id = ? AND notebook_id = ?", (note_id, notebook_id)
+            )
+            return cur.rowcount > 0
+
     # ---------- skills library (per user) ----------
 
     def list_skills(self, user_id: str) -> list[Skill]:
@@ -582,6 +693,65 @@ class Store:
                 (notebook_id, notes),
             )
         return notes
+
+    # ---------- notebook chat sessions ----------
+
+    def create_chat_session(self, session: ChatSession) -> ChatSession:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO chat_sessions (id, notebook_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (session.id, session.notebook_id, session.title, session.created_at.isoformat(), session.updated_at.isoformat()),
+            )
+        return session
+
+    def list_chat_sessions(self, notebook_id: str) -> list[ChatSession]:
+        with self._connect() as con:
+            rows = con.execute("SELECT * FROM chat_sessions WHERE notebook_id = ? ORDER BY updated_at DESC", (notebook_id,)).fetchall()
+        return [_chat_session_from_row(row) for row in rows]
+
+    def get_chat_session(self, notebook_id: str, session_id: str) -> ChatSession | None:
+        with self._connect() as con:
+            row = con.execute("SELECT * FROM chat_sessions WHERE id = ? AND notebook_id = ?", (session_id, notebook_id)).fetchone()
+        return _chat_session_from_row(row) if row else None
+
+    def delete_chat_session(self, notebook_id: str, session_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute("DELETE FROM chat_sessions WHERE id = ? AND notebook_id = ?", (session_id, notebook_id))
+            return cur.rowcount > 0
+
+    def list_chat_messages(self, session_id: str) -> list[ChatMessage]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at, rowid",
+                (session_id,),
+            ).fetchall()
+        return [_chat_message_from_row(row) for row in rows]
+
+    def append_chat_exchange(
+        self,
+        session: ChatSession,
+        user_text: str,
+        assistant_text: str,
+        citations: list[Citation],
+        model: str | None,
+    ) -> ChatMessage:
+        now = utcnow()
+        assistant = ChatMessage(id=new_id(), session_id=session.id, role="assistant", text=assistant_text, citations=citations, model=model, created_at=now)
+        user = ChatMessage(id=new_id(), session_id=session.id, role="user", text=user_text, created_at=now)
+        title = session.title
+        if title == "New conversation":
+            title = user_text.strip()[:80] or title
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO chat_messages (id, session_id, role, text, citations, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user.id, user.session_id, user.role, user.text, "[]", user.model, user.created_at.isoformat()),
+            )
+            con.execute(
+                "INSERT INTO chat_messages (id, session_id, role, text, citations, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (assistant.id, assistant.session_id, assistant.role, assistant.text, json.dumps([citation.model_dump() for citation in citations]), assistant.model, assistant.created_at.isoformat()),
+            )
+            con.execute("UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ? AND notebook_id = ?", (title, now.isoformat(), session.id, session.notebook_id))
+        return assistant
 
     # ---------- search ----------
 
@@ -657,6 +827,22 @@ def _notebook_from_row(row: Any) -> Notebook:
     )
 
 
+def _chat_session_from_row(row: Any) -> ChatSession:
+    return ChatSession(
+        id=row["id"], notebook_id=row["notebook_id"], title=row["title"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _chat_message_from_row(row: Any) -> ChatMessage:
+    return ChatMessage(
+        id=row["id"], session_id=row["session_id"], role=row["role"], text=row["text"],
+        citations=[Citation.model_validate(item) for item in json.loads(row["citations"])],
+        model=row["model"], created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
 def _summary_from_row(row: Any) -> SourceSummary:
     return SourceSummary(
         id=row["id"],
@@ -701,6 +887,37 @@ def _skill_from_row(row: Any) -> Skill:
         name=row["name"],
         instructions=row["instructions"],
         triggers=json.loads(row["triggers"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _note_citations(row: Any) -> list[NoteCitation]:
+    return [NoteCitation.model_validate(item) for item in json.loads(row["citations"])]
+
+
+def _note_from_row(row: Any) -> Note:
+    return Note(
+        id=row["id"],
+        notebook_id=row["notebook_id"],
+        title=row["title"],
+        body=row["body"],
+        tags=json.loads(row["tags"]),
+        citations=_note_citations(row),
+        rev=row["rev"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _note_summary_from_row(row: Any) -> NoteSummary:
+    return NoteSummary(
+        id=row["id"],
+        notebook_id=row["notebook_id"],
+        title=row["title"],
+        tags=json.loads(row["tags"]),
+        citations=_note_citations(row),
+        rev=row["rev"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )

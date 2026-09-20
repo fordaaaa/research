@@ -108,9 +108,21 @@ def test_gather_merges_and_ranks_across_queries(client, monkeypatch):
 
 def test_gather_excludes_urls_already_in_notebook(client, monkeypatch):
     from core import fetcher
+    from core.article import Article, ArticleParagraph
 
     nb = _nb(client)
-    monkeypatch.setattr(fetcher, "fetch_article", lambda url: ("existing text", "Existing"))
+
+    def fake_details(url):
+        return fetcher.FetchDetails(
+            text="existing text",
+            title="Existing",
+            article=Article(
+                title="Existing",
+                paragraphs=(ArticleParagraph("existing text.", None, 0),),
+            ),
+        )
+
+    monkeypatch.setattr(fetcher, "fetch_article_details", fake_details)
     client.post(f"/api/notebooks/{nb['id']}/sources/url", json={"url": "https://have.example/one"})
 
     def fake_search(query, limit):

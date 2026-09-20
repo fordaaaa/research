@@ -33,3 +33,81 @@ def test_export_notebook_zip(client):
 
 def test_export_notebook_unknown_404(client):
     assert client.get("/api/notebooks/000000000000/export").status_code == 404
+
+
+def test_export_includes_ordered_note_files_and_resolvable_citations(client):
+    nb = client.post("/api/notebooks", json={"name": "Research Vault"}).json()
+    src = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Primary Source", "text": "A source passage."},
+    ).json()
+    first = client.post(
+        f"/api/notebooks/{nb['id']}/notes",
+        json={
+            "title": "Zeta note",
+            "body": "Later note.",
+            "tags": ["Study"],
+            "citations": [{"source_id": src["id"], "chunk_seq": 0}],
+        },
+    ).json()
+    second = client.post(
+        f"/api/notebooks/{nb['id']}/notes",
+        json={"title": "Alpha / note", "body": "Earlier note."},
+    ).json()
+
+    response = client.get(f"/api/notebooks/{nb['id']}/export")
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        names = zf.namelist()
+        index = zf.read("index.md").decode()
+        note_names = [name for name in names if name.startswith("notes/")]
+        assert note_names == [
+            f"notes/{second['id']}-alpha-note.md",
+            f"notes/{first['id']}-zeta-note.md",
+        ]
+        assert "## Notes" in index
+        assert f"[[notes/{second['id']}-alpha-note]]" in index
+        assert f"[[notes/{first['id']}-zeta-note]]" in index
+        note = zf.read(note_names[1]).decode()
+        assert "kind: note" in note
+        assert "rev: 1" in note
+        assert "tags: study" in note
+        assert "## Citations" in note
+        assert f"{src['id']}-primary-source.md" in note
+        assert "A source passage." not in note
+
+
+def test_export_note_deleted_source_is_explicit_tombstone(client):
+    nb = client.post("/api/notebooks", json={"name": "Tombstones"}).json()
+    src = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Gone Source", "text": "Temporary source."},
+    ).json()
+    note = client.post(
+        f"/api/notebooks/{nb['id']}/notes",
+        json={
+            "title": "A note",
+            "body": "Keep the citation.",
+            "citations": [{"source_id": src["id"], "chunk_seq": 0}],
+        },
+    ).json()
+    assert client.delete(f"/api/sources/{src['id']}").status_code == 204
+
+    response = client.get(f"/api/notebooks/{nb['id']}/export")
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        body = zf.read(f"notes/{note['id']}-a-note.md").decode()
+    assert "[deleted source]" in body
+    assert src["id"] in body
+
+
+def test_export_keeps_notebook_ownership_boundary(client):
+    nb = client.post("/api/notebooks", json={"name": "Private"}).json()
+    from fastapi.testclient import TestClient
+    from api.main import app
+
+    with TestClient(app) as other:
+        registered = other.post(
+            "/api/auth/register", json={"email": "export-other@example.com", "password": "password123"}
+        )
+        other.headers.update({"Authorization": f"Bearer {registered.json()['token']}"})
+        assert other.get(f"/api/notebooks/{nb['id']}/export").status_code == 404

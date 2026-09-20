@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core import chunker, fetcher, parsers
-from core.models import Page, Source, utcnow
+from core import chunker, fetcher, keypassages, parsers
+from core.models import ImportantPassage, Page, Source, utcnow
 from core.store import Store, new_id
 
 
@@ -37,14 +37,40 @@ def ingest_text(store: Store, notebook_id: str, title: str, text: str, extra_met
 
 def ingest_url(store: Store, notebook_id: str, url: str) -> Source:
     """Fetch a URL, extract its article text, and store it as a source."""
-    text, title = fetcher.fetch_article(url)
+    details = fetcher.fetch_article_details(url)
+    text, title = details.text, details.title
+    pages = [Page(number=1, text=text)]
+    passages: list[ImportantPassage] = []
+    chunks = chunker.chunk_pages(pages)
+    for ranked in keypassages.rank_key_passages(details.article.paragraphs, top_k=5):
+        words = set(ranked.passage.text.lower().split())
+        match = max(chunks, key=lambda chunk: len(words & set(chunk.text.lower().split())), default=None)
+        if match is not None:
+            passages.append(ImportantPassage(
+                text=ranked.passage.text,
+                score=ranked.score,
+                chunk_seq=match.seq,
+                pages=match.pages,
+            ))
+    extraction_meta = {
+        "canonical_url": details.article.canonical,
+        "site_name": details.article.site,
+        "byline": details.article.byline,
+        "published": details.article.published,
+        "important_passages": [item.model_dump() for item in passages],
+    }
     return _persist(
         store,
         notebook_id,
         title,
         "url",
-        [Page(number=1, text=text)],
-        extra_meta={"url": url},
+        pages,
+        extra_meta={"url": url, **extraction_meta},
+        canonical_url=details.article.canonical,
+        site_name=details.article.site,
+        byline=details.article.byline,
+        published=details.article.published,
+        important_passages=passages,
     )
 
 
@@ -55,6 +81,11 @@ def _persist(
     kind: str,
     pages: list[Page],
     extra_meta: dict | None = None,
+    canonical_url: str | None = None,
+    site_name: str | None = None,
+    byline: str | None = None,
+    published: str | None = None,
+    important_passages: list[ImportantPassage] | None = None,
 ) -> Source:
     chunks = chunker.chunk_pages(pages)
     words = sum(len(p.text.split()) for p in pages)
@@ -70,6 +101,11 @@ def _persist(
         created_at=utcnow(),
         pages=pages,
         chunks=chunks,
+        canonical_url=canonical_url,
+        site_name=site_name,
+        byline=byline,
+        published=published,
+        important_passages=important_passages or [],
     )
     store.create_source(source)
     return source

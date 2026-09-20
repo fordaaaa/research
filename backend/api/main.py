@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai, auth, demo, humanize, notebooks, outlines, research, search, skills, sources, study, web
+from api import ai, auth, demo, humanize, notebooks, notes, outlines, research, search, skills, sources, study, web
 from core.store import Store
 
 logger = logging.getLogger("api")
@@ -81,6 +81,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
 
     # Mount route modules before the frontend so /api always wins over assets.
     notebooks.register(app)
+    notes.register(app)
     auth.register(app)
     demo.register(app)
     sources.register(app)

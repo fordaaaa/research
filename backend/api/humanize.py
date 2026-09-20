@@ -3,6 +3,7 @@ when the user configured a provider key. Analysis never needs a key."""
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from api.deps import get_current_user, get_store
 from core import humanize, providers
@@ -16,11 +17,40 @@ from core.models import (
 )
 
 
+class HumanizeFixRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+    operations: list[str] = Field(min_length=1, max_length=4)
+
+    @field_validator("operations")
+    @classmethod
+    def validate_operations(cls, operations: list[str]) -> list[str]:
+        if len(set(operations)) != len(operations):
+            raise ValueError("operations must not contain duplicates")
+        unknown = [operation for operation in operations if operation not in humanize.FIX_OPERATIONS]
+        if unknown:
+            raise ValueError(f"unknown humanize operation: {unknown[0]}")
+        return operations
+
+
+class HumanizeFixOperation(BaseModel):
+    operation: str
+    count: int
+
+
+class HumanizeFixResponse(BaseModel):
+    text: str
+    operations: list[HumanizeFixOperation]
+
+
 def register(app: FastAPI) -> None:
     @app.post("/api/humanize/analyze", response_model=HumanizeAnalyzeResponse)
     def analyze(body: HumanizeAnalyzeRequest):
         findings = [HumanizeFinding(**f) for f in humanize.analyze(body.text)]
         return HumanizeAnalyzeResponse(findings=findings, signal_count=len(findings))
+
+    @app.post("/api/humanize/fix", response_model=HumanizeFixResponse)
+    def fix(body: HumanizeFixRequest):
+        return humanize.apply_fixes(body.text, body.operations)
 
     @app.post("/api/humanize/rewrite", response_model=HumanizeRewriteResponse)
     def rewrite(body: HumanizeRewriteRequest, user: User = Depends(get_current_user)):

@@ -21,6 +21,13 @@ class Chunk(BaseModel):
     text: str
 
 
+class ImportantPassage(BaseModel):
+    text: str
+    score: float = 0.0
+    chunk_seq: int = Field(ge=0)
+    pages: list[int] = Field(default_factory=list)
+
+
 SourceKind = Literal["pdf", "docx", "txt", "md", "paste", "url"]
 
 
@@ -34,6 +41,27 @@ class Source(BaseModel):
     created_at: datetime
     pages: list[Page] = Field(default_factory=list)
     chunks: list[Chunk] = Field(default_factory=list)
+    canonical_url: str | None = None
+    site_name: str | None = None
+    byline: str | None = None
+    published: str | None = None
+    important_passages: list[ImportantPassage] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _restore_extraction_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        meta = data.get("meta") or {}
+        if not isinstance(meta, dict):
+            return data
+        restored = dict(data)
+        restored.setdefault("canonical_url", meta.get("canonical_url"))
+        restored.setdefault("site_name", meta.get("site_name"))
+        restored.setdefault("byline", meta.get("byline"))
+        restored.setdefault("published", meta.get("published"))
+        restored.setdefault("important_passages", meta.get("important_passages", []))
+        return restored
 
 
 class SourceSummary(BaseModel):
@@ -45,6 +73,55 @@ class SourceSummary(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     chunk_count: int
+
+
+class NoteCitation(BaseModel):
+    source_id: str = Field(min_length=12, max_length=12, pattern=r"^[a-f0-9]{12}$")
+    chunk_seq: int = Field(ge=0, le=100_000)
+
+
+class Note(BaseModel):
+    id: str
+    notebook_id: str
+    title: str
+    body: str
+    tags: list[str] = Field(default_factory=list)
+    citations: list[NoteCitation] = Field(default_factory=list)
+    rev: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteSummary(BaseModel):
+    id: str
+    notebook_id: str
+    title: str
+    tags: list[str] = Field(default_factory=list)
+    citations: list[NoteCitation] = Field(default_factory=list)
+    rev: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(default="", max_length=1_000_000)
+    tags: list[Annotated[str, Field(min_length=1, max_length=50)]] = Field(default_factory=list, max_length=20)
+    citations: list[NoteCitation] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def _title_not_blank(self) -> "NoteCreate":
+        if not self.title.strip():
+            raise ValueError("title must not be blank")
+        return self
+
+
+class NoteUpdate(BaseModel):
+    base_rev: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    body: str | None = Field(default=None, max_length=1_000_000)
+    tags: list[Annotated[str, Field(min_length=1, max_length=50)]] | None = Field(default=None, max_length=20)
+    citations: list[NoteCitation] | None = Field(default=None, max_length=100)
 
 
 class Notebook(BaseModel):
@@ -123,6 +200,34 @@ class Citation(BaseModel):
     source_id: str
     source_title: str
     pages: list[int]
+
+
+class ChatSession(BaseModel):
+    id: str
+    notebook_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatSessionCreate(BaseModel):
+    title: str = Field(default="New conversation", min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def _title_not_blank(self) -> "ChatSessionCreate":
+        if not self.title.strip():
+            raise ValueError("title must not be blank")
+        return self
+
+
+class ChatMessage(BaseModel):
+    id: str
+    session_id: str
+    role: Literal["user", "assistant"]
+    text: str
+    citations: list[Citation] = Field(default_factory=list)
+    model: str | None = None
+    created_at: datetime
 
 
 class ChatResponse(BaseModel):

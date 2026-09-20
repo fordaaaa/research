@@ -82,3 +82,51 @@ def test_rewrite_falls_back_to_502_on_ai_error(client, monkeypatch):
     monkeypatch.setattr(humanize_api.providers, "generate", boom)
     response = client.post("/api/humanize/rewrite", json={"text": "Let's dive in."})
     assert response.status_code == 502
+
+
+def test_apply_fixes_is_deterministic_idempotent_and_reports_counts():
+    text = "“Hello,” she said. **Note**: ➜ Start here. Let's dive in. We learn. We learn."
+    result = humanize.apply_fixes(
+        text,
+        ["straighten_quotes", "remove_decoration", "remove_staged_runup", "reduce_repeated_openings"],
+    )
+    assert result["text"] == '"Hello," she said. Note: Start here. We learn. We learn.'
+    assert result["operations"] == [
+        {"operation": "straighten_quotes", "count": 2},
+        {"operation": "remove_decoration", "count": 2},
+        {"operation": "remove_staged_runup", "count": 1},
+        {"operation": "reduce_repeated_openings", "count": 0},
+    ]
+    assert humanize.apply_fixes(result["text"], [op["operation"] for op in result["operations"]]) == {
+        "text": result["text"],
+        "operations": [{"operation": op["operation"], "count": 0} for op in result["operations"]],
+    }
+
+
+def test_apply_fixes_rejects_unknown_operations():
+    try:
+        humanize.apply_fixes("A sentence.", ["invent_new_facts"])
+    except ValueError as exc:
+        assert "unknown humanize operation" in str(exc)
+    else:
+        raise AssertionError("unknown operation should be rejected")
+
+
+def test_fix_endpoint_is_keyless_and_returns_preview(client):
+    response = client.post(
+        "/api/humanize/fix",
+        json={"text": "**Hello** ➜ Let's dive in.", "operations": ["remove_decoration", "remove_staged_runup"]},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "text": "Hello",
+        "operations": [
+            {"operation": "remove_decoration", "count": 2},
+            {"operation": "remove_staged_runup", "count": 1},
+        ],
+    }
+
+
+def test_fix_endpoint_rejects_unknown_operation(client):
+    response = client.post("/api/humanize/fix", json={"text": "A sentence.", "operations": ["bad"]})
+    assert response.status_code == 422

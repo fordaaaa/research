@@ -186,10 +186,19 @@ def test_update_source_404(client):
 
 def test_url_source_ingest(client, monkeypatch):
     from core import fetcher
+    from core.article import Article, ArticleParagraph
 
-    monkeypatch.setattr(
-        fetcher, "fetch_article", lambda url: ("photosynthesis powers plants fully", "WP Title")
-    )
+    def fake_details(url):
+        return fetcher.FetchDetails(
+            text="photosynthesis powers plants fully",
+            title="WP Title",
+            article=Article(
+                title="WP Title",
+                paragraphs=(ArticleParagraph("photosynthesis powers plants fully.", None, 0),),
+            ),
+        )
+
+    monkeypatch.setattr(fetcher, "fetch_article_details", fake_details)
     nb = client.post("/api/notebooks", json={"name": "Web"}).json()
     r = client.post(
         f"/api/notebooks/{nb['id']}/sources/url",
@@ -215,7 +224,7 @@ def test_url_source_fetch_error(client, monkeypatch):
     def boom(url):
         raise FetchError("no readable article text found", status=400)
 
-    monkeypatch.setattr(fetcher, "fetch_article", boom)
+    monkeypatch.setattr(fetcher, "fetch_article_details", boom)
     nb = client.post("/api/notebooks", json={"name": "Web"}).json()
     r = client.post(
         f"/api/notebooks/{nb['id']}/sources/url",

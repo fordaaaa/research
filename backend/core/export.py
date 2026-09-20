@@ -10,7 +10,7 @@ import io
 import re
 import zipfile
 
-from core.models import Source
+from core.models import Note, Source
 from core.store import Store
 
 
@@ -29,13 +29,27 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         index = ["---", f"title: {notebook.name}", "kind: notebook", "---", ""]
+        source_filenames = {
+            summary.id: f"{summary.id}-{slugify(summary.title)}.md"
+            for summary in summaries
+        }
         if summaries:
             index.append("## Sources")
             for s in summaries:
-                stem = f"{s.id}-{slugify(s.title)}"
+                stem = source_filenames[s.id].removesuffix(".md")
                 index.append(f"- [[{stem}]] — {s.kind} · {s.chunk_count} chunks")
         else:
             index.append("_No sources yet._")
+        notes = store.list_notes(notebook_id)
+        index.append("")
+        if notes:
+            index.append("## Notes")
+            for note in notes:
+                stem = f"notes/{note.id}-{slugify(note.title)}"
+                index.append(f"- [[{stem}]] — rev {note.rev}")
+        else:
+            index.append("## Notes")
+            index.append("_No notes yet._")
         index.append("")
         zf.writestr("index.md", "\n".join(index))
 
@@ -44,7 +58,15 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
             if not source:
                 continue
             zf.writestr(
-                f"{summary.id}-{slugify(summary.title)}.md", _render_source(source)
+                source_filenames[summary.id], _render_source(source)
+            )
+        for note in notes:
+            full_note = store.get_note(notebook_id, note.id)
+            if not full_note:
+                continue
+            zf.writestr(
+                f"notes/{note.id}-{slugify(note.title)}.md",
+                _render_note(full_note, source_filenames, store),
             )
 
     filename = f"{slugify(notebook.name)}-export.zip"
@@ -68,3 +90,31 @@ def _render_source(source: Source) -> str:
         parts.append(page.text)
         parts.append("")
     return "\n".join(parts)
+
+
+def _render_note(note: Note, source_filenames: dict[str, str], store: Store) -> str:
+    parts = [
+        "---",
+        f"title: {note.title}",
+        "kind: note",
+        f"rev: {note.rev}",
+        f"updated_at: {note.updated_at.isoformat()}",
+        f"tags: {', '.join(note.tags)}",
+        "---",
+        "",
+        note.body,
+        "",
+        "## Citations",
+    ]
+    if not note.citations:
+        parts.append("_No citations._")
+    else:
+        for citation in note.citations:
+            filename = source_filenames.get(citation.source_id)
+            if filename and store.get_source(note.notebook_id, citation.source_id):
+                parts.append(f"- [[{filename}]] — chunk {citation.chunk_seq}")
+            else:
+                parts.append(
+                    f"- [deleted source] `{citation.source_id}` — chunk {citation.chunk_seq}"
+                )
+    return "\n".join(parts) + "\n"
