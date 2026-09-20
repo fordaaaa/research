@@ -52,7 +52,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             }}
           >
             <input
-              className={inputCls}
+              className={`${inputCls} min-h-11`}
               placeholder="New notebook name… e.g. Biology 101"
               value={name}
               maxLength={120}
@@ -67,7 +67,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             <p className="text-xs text-neutral-500">New here?</p>
             <button
               type="button"
-              className="text-xs font-medium text-neutral-200 underline hover:text-neutral-100 disabled:opacity-50"
+              className="min-h-11 rounded-lg px-2 text-xs font-medium text-aqua underline underline-offset-2 hover:text-wave disabled:opacity-50"
               disabled={demoBusy}
               onClick={async () => {
                 setDemoBusy(true);
@@ -97,37 +97,36 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
             <ul className="grid gap-2 sm:grid-cols-2">
               {notebooks.map((nb, i) => (
                 <li key={nb.id}>
-                  <button
-                    className="group flex w-full items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-900/80 animate-card-in"
+                  <div
+                    className="group flex min-h-24 items-stretch gap-2 rounded-2xl border border-wave/30 bg-gradient-to-br from-neutral-900 via-neutral-900 to-seafoam/60 p-2 shadow-[0_12px_30px_rgba(6,48,62,0.08)] transition-all hover:-translate-y-0.5 hover:border-aqua/50 hover:shadow-[0_16px_36px_rgba(6,48,62,0.14)] animate-card-in"
                     style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
-                    onClick={() => onOpen(nb)}
                   >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{nb.name}</span>
-                      <span className="mt-0.5 block text-xs text-neutral-500">
-                        {new Date(nb.created_at).toLocaleDateString()}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-xs text-neutral-500 group-hover:text-neutral-100">Open →</span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Delete ${nb.name}`}
-                      className="shrink-0 text-xs text-neutral-600 hover:text-red-400"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(nb.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.stopPropagation();
-                          onDelete(nb.id);
-                        }
-                      }}
+                    <button
+                      type="button"
+                      aria-label={`Open ${nb.name}`}
+                      className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-seafoam/50"
+                      onClick={() => onOpen(nb)}
                     >
-                      delete
-                    </span>
-                  </button>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-wave text-sm font-semibold text-mark shadow-sm">
+                        {nb.name.trim().charAt(0).toUpperCase() || "N"}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display text-base font-semibold text-neutral-100">{nb.name}</span>
+                        <span className="mt-0.5 block text-xs text-neutral-500">
+                          Created {new Date(nb.created_at).toLocaleDateString()}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-aqua group-hover:text-wave">Open →</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${nb.name}`}
+                      className="min-h-11 min-w-11 self-center rounded-xl px-2 text-xs font-semibold text-neutral-500 transition-colors hover:bg-red-50 hover:text-red-400 focus-visible:text-red-400"
+                      onClick={() => onDelete(nb.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

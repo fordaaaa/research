@@ -14,25 +14,31 @@ import HumanizerPanel from "./components/HumanizerPanel";
 import SkillsPanel from "./components/SkillsPanel";
 import StudyPanel from "./components/StudyPanel";
 import ReaderModal from "./components/ReaderModal";
-import { Badge, Card, Tabs } from "./components/ui";
+import NotesPanel from "./components/NotesPanel";
+import { Badge, BottomNav, Card, Tabs } from "./components/ui";
+import {
+  defaultViewForSection,
+  mobileSectionForView,
+  viewsForMobileSection,
+  WORKSPACE_VIEWS,
+} from "./workspaceNavigation";
+import type { MobileSection, WorkspaceView } from "./workspaceNavigation";
 
-type View = "research" | "deep" | "ask" | "search" | "study" | "write" | "skills";
-
-const VIEWS: { value: View; label: string }[] = [
-  { value: "research", label: "Research" },
-  { value: "deep", label: "Deep research" },
-  { value: "ask", label: "Ask" },
-  { value: "search", label: "Search" },
-  { value: "study", label: "Study" },
-  { value: "write", label: "Humanize" },
-  { value: "skills", label: "Skills" },
+const MOBILE_SECTIONS: { value: MobileSection; label: string }[] = [
+  { value: "library", label: "Library" },
+  { value: "discover", label: "Discover" },
+  { value: "learn", label: "Learn" },
+  { value: "write", label: "Write" },
+  { value: "ai", label: "AI" },
 ];
 
 export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [sources, setSources] = useState<SourceSummary[]>([]);
-  const [view, setView] = useState<View>("research");
+  const [view, setView] = useState<WorkspaceView>("research");
+  const [mobileSection, setMobileSection] = useState<MobileSection>("library");
+  const [mobileLibraryPane, setMobileLibraryPane] = useState<"sources" | "notes">("sources");
   const [backendUp, setBackendUp] = useState(true);
   const [aiConfigured, setAIConfigured] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -92,6 +98,8 @@ export default function App() {
     if (notebook) {
       refreshSources(notebook.id);
       setView("research");
+      setMobileSection("library");
+      setMobileLibraryPane("sources");
       setExportError(null);
     }
   }, [notebook, refreshSources]);
@@ -110,6 +118,18 @@ export default function App() {
   };
 
   const openNotebook = (nb: Notebook) => setNotebook(nb);
+
+  const selectMobileSection = (section: MobileSection) => {
+    setMobileSection(section);
+    const nextView = defaultViewForSection(section);
+    if (nextView) setView(nextView);
+  };
+
+  const selectView = (next: WorkspaceView) => {
+    setView(next);
+    setMobileSection(mobileSectionForView(next));
+    if (next === "notes") setMobileLibraryPane("notes");
+  };
 
   const logOut = async () => {
     try {
@@ -187,8 +207,15 @@ export default function App() {
           }}
         />
       ) : (
-        <div key={notebook.id} className="mx-auto w-full max-w-7xl flex-1 grid gap-5 p-4 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)] animate-page-in">
-          <aside className="min-w-0 space-y-5 lg:sticky lg:top-[60px] lg:self-start lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto lg:pr-1">
+        <div key={notebook.id} className="mx-auto w-full max-w-7xl flex-1 grid gap-5 p-4 pb-24 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:pb-6 animate-page-in">
+          <aside className={`${mobileSection === "library" ? "block" : "hidden"} min-w-0 space-y-5 lg:sticky lg:top-[60px] lg:block lg:self-start lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto lg:pr-1`}>
+            <Tabs
+              options={[{ value: "sources", label: "Sources" }, { value: "notes", label: "Notes" }]}
+              value={mobileLibraryPane}
+              onChange={setMobileLibraryPane}
+              className="lg:hidden"
+            />
+            <div className={`${mobileLibraryPane === "sources" ? "space-y-5" : "hidden"} lg:block lg:space-y-5`}>
             <Card className="p-5">
               <UploadZone
                 onUpload={async (files) => {
@@ -227,9 +254,23 @@ export default function App() {
                 <p className="mt-1 text-[11px] text-neutral-600">Obsidian-style markdown, including guides and reports.</p>
               </div>
             </Card>
+            </div>
+            {mobileLibraryPane === "notes" && (
+              <div className="block lg:hidden">
+                <NotesPanel notebookId={notebook.id} />
+              </div>
+            )}
           </aside>
-          <main className="min-w-0 space-y-5">
-            <Tabs options={VIEWS} value={view} onChange={setView} />
+          <main className={`${mobileSection === "library" ? "hidden" : "block"} min-w-0 space-y-5 lg:block`}>
+            <Tabs options={WORKSPACE_VIEWS} value={view} onChange={selectView} className="hidden lg:flex" />
+            {mobileSection !== "library" && (
+              <Tabs
+                options={WORKSPACE_VIEWS.filter((option) => viewsForMobileSection(mobileSection).includes(option.value))}
+                value={view}
+                onChange={selectView}
+                className="lg:hidden"
+              />
+            )}
             {view === "research" && (
               <ResearchPanel
                 notebookId={notebook.id}
@@ -246,9 +287,10 @@ export default function App() {
             )}
             {view === "ask" && (
               <ChatPanel
+                notebookId={notebook.id}
                 configured={aiConfigured}
-                onAsk={(message) => api.askNotebook(notebook.id, message)}
                 onConfigure={() => setShowSettings(true)}
+                onOpenSource={setReadingId}
               />
             )}
             {view === "search" && (
@@ -261,9 +303,17 @@ export default function App() {
               />
             )}
             {view === "study" && <StudyPanel notebookId={notebook.id} onSourcesChanged={() => refreshSources(notebook.id)} />}
+            {view === "notes" && <NotesPanel notebookId={notebook.id} />}
             {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
             {view === "skills" && <SkillsPanel notebookId={notebook.id} />}
           </main>
+          <BottomNav
+            label="Notebook sections"
+            items={MOBILE_SECTIONS}
+            value={mobileSection}
+            onChange={selectMobileSection}
+            className="fixed inset-x-0 bottom-0 lg:hidden"
+          />
         </div>
       )}
       <SettingsDialog

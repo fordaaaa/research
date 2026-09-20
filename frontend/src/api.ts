@@ -15,6 +15,44 @@ export interface SourceSummary {
   chunk_count: number;
 }
 
+export interface NoteCitation {
+  source_id: string;
+  chunk_seq: number;
+}
+
+export interface NoteSummary {
+  id: string;
+  notebook_id: string;
+  title: string;
+  tags: string[];
+  citations: NoteCitation[];
+  rev: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Note extends NoteSummary {
+  body: string;
+}
+
+export interface NoteUpdate {
+  base_rev: number;
+  title?: string;
+  body?: string;
+  tags?: string[];
+  citations?: NoteCitation[];
+}
+
+export class NoteConflictError extends Error {
+  current: Note;
+
+  constructor(current: Note) {
+    super("This note changed in another editor.");
+    this.name = "NoteConflictError";
+    this.current = current;
+  }
+}
+
 export interface SearchHit {
   source_id: string;
   source_title: string;
@@ -48,6 +86,24 @@ export interface ChatResponse {
   answer: string;
   citations: Citation[];
   model: string | null;
+}
+
+export interface ChatSession {
+  id: string;
+  notebook_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  text: string;
+  citations: Citation[];
+  model: string | null;
+  created_at: string;
 }
 
 export interface UploadError {
@@ -246,6 +302,16 @@ export const addUrl = (notebookId: string, url: string) =>
 export interface SourceDetail extends SourceSummary {
   pages: { number: number; text: string }[];
   chunks: { seq: number; pages: number[]; text: string }[];
+  canonical_url?: string | null;
+  site_name?: string | null;
+  byline?: string | null;
+  published?: string | null;
+  important_passages?: {
+    text: string;
+    score: number;
+    chunk_seq: number;
+    pages: number[];
+  }[];
 }
 
 export const getSource = (id: string) =>
@@ -254,6 +320,37 @@ export const getSource = (id: string) =>
 export const deleteSource = (id: string) =>
   apiFetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  });
+
+export const listNotes = (notebookId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/notes`).then(j<NoteSummary[]>);
+
+export const createNote = (notebookId: string, body: { title: string; body: string }) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<Note>);
+
+export const getNote = (notebookId: string, noteId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/notes/${noteId}`).then(j<Note>);
+
+export async function updateNote(notebookId: string, noteId: string, body: NoteUpdate): Promise<Note> {
+  const response = await apiFetch(`${BASE}/notebooks/${notebookId}/notes/${noteId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 409) {
+    const payload = await response.json() as { detail?: { current?: Note } };
+    if (payload.detail?.current) throw new NoteConflictError(payload.detail.current);
+  }
+  return j<Note>(response);
+}
+
+export const deleteNote = (notebookId: string, noteId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/notes/${noteId}`, { method: "DELETE" }).then((response) => {
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   });
 
 export const createDemo = () =>
@@ -333,6 +430,34 @@ export const askNotebook = (notebookId: string, message: string) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),
   }).then(j<ChatResponse>);
+
+export const listChatSessions = (notebookId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions`).then(j<ChatSession[]>);
+
+export const createChatSession = (notebookId: string, title?: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(title ? { title } : {}),
+  }).then(j<ChatSession>);
+
+export const getChatSession = (notebookId: string, sessionId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`).then(j<ChatSession>);
+
+export const deleteChatSession = (notebookId: string, sessionId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`, { method: "DELETE" }).then((res) => {
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  });
+
+export const listChatMessages = (notebookId: string, sessionId: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`).then(j<ChatMessage[]>);
+
+export const sendChatMessage = (notebookId: string, sessionId: string, message: string) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  }).then(j<ChatMessage>);
 
 export interface OutlineItem {
   id: string;
@@ -439,12 +564,30 @@ export interface HumanizeRewrite {
   model: string | null;
 }
 
+export type HumanizeFixOperation =
+  | "straighten_quotes"
+  | "remove_decoration"
+  | "remove_staged_runup"
+  | "reduce_repeated_openings";
+
+export interface HumanizeFix {
+  text: string;
+  operations: { operation: HumanizeFixOperation; count: number }[];
+}
+
 export const analyzeHumanize = (text: string) =>
   apiFetch(`${BASE}/humanize/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
   }).then(j<HumanizeAnalysis>);
+
+export const fixHumanize = (text: string, operations: HumanizeFixOperation[]) =>
+  apiFetch(`${BASE}/humanize/fix`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, operations }),
+  }).then(j<HumanizeFix>);
 
 export const rewriteHumanize = (text: string, voiceSample?: string) =>
   apiFetch(`${BASE}/humanize/rewrite`, {

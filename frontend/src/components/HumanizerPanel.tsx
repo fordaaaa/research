@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
-import type { HumanizeAnalysis, HumanizeRewrite } from "../api";
+import type { HumanizeAnalysis, HumanizeFix, HumanizeFixOperation, HumanizeRewrite } from "../api";
 import Spinner from "./Spinner";
 import { Badge, Button, Card, SectionHeader } from "./ui";
 import { inputCls } from "./ui";
@@ -15,9 +15,15 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
   const [showVoice, setShowVoice] = useState(false);
   const [analysis, setAnalysis] = useState<HumanizeAnalysis | null>(null);
   const [rewrite, setRewrite] = useState<HumanizeRewrite | null>(null);
-  const [busy, setBusy] = useState<"analyze" | "rewrite" | null>(null);
+  const [fixed, setFixed] = useState<HumanizeFix | null>(null);
+  const [busy, setBusy] = useState<"analyze" | "rewrite" | "fix" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+  }, []);
 
   const runAnalyze = async () => {
     if (!text.trim() || busy) return;
@@ -28,6 +34,19 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
       setRewrite(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "analysis failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runFix = async (operation: HumanizeFixOperation) => {
+    if (!text.trim() || busy) return;
+    setBusy("fix");
+    setError(null);
+    try {
+      setFixed(await api.fixHumanize(text, [operation]));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "cleanup failed");
     } finally {
       setBusy(null);
     }
@@ -60,27 +79,49 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
         }
       />
 
+      <label className="sr-only" htmlFor="humanizer-text">Text to check</label>
       <textarea
+        id="humanizer-text"
         className={`${inputCls} mt-4 h-40 resize-y`}
         placeholder="Paste the text to check…"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setFixed(null);
+        }}
       />
       <button
         type="button"
-        className="mt-2 text-xs text-neutral-400 hover:text-neutral-200 underline"
+        className="mt-2 inline-flex min-h-11 items-center rounded-lg px-2 text-xs text-neutral-400 hover:text-neutral-200 underline"
         onClick={() => setShowVoice(!showVoice)}
       >
         {showVoice ? "Hide voice sample" : "Add a voice sample (optional)"}
       </button>
       {showVoice && (
-        <textarea
-          className={`${inputCls} mt-2 h-20 resize-y animate-pop-in`}
-          placeholder="2–3 paragraphs of your own writing, so the rewrite sounds like you…"
-          value={voice}
-          onChange={(e) => setVoice(e.target.value)}
-        />
+        <>
+          <label className="sr-only" htmlFor="humanizer-voice">Voice sample</label>
+          <textarea
+            id="humanizer-voice"
+            className={`${inputCls} mt-2 h-20 resize-y animate-pop-in`}
+            placeholder="2–3 paragraphs of your own writing, so the rewrite sounds like you…"
+            value={voice}
+            onChange={(e) => setVoice(e.target.value)}
+          />
+        </>
       )}
+
+      <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/60 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-neutral-200">Quick fixes · No AI</p>
+          <Badge tone="good">local</Badge>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => runFix("straighten_quotes")} disabled={busy !== null || !text.trim()}>Straighten quotes</Button>
+          <Button variant="secondary" onClick={() => runFix("remove_decoration")} disabled={busy !== null || !text.trim()}>Remove decoration</Button>
+          <Button variant="secondary" onClick={() => runFix("remove_staged_runup")} disabled={busy !== null || !text.trim()}>Cut run-up</Button>
+          <Button variant="secondary" onClick={() => runFix("reduce_repeated_openings")} disabled={busy !== null || !text.trim()}>Smooth openings</Button>
+        </div>
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={runAnalyze} disabled={busy !== null || !text.trim()}>
@@ -100,6 +141,19 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
       </div>
 
       {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+
+      {fixed && (
+        <div className="mt-4 rounded-xl border border-emerald-900 bg-emerald-950/40 p-3 animate-card-in">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-emerald-300">Local cleanup preview</p>
+            <Button variant="ghost" className="px-2 py-1 text-xs" onClick={() => {
+              setText(fixed.text);
+              setFixed(null);
+            }}>Apply to editor</Button>
+          </div>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">{fixed.text}</p>
+        </div>
+      )}
 
       {analysis && analysis.findings.length > 0 && (
         <ul className="mt-4 space-y-2">
@@ -128,7 +182,8 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
               onClick={async () => {
                 await navigator.clipboard.writeText(rewrite.text).catch(() => undefined);
                 setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
+                if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+                copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
               }}
             >
               {copied ? "Copied" : "Copy"}

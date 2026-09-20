@@ -15,6 +15,21 @@ function renderPicker() {
   return { onOpen, onCreate, onDelete };
 }
 
+function renderWithNotebook() {
+  const onOpen = vi.fn();
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  const onDelete = vi.fn().mockResolvedValue(undefined);
+  render(
+    <NotebookPicker
+      notebooks={[{ id: "a1b2c3d4e5f6", name: "Biology", created_at: "2026-01-01T00:00:00Z" }]}
+      onOpen={onOpen}
+      onCreate={onCreate}
+      onDelete={onDelete}
+    />,
+  );
+  return { onOpen, onDelete };
+}
+
 describe("NotebookPicker account messaging", () => {
   it("states a free/local account is required and never claims 'no account'", () => {
     renderPicker();
@@ -39,5 +54,19 @@ describe("NotebookPicker account messaging", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith("Biology 101"));
+  });
+
+  it("keeps notebook open and delete actions as separate touch-sized controls", async () => {
+    const { onOpen, onDelete } = renderWithNotebook();
+    const open = screen.getByRole("button", { name: /open biology/i });
+    const del = screen.getByRole("button", { name: /delete biology/i });
+    expect(open.contains(del)).toBe(false);
+    expect(open.className).toMatch(/min-h-11/);
+    expect(del.className).toMatch(/min-h-11/);
+
+    fireEvent.click(del);
+    expect(onDelete).toHaveBeenCalledWith("a1b2c3d4e5f6");
+    fireEvent.click(open);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ name: "Biology" }));
   });
 });

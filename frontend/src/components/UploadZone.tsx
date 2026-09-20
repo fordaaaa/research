@@ -31,8 +31,11 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
 
   return (
     <div className="space-y-3">
-      <div
-        className="rounded-xl border border-dashed border-neutral-700 hover:border-neutral-500 transition-colors p-6 text-center cursor-pointer"
+      <button
+        type="button"
+        aria-label="Upload files"
+        disabled={busy}
+        className="group flex min-h-12 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-wave/40 bg-neutral-900/60 p-5 text-center transition-all hover:border-aqua hover:bg-seafoam/60 disabled:cursor-wait disabled:opacity-70"
         onClick={() => !busy && inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -49,24 +52,37 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
             "Drop files or click to upload"
           )}
         </p>
-        <p className="text-xs text-neutral-500 mt-1">PDF · DOCX · TXT · MD — up to 50 MB each</p>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept=".pdf,.docx,.txt,.md,.markdown"
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-      </div>
+        <p className="mt-1 text-xs text-neutral-500">PDF · DOCX · TXT · MD — up to 50 MB each</p>
+      </button>
+      <input
+        id="upload-files"
+        ref={inputRef}
+        type="file"
+        multiple
+        accept=".pdf,.docx,.txt,.md,.markdown"
+        aria-label="Choose files"
+        className="sr-only"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
 
       <button
         type="button"
-        className="text-xs text-neutral-400 hover:text-neutral-200 underline"
+        className="min-h-12 w-full rounded-2xl border border-neutral-800 bg-neutral-900/40 px-4 text-left text-sm font-medium text-neutral-300 transition-colors hover:border-aqua/60 hover:bg-seafoam/50"
         onClick={() => setShowPaste(!showPaste)}
       >
-        {showPaste ? "Hide paste" : "Paste text instead"}
+        <span className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block">{showPaste ? "Hide paste editor" : "Paste text instead"}</span>
+            <span className="mt-0.5 block text-xs font-normal text-neutral-500">Keep a class note or excerpt with a title.</span>
+          </span>
+          <span className="text-aqua">{showPaste ? "↑" : "＋"}</span>
+        </span>
       </button>
+
+      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/30 p-4 text-sm">
+        <p className="font-medium text-neutral-300">Public web URL</p>
+        <p className="mt-1 text-xs leading-relaxed text-neutral-500">Search the web first, then add a useful result to this notebook without an AI key.</p>
+      </div>
 
       {showPaste && (
         <form
@@ -87,20 +103,24 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
             }
           }}
         >
+          <label className="sr-only" htmlFor="paste-title">Paste title</label>
           <input
-            className="w-full rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            id="paste-title"
+            className="min-h-12 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-aqua"
             placeholder="Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+          <label className="sr-only" htmlFor="paste-body">Paste body</label>
           <textarea
-            className="w-full h-28 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            id="paste-body"
+            className="min-h-28 w-full rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-aqua"
             placeholder="Paste your text here…"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
           <button
-            className="rounded-lg bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
+            className="min-h-12 rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition hover:bg-neutral-200 active:scale-[0.98] disabled:opacity-50"
             type="submit"
             disabled={busy}
           >
@@ -109,8 +129,8 @@ export default function UploadZone({ onUpload, onPaste }: Props) {
         </form>
       )}
 
-      {errors.map((err) => (
-        <p key={err.file} className="text-xs text-red-400">
+      {errors.map((err, index) => (
+        <p key={`${err.file}-${index}`} className="text-xs text-red-400">
           {err.file}: {err.detail}
         </p>
       ))}
