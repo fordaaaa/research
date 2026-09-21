@@ -6,6 +6,7 @@ store access, notebook-not-found) live in `api.deps`.
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -18,10 +19,26 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from api import ai, auth, demo, humanize, notebooks, notes, outlines, research, search, skills, sources, study, web
+from core.local_runtime import describe_runtime
 from core.store import Store
 
 logger = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+DESKTOP_COOKIE = "research_session"
+DESKTOP_TOKEN_PARAM = "desktop_token"
+# The packaged shell loads the sidecar root ("/"); "/index.html" covers a
+# direct index request through StaticFiles with the same per-launch token.
+DESKTOP_EXCHANGE_PATHS = frozenset({"/", "/index.html"})
+
+
+def _token_matches(supplied: str | None, expected: str) -> bool:
+    if not supplied or not expected:
+        return False
+    try:
+        return hmac.compare_digest(supplied.encode(), expected.encode())
+    except (ValueError, TypeError):
+        return False
 
 
 @asynccontextmanager
@@ -33,30 +50,32 @@ async def lifespan(app: FastAPI):
 def create_app(web_dir: Path | None = None) -> FastAPI:
     """Create the API, optionally serving a built frontend at the site root."""
     app = FastAPI(title="research", version="0.1.0", lifespan=lifespan)
+    desktop_token = os.environ.get("RESEARCH_DESKTOP_TOKEN") or None
+    # Desktop sidecar is same-origin only (WKWebView on a loopback port);
+    # development keeps the Vite origin so `npm run dev` can call the API.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
+        allow_origins=[] if desktop_token else ["http://localhost:5173"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    desktop_token = os.environ.get("RESEARCH_DESKTOP_TOKEN")
-
     @app.middleware("http")
     async def desktop_session(request: Request, call_next):
         if desktop_token:
-            supplied = request.query_params.get("desktop_token")
-            if supplied == desktop_token and request.url.path == "/":
+            supplied = request.query_params.get(DESKTOP_TOKEN_PARAM)
+            if request.url.path in DESKTOP_EXCHANGE_PATHS and _token_matches(supplied, desktop_token):
                 response = RedirectResponse(url="/", status_code=303)
                 response.set_cookie(
-                    "research_session",
+                    DESKTOP_COOKIE,
                     desktop_token,
+                    path="/",
                     httponly=True,
                     samesite="strict",
                 )
                 return response
             if request.url.path.startswith("/api/") and request.url.path != "/api/health":
-                if request.cookies.get("research_session") != desktop_token:
+                if not _token_matches(request.cookies.get(DESKTOP_COOKIE), desktop_token):
                     return JSONResponse(status_code=403, content={"detail": "desktop session required"})
 
         response = await call_next(request)
@@ -78,6 +97,11 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     @app.get("/api/health")
     def health():
         return {"ok": True}
+
+    @app.get("/api/runtime")
+    def runtime():
+        """Local-runtime privacy boundary facts; no user data, no paths."""
+        return describe_runtime(bool(desktop_token))
 
     # Mount route modules before the frontend so /api always wins over assets.
     notebooks.register(app)

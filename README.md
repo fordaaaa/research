@@ -89,6 +89,12 @@ Apple-silicon app. Notebook data lives in
 `~/Library/Application Support/research/data`, outside the app bundle.
 Public notarization is intentionally not part of the $0 build.
 
+Local privacy boundary: loopback-only sidecar (`127.0.0.1`, ephemeral
+port) + per-launch desktop session cookie, with email login still required
+on every data route. `GET /api/runtime` reports the boundary. Network use
+is explicit-only (web search, URL ingest, BYOK AI, Google OAuth) — no
+implicit sync. Details: [`docs/PRODUCT.md`](docs/PRODUCT.md).
+
 - **Windows desktop** is next, then **iOS and Android** from the shared
   responsive UI wherever feasible.
 

@@ -52,6 +52,15 @@ paid service.
    notarized); Windows is next.
 2. **Then iOS and Android**, built from the same shared responsive UI
    wherever feasible.
+- **Local-runtime boundary (desktop):** the sidecar binds `127.0.0.1` only
+  on an ephemeral port; the shell passes a per-launch `RESEARCH_DESKTOP_TOKEN`
+  exchanged for an HttpOnly `SameSite=Strict` session cookie (constant-time
+  compare, cleared from the URL via 303). The cookie alone grants nothing —
+  every data route still requires the account Bearer token. Desktop builds
+  are same-origin only (no Vite CORS origin). `GET /api/runtime` states this
+  boundary with no user data. Network egress stays explicit-only: web
+  search, URL ingest, BYOK AI, and Google OAuth run solely on direct user
+  action over HTTPS — no implicit sync, telemetry, proxy, or evasion.
 - The Apple Developer Program ($99/yr) is budgeted only when App Store
   submission approaches — never as a build prerequisite.
 
