@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run src",
+    "e2e": "playwright test",
+    "e2e:iphone": "playwright test --project=iphone-webkit",
+    "e2e:pixel": "playwright test --project=pixel-chromium",
+    "e2e:remote": "playwright test",
+    "e2e:list": "playwright test --list",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,6 +22,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
