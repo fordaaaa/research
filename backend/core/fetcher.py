@@ -32,8 +32,8 @@ class FetchDetails:
 
 def _validate_url(url: str) -> None:
     parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise FetchError("url must be http(s)")
+    if parsed.scheme != "https":
+        raise FetchError("url must use https")
     if not parsed.hostname or parsed.username is not None or parsed.password is not None:
         raise FetchError("url must contain a public hostname without userinfo")
     try:
