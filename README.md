@@ -1,5 +1,7 @@
 # research
 
+![Local-first research notebook](docs/images/repository-preview.jpg)
+
 A free, local-first study app for school. Collect sources, read them in-app,
 research the public web, and study with scheduled flashcards, source-grounded
 quizzes and glossaries, one-page guides, and mind maps. Try the one-click demo
