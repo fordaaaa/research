@@ -302,7 +302,7 @@ export default function App() {
                 }}
               />
             )}
-            {view === "study" && <StudyPanel notebookId={notebook.id} onSourcesChanged={() => refreshSources(notebook.id)} />}
+            {view === "study" && <StudyPanel notebookId={notebook.id} onSourcesChanged={() => refreshSources(notebook.id)} onOpenSource={setReadingId} />}
             {view === "notes" && <NotesPanel notebookId={notebook.id} />}
             {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
             {view === "skills" && <SkillsPanel notebookId={notebook.id} />}

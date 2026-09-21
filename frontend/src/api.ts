@@ -629,6 +629,8 @@ export const saveMemory = (notebookId: string, notes: string) =>
     body: JSON.stringify({ notes }),
   }).then(j<{ notes: string }>);
 
+export type ReviewRating = "again" | "hard" | "good" | "easy";
+
 export interface Flashcard {
   id: string;
   notebook_id: string;
@@ -637,22 +639,100 @@ export interface Flashcard {
   tags: string[];
   created_at: string;
   updated_at: string;
+  interval_days: number;
+  review_count: number;
+  due_at: string;
+  last_reviewed_at: string | null;
+}
+
+export interface CardSuggestion {
+  front: string;
+  back: string;
+  source_id: string;
+  source_title: string;
+  pages: number[];
+  chunk_seq: number;
+}
+
+export interface CardUpdate {
+  front?: string;
+  back?: string;
+  tags?: string[];
 }
 
 export const listCards = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/cards`).then(j<Flashcard[]>);
 
-export const createCard = (notebookId: string, body: { front: string; back: string }) =>
+export const createCard = (
+  notebookId: string,
+  body: { front: string; back: string; tags?: string[] }
+) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/cards`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(j<Flashcard>);
 
+export const updateCard = (notebookId: string, cardId: string, body: CardUpdate) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<Flashcard>);
+
+export const listDueCards = (notebookId: string, limit = 20) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/review?limit=${limit}`).then(
+    j<Flashcard[]>
+  );
+
+export const reviewCard = (notebookId: string, cardId: string, rating: ReviewRating) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  }).then(j<Flashcard>);
+
+export const listCardSuggestions = (notebookId: string, limit = 5) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/suggestions?limit=${limit}`).then(
+    j<CardSuggestion[]>
+  );
+
 export const deleteCard = (notebookId: string, cardId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then((r) => {
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   });
+
+export interface GlossaryEntry {
+  term: string;
+  explanation: string;
+  source_id: string;
+  source_title: string;
+  pages: number[];
+  chunk_seq: number;
+}
+
+export type QuizQuestionType = "short_answer" | "cloze";
+
+export interface QuizQuestion {
+  question_type: QuizQuestionType;
+  prompt: string;
+  answer: string;
+  term: string;
+  source_id: string;
+  source_title: string;
+  pages: number[];
+  chunk_seq: number;
+}
+
+export const listGlossary = (notebookId: string, limit = 20) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/glossary?limit=${limit}`).then(
+    j<GlossaryEntry[]>
+  );
+
+export const listQuiz = (notebookId: string, limit = 10) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/quiz?limit=${limit}`).then(
+    j<QuizQuestion[]>
+  );
 
 export const exportCardsUrl = (notebookId: string) => `${BASE}/notebooks/${notebookId}/cards/export`;
 
