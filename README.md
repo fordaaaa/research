@@ -1,9 +1,10 @@
 # research
 
 A free, local-first study app for school. Collect sources, read them in-app,
-research the public web, and study with flashcards, one-page guides, and mind
-maps. Try the one-click demo notebook to see every workflow in seconds. The
-core study workflow never needs AI — but it does need an account (see below).
+research the public web, and study with scheduled flashcards, source-grounded
+quizzes and glossaries, one-page guides, and mind maps. Try the one-click demo
+notebook to see every workflow in seconds. The core study workflow never needs
+AI — but it does need an account (see below).
 
 ## Keyless promise and accounts
 
@@ -59,6 +60,16 @@ npm run dev
 Open http://localhost:5173 (register a local account — free, instant). The
 dev server proxies `/api/*` to the backend on port 8000.
 
+Mobile browser journeys run against isolated local servers by default:
+
+```sh
+cd frontend
+npm run e2e
+```
+
+See [`frontend/e2e/README.md`](frontend/e2e/README.md) for iPhone/WebKit,
+Pixel/Chromium, and opt-in deployed-backend testing.
+
 ## Desktop and mobile
 
 - **macOS (alpha):** SwiftUI shell running the same local FastAPI backend
@@ -85,7 +96,7 @@ Public notarization is intentionally not part of the $0 build.
 - [x] M1 — source ingest (PDF, DOCX, TXT/MD, paste) with page-aware chunking
 - [x] M2 — search & information management (ranked search, filters, tags, rename, URL ingest, markdown export)
 - [x] M4 — keyless research mode (plan → web search → gather → cited source collection)
-- [x] M5 — keyless study tools (flashcards + practice mode, study guides, mind maps, Anki/Obsidian export)
+- [x] M5 — keyless study tools (scheduled flashcards, grounded drafts, glossary, quiz, study guides, mind maps, Anki/Obsidian export)
 - [x] M7 — multi-user: SQLite store, email auth with per-user data, login UI, authenticated exports
 - [ ] M3 — native desktop polish (macOS alpha → Windows) and distribution readiness
 - [ ] M6 — optional remote AI experiments (BYOK today, hosted credits via the private server later), only if they add value without becoming required

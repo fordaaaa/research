@@ -3,7 +3,7 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, hosted multi-user pivot landed (SQLite + email auth,
-> per-user data). The working tree is green; backend tests pass (143).
+> per-user data). The working tree contains the tested study/mobile batch below.
 > Owner direction: hosted backend (`research-server`) with thin clients, App
 > Store later ($99 program budgeted then, not now). Login order: email (done)
 > → Google → Apple last.
@@ -14,24 +14,24 @@ Live state of the project. **Read this first** before doing anything.
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
 
-## Uncommitted feature batch (2026-09-20)
+## Uncommitted study/mobile batch (2026-09-20)
 
-- Mobile workspace now has reachable Library, Discover, Learn, Write, and AI
-  destinations, larger touch targets, accessible keyboard tabs, source-row
-  swipe actions, and swipe/keyboard reader paging with reduced-motion support.
-- First-class Markdown notes have owned SQLite CRUD, optimistic revision
-  protection, autosave UI, source/chunk citations, and Obsidian export files.
-- URL ingestion now performs bounded, SSRF-aware HTML fetching, deterministic
-  structure extraction, and explainable important-passage ranking without AI;
-  the reader displays those passages and article metadata.
-- Humanizer now exposes deterministic local fix buttons separately from the
-  optional AI rewrite.
-- Optional AI chat now has persisted notebook-scoped sessions and messages,
-  readable history without a key, clickable source citations, bounded history,
-  and grounding from sources and/or Markdown notes.
-- Verification: backend `171 passed`; frontend `34 passed`; `npm run build`,
-  `git diff --check`, and `sh scripts/build_macos_app.sh` pass. No commit has
-  been created; reviewer approval is still required.
+- Flashcards v2 adds safe legacy SQLite migration, due-card queues, persisted
+  again/hard/good/easy scheduling, editing, tags/filtering, source-grounded
+  draft suggestions, and mobile swipe grading with accessible button/keyboard
+  alternatives. Suggestions are deterministic, keyless, and save only after a
+  user action.
+- Keyless glossary and quiz endpoints/UI derive stable, source-cited entries
+  and questions from notebook chunks. Glossary entries can open their source,
+  be copied, or become a flashcard; quiz scoring stays in the UI session.
+- Playwright now tests the app itself on iPhone/WebKit and Pixel/Chromium. Local
+  runs start isolated FastAPI/Vite servers; remote runs use
+  `RESEARCH_E2E_BASE_URL` and gate stateful tests behind explicit credentials or
+  `RESEARCH_E2E_ALLOW_REGISTRATION=1`.
+- Verification: backend `195 passed`; frontend `93 passed`; production build
+  passes; lint completes with warnings only; all `6` local mobile E2E tests
+  pass; `sh scripts/build_macos_app.sh` passes with an arm64 sidecar and signed
+  Release app.
 
 ## Current state
 
@@ -110,7 +110,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `api/humanize.py` — `POST /api/humanize/analyze` (keyless pattern flags, no notebook needed), `POST /api/humanize/rewrite` (optional AI rewrite with voice sample; 503 without a key).
 - `api/skills.py` — per-user skills library CRUD (`/api/skills`) + per-notebook memory notes (`GET/PUT /api/notebooks/{id}/memory`). Matched skills + memory are appended to chat/synthesis/report prompts only when AI is configured.
 - `api/demo.py` — `POST /api/demo` builds a "Cell biology demo" notebook (3 original study sources + outline + memory) so new users can try everything with one click.
-- `api/study.py` — keyless study tools: flashcard CRUD (`/cards`), Anki-ready TSV export, one-page study guide (`GET/POST /guide`, saveable as a source), mind map tree + markdown export (`/mindmap`).
+- `api/study.py` — keyless study tools: flashcard CRUD, persisted review scheduling and due queues, source-grounded card suggestions, glossary, quiz, Anki-ready TSV export, one-page study guide (`GET/POST /guide`, saveable as a source), and mind map tree + markdown export (`/mindmap`).
 - `api/search.py` — `GET /api/notebooks/{id}/search?q=&kind=&source=&tag=&limit=&offset=`; delegates to `store.search(...)`.
 - `core/models.py` — pydantic: `Page`, `Chunk`, `Source` (`tags`, `meta`), `SourceSummary`, `Notebook`, `SearchHit`, `NotebookCreate`, `PasteCreate`, `SourceUpdate`, `UrlCreate`. `SourceKind` includes `"url"`.
 - `core/parsers.py` — magic-byte + ext + content-type detection; PDF→pages via PyMuPDF, DOCX via python-docx (single page), txt/md utf-8. Unknown → 415 (`IngestError`).
@@ -130,19 +130,19 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (flashcards + practice + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header (email + log out) + sidebar (sources + notebook export) + tabbed workspace (Research/Deep/Ask/Search/Study/Humanize/Skills). Light theme via inverted neutral scale — see the convention block at the top of `src/index.css`; write classes as if `neutral-950` is the page bg and `neutral-100` is the primary button, never use raw `white`/`black` for text or fills, no `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
+`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header (email + log out) + sidebar (sources + notebook export) + tabbed responsive workspace. Light theme via inverted neutral scale — see the convention block at the top of `src/index.css`; write classes as if `neutral-950` is the page bg and `neutral-100` is the primary button, never use raw `white`/`black` for text or fills, no `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
 
 ## Testing
 
 - `backend/tests/` — `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes an **authed** `client` fixture (registers one user, sends its bearer token). See `test_auth.py` for register/login/logout/isolation coverage.
-- Build checks: `cd backend && uv run pytest`; `cd frontend && npm run build`; then `sh scripts/build_macos_app.sh` for the arm64 app bundle and sidecar smoke test.
+- Build checks: `cd backend && uv run pytest`; `cd frontend && npm test && npm run build && npm run lint`; `cd frontend && npm run e2e` for isolated iPhone/WebKit + Pixel/Chromium journeys; then `sh scripts/build_macos_app.sh` for the arm64 app bundle and sidecar smoke test. Remote E2E setup is documented in `frontend/e2e/README.md`.
 
 ## Next milestones
 
 - **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
 - **M7 — SHIPPED (multi-user):** SQLite store, email auth (pbkdf2 + 30d sessions), per-user everything, login UI, JSON→SQLite migration script, private `research-server` self-host repo.
 - **Next: Google OAuth**, then Apple at App Store time ($99 program).
-- **M5 — SHIPPED (student-ready v1):** flashcards with practice mode + Anki TSV export, keyless one-page study guides (saveable as sources), keyless mind maps (collapsible UI + markdown export), in-app source reader, one-click demo notebook, notebook zip export in the sidebar.
+- **M5 — SHIPPED (student-ready v2 in working tree):** scheduled flashcards with grounded drafts, mobile review, glossary, quiz, Anki TSV export, keyless one-page study guides, keyless mind maps, in-app source reader, one-click demo notebook, and notebook zip export.
 - **M4 polish** — possible follow-ups: persist research plans per notebook, cap bulk-add selections, retry failed adds.
 
 ## Keyless research mode (M4, shipped)
@@ -158,4 +158,4 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Parking lot
 
-SQLite FTS5/sqlite-vec migration · chunk-level notes/annotations · source file-type passthrough (keep original bytes for re-parse) · field search (e.g. `title:`) · tag collections/folders · reader API (highlighted page text) · spaced repetition scheduling.
+SQLite FTS5/sqlite-vec migration · chunk-level notes/annotations · source file-type passthrough (keep original bytes for re-parse) · field search (e.g. `title:`) · tag collections/folders · reader API (highlighted page text).
