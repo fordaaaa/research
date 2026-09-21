@@ -118,7 +118,11 @@ CREATE TABLE IF NOT EXISTS cards (
     back TEXT NOT NULL,
     tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    interval_days REAL NOT NULL DEFAULT 0,
+    review_count INTEGER NOT NULL DEFAULT 0,
+    due_at TEXT NOT NULL DEFAULT '',
+    last_reviewed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
@@ -193,6 +197,27 @@ class Store:
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub"
                 " ON users(google_sub)"
             )
+            for ddl in (
+                "ALTER TABLE cards ADD COLUMN interval_days REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE cards ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE cards ADD COLUMN due_at TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE cards ADD COLUMN last_reviewed_at TEXT",
+            ):
+                try:
+                    con.execute(ddl)
+                except Exception:
+                    pass
+            con.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cards_notebook_due"
+                " ON cards(notebook_id, due_at)"
+            )
+            try:
+                con.execute(
+                    "UPDATE cards SET due_at = created_at"
+                    " WHERE due_at IS NULL OR due_at = ''"
+                )
+            except Exception:
+                pass
 
     def _connect(self):
         import sqlite3
@@ -530,12 +555,17 @@ class Store:
         return _card_from_row(row) if row else None
 
     def save_card(self, card: Flashcard) -> Flashcard:
+        if not card.due_at:
+            card.due_at = card.created_at
         with self._connect() as con:
             con.execute(
-                "INSERT INTO cards (id, notebook_id, front, back, tags, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO cards (id, notebook_id, front, back, tags, created_at, updated_at,"
+                " interval_days, review_count, due_at, last_reviewed_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(id) DO UPDATE SET front=excluded.front, back=excluded.back,"
-                " tags=excluded.tags, updated_at=excluded.updated_at",
+                " tags=excluded.tags, updated_at=excluded.updated_at,"
+                " interval_days=excluded.interval_days, review_count=excluded.review_count,"
+                " due_at=excluded.due_at, last_reviewed_at=excluded.last_reviewed_at",
                 (
                     card.id,
                     card.notebook_id,
@@ -544,9 +574,35 @@ class Store:
                     json.dumps(card.tags),
                     card.created_at.isoformat(),
                     card.updated_at.isoformat(),
+                    card.interval_days,
+                    card.review_count,
+                    card.due_at.isoformat() if card.due_at else "",
+                    card.last_reviewed_at.isoformat() if card.last_reviewed_at else None,
                 ),
             )
         return card
+
+    def list_due_cards(
+        self, notebook_id: str, now: datetime | None = None, limit: int = 20
+    ) -> list[Flashcard]:
+        """Cards with due_at at or before now, oldest-due first."""
+        moment = now or utcnow()
+        with self._connect() as con:
+            try:
+                rows = con.execute(
+                    "SELECT * FROM cards WHERE notebook_id = ?"
+                    " AND (due_at IS NULL OR due_at = '' OR due_at <= ?)"
+                    " ORDER BY CASE WHEN due_at IS NULL OR due_at = ''"
+                    " THEN created_at ELSE due_at END, created_at LIMIT ?",
+                    (notebook_id, moment.isoformat(), limit),
+                ).fetchall()
+            except Exception:
+                rows = con.execute(
+                    "SELECT * FROM cards WHERE notebook_id = ?"
+                    " ORDER BY created_at LIMIT ?",
+                    (notebook_id, limit),
+                ).fetchall()
+        return [_card_from_row(r) for r in rows]
 
     def delete_card(self, notebook_id: str, card_id: str) -> bool:
         with self._connect() as con:
@@ -869,14 +925,30 @@ def _outline_from_row(row: Any) -> ResearchOutline:
 
 
 def _card_from_row(row: Any) -> Flashcard:
+    cols = set(row.keys()) if hasattr(row, "keys") else set()
+    created = datetime.fromisoformat(row["created_at"])
+    raw_due = row["due_at"] if "due_at" in cols else None
+    try:
+        due = datetime.fromisoformat(raw_due) if raw_due else created
+    except (ValueError, TypeError):
+        due = created
+    raw_last = row["last_reviewed_at"] if "last_reviewed_at" in cols else None
+    try:
+        last = datetime.fromisoformat(raw_last) if raw_last else None
+    except (ValueError, TypeError):
+        last = None
     return Flashcard(
         id=row["id"],
         notebook_id=row["notebook_id"],
         front=row["front"],
         back=row["back"],
         tags=json.loads(row["tags"]),
-        created_at=datetime.fromisoformat(row["created_at"]),
+        created_at=created,
         updated_at=datetime.fromisoformat(row["updated_at"]),
+        interval_days=float(row["interval_days"]) if "interval_days" in cols and row["interval_days"] is not None else 0.0,
+        review_count=int(row["review_count"]) if "review_count" in cols and row["review_count"] is not None else 0,
+        due_at=due,
+        last_reviewed_at=last,
     )
 
 

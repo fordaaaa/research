@@ -453,6 +453,10 @@ class Flashcard(BaseModel):
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    interval_days: float = Field(default=0.0, ge=0.0)
+    review_count: int = Field(default=0, ge=0)
+    due_at: datetime = Field(default_factory=utcnow)
+    last_reviewed_at: datetime | None = None
 
 
 class CardCreate(BaseModel):
@@ -460,8 +464,63 @@ class CardCreate(BaseModel):
     back: str = Field(min_length=1, max_length=2_000)
     tags: list[str] = Field(default_factory=list, max_length=10)
 
+    @model_validator(mode="after")
+    def _content_not_blank(self) -> "CardCreate":
+        if not self.front.strip():
+            raise ValueError("front must not be blank")
+        if not self.back.strip():
+            raise ValueError("back must not be blank")
+        return self
+
 
 class CardUpdate(BaseModel):
     front: str | None = Field(default=None, min_length=1, max_length=500)
     back: str | None = Field(default=None, min_length=1, max_length=2_000)
     tags: list[str] | None = Field(default=None, max_length=10)
+
+    @model_validator(mode="after")
+    def _content_not_blank(self) -> "CardUpdate":
+        if self.front is not None and not self.front.strip():
+            raise ValueError("front must not be blank")
+        if self.back is not None and not self.back.strip():
+            raise ValueError("back must not be blank")
+        return self
+
+
+ReviewRating = Literal["again", "hard", "good", "easy"]
+
+
+class CardReview(BaseModel):
+    rating: ReviewRating
+
+
+class CardSuggestion(BaseModel):
+    front: str
+    back: str
+    source_id: str
+    source_title: str
+    pages: list[int] = Field(default_factory=list)
+    chunk_seq: int = Field(default=0, ge=0)
+
+
+class GlossaryEntry(BaseModel):
+    term: str
+    explanation: str
+    source_id: str
+    source_title: str
+    pages: list[int] = Field(default_factory=list)
+    chunk_seq: int = Field(default=0, ge=0)
+
+
+QuizQuestionType = Literal["short_answer", "cloze"]
+
+
+class QuizQuestion(BaseModel):
+    question_type: QuizQuestionType
+    prompt: str
+    answer: str
+    term: str
+    source_id: str
+    source_title: str
+    pages: list[int] = Field(default_factory=list)
+    chunk_seq: int = Field(default=0, ge=0)

@@ -1,17 +1,18 @@
-"""Keyless study tools: manual flashcards with Anki-ready export.
+"""Keyless study tools: manual flashcards with spaced review and Anki-ready export.
 
-Cards are plain local JSON. Practice state (known/unknown, order) lives in the
-frontend session — the backend only stores the deck.
+Cards are stored locally in SQLite with deterministic spaced-review state
+(again/hard/good/easy). Suggestions are deterministic drafts grounded in the
+notebook's own sources — never AI, never saved until the client creates a card.
 """
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from api.sources import _summary
 from core import ingest, study as study_core
-from core.models import CardCreate, CardUpdate, Flashcard, User, utcnow
+from core.models import CardCreate, CardReview, CardSuggestion, CardUpdate, Flashcard, GlossaryEntry, QuizQuestion, User, utcnow
 from core.store import Store, new_id
 
 
@@ -68,6 +69,10 @@ def register(app: FastAPI) -> None:
             tags=_clean_tags(body.tags),
             created_at=now,
             updated_at=now,
+            interval_days=0.0,
+            review_count=0,
+            due_at=now,
+            last_reviewed_at=None,
         )
         return store.save_card(card)
 
@@ -94,6 +99,85 @@ def register(app: FastAPI) -> None:
         card_id = safe_id(card_id, "card_id")
         if not store.delete_card(notebook_id, card_id):
             raise HTTPException(status_code=404, detail="card not found")
+
+    @app.get("/api/notebooks/{notebook_id}/cards/review", response_model=list[Flashcard])
+    def review_queue(
+        notebook_id: str,
+        limit: int = Query(default=20, ge=1, le=100),
+        user: User = Depends(get_current_user),
+    ):
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook_or_404(store, user.id, notebook_id)
+        return store.list_due_cards(notebook_id, utcnow(), limit)
+
+    @app.post(
+        "/api/notebooks/{notebook_id}/cards/{card_id}/review", response_model=Flashcard
+    )
+    def review_card(notebook_id: str, card_id: str, body: CardReview, user: User = Depends(get_current_user)):
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook_or_404(store, user.id, notebook_id)
+        card = _get_card(store, notebook_id, card_id)
+        study_core.schedule_review(card, body.rating, utcnow())
+        return store.save_card(card)
+
+    @app.get(
+        "/api/notebooks/{notebook_id}/cards/suggestions",
+        response_model=list[CardSuggestion],
+    )
+    def suggest_cards(
+        notebook_id: str,
+        limit: int = Query(default=5, ge=1, le=10),
+        user: User = Depends(get_current_user),
+    ):
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook_or_404(store, user.id, notebook_id)
+        sources = _study_sources(store, notebook_id)
+        existing = {c.front for c in store.list_cards(notebook_id)}
+        return [
+            CardSuggestion.model_validate(item)
+            for item in study_core.suggest_cards(sources, existing, limit)
+        ]
+
+    @app.get(
+        "/api/notebooks/{notebook_id}/glossary",
+        response_model=list[GlossaryEntry],
+    )
+    def get_glossary(
+        notebook_id: str,
+        limit: int = Query(default=20, ge=1, le=50),
+        user: User = Depends(get_current_user),
+    ):
+        """Deterministic keyless glossary grounded in the notebook's sources."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook_or_404(store, user.id, notebook_id)
+        sources = _study_sources(store, notebook_id)
+        return [
+            GlossaryEntry.model_validate(item)
+            for item in study_core.build_glossary(sources, limit)
+        ]
+
+    @app.get(
+        "/api/notebooks/{notebook_id}/quiz",
+        response_model=list[QuizQuestion],
+    )
+    def get_quiz(
+        notebook_id: str,
+        limit: int = Query(default=10, ge=1, le=20),
+        user: User = Depends(get_current_user),
+    ):
+        """Deterministic keyless quiz derived from the glossary; never persisted."""
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        store = get_store(app)
+        notebook_or_404(store, user.id, notebook_id)
+        sources = _study_sources(store, notebook_id)
+        return [
+            QuizQuestion.model_validate(item)
+            for item in study_core.build_quiz(sources, limit)
+        ]
 
     @app.get("/api/notebooks/{notebook_id}/cards/export")
     def export_cards(notebook_id: str, user: User = Depends(get_current_user)):
