@@ -66,7 +66,7 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
                 continue
             zf.writestr(
                 f"notes/{note.id}-{slugify(note.title)}.md",
-                _render_note(full_note, source_filenames, store),
+                _render_note(full_note, source_filenames),
             )
 
     filename = f"{slugify(notebook.name)}-export.zip"
@@ -92,7 +92,7 @@ def _render_source(source: Source) -> str:
     return "\n".join(parts)
 
 
-def _render_note(note: Note, source_filenames: dict[str, str], store: Store) -> str:
+def _render_note(note: Note, source_filenames: dict[str, str]) -> str:
     parts = [
         "---",
         f"title: {note.title}",
@@ -111,7 +111,7 @@ def _render_note(note: Note, source_filenames: dict[str, str], store: Store) -> 
     else:
         for citation in note.citations:
             filename = source_filenames.get(citation.source_id)
-            if filename and store.get_source(note.notebook_id, citation.source_id):
+            if filename:
                 parts.append(f"- [[{filename}]] — chunk {citation.chunk_seq}")
             else:
                 parts.append(
