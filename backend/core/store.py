@@ -814,13 +814,27 @@ class Store:
             cur = con.execute("DELETE FROM chat_sessions WHERE id = ? AND notebook_id = ?", (session_id, notebook_id))
             return cur.rowcount > 0
 
-    def list_chat_messages(self, session_id: str) -> list[ChatMessage]:
+    def list_chat_messages(
+        self, session_id: str, *, limit: int | None = None, before: str | None = None
+    ) -> list[ChatMessage]:
+        """Chronological messages; with limit, the newest window (for paging)."""
+        query = "SELECT * FROM chat_messages WHERE session_id = ?"
+        params: list[object] = [session_id]
+        if before is not None:
+            query += (
+                " AND (created_at, rowid) < (SELECT created_at, rowid"
+                " FROM chat_messages WHERE id = ? AND session_id = ?)"
+            )
+            params += [before, session_id]
+        query += " ORDER BY created_at DESC, rowid DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
         with self._connect() as con:
-            rows = con.execute(
-                "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at, rowid",
-                (session_id,),
-            ).fetchall()
-        return [_chat_message_from_row(row) for row in rows]
+            rows = con.execute(query, params).fetchall()
+        messages = [_chat_message_from_row(row) for row in rows]
+        messages.reverse()
+        return messages
 
     def append_chat_exchange(
         self,
