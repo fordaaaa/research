@@ -73,7 +73,7 @@ def test_export_includes_ordered_note_files_and_resolvable_citations(client):
         assert "rev: 1" in note
         assert "tags: study" in note
         assert "## Citations" in note
-        assert f"{src['id']}-primary-source.md" in note
+        assert f"[[{src['id']}-primary-source]]" in note
         assert "A source passage." not in note
 
 

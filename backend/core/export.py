@@ -112,7 +112,8 @@ def _render_note(note: Note, source_filenames: dict[str, str]) -> str:
         for citation in note.citations:
             filename = source_filenames.get(citation.source_id)
             if filename:
-                parts.append(f"- [[{filename}]] — chunk {citation.chunk_seq}")
+                stem = filename.removesuffix(".md")
+                parts.append(f"- [[{stem}]] — chunk {citation.chunk_seq}")
             else:
                 parts.append(
                     f"- [deleted source] `{citation.source_id}` — chunk {citation.chunk_seq}"
