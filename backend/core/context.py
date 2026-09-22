@@ -11,17 +11,25 @@ def build_context(store, notebook_id: str, source_ids: set[str] | None = None) -
     for summary in store.list_sources(notebook_id):
         if source_ids is not None and summary.id not in source_ids:
             continue
-        source = store.get_source(notebook_id, summary.id)
-        if not source:
-            continue
-        for chunk in source.chunks:
-            addition = len(chunk.text)
-            if excerpts and size + addition > MAX_CONTEXT:
-                return excerpts, citations
-            number = len(citations) + 1
-            excerpts.append(f"[{number}] {source.title}, pages {', '.join(map(str, chunk.pages))}:\n{chunk.text}")
-            citations.append(Citation(source_id=source.id, source_title=source.title, pages=chunk.pages))
-            size += addition
+        offset = 0
+        while True:
+            page = store.get_source_chunks_page(
+                notebook_id, summary.id, offset=offset, limit=64
+            )
+            if not page:
+                break
+            _, chunks = page
+            if not chunks:
+                break
+            for chunk in chunks:
+                addition = len(chunk.text)
+                if excerpts and size + addition > MAX_CONTEXT:
+                    return excerpts, citations
+                number = len(citations) + 1
+                excerpts.append(f"[{number}] {summary.title}, pages {', '.join(map(str, chunk.pages))}:\n{chunk.text}")
+                citations.append(Citation(source_id=summary.id, source_title=summary.title, pages=chunk.pages))
+                size += addition
+            offset += len(chunks)
     return excerpts, citations
 
 

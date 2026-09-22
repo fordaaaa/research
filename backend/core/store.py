@@ -461,6 +461,23 @@ class Store:
             ).fetchone()
         return Source.model_validate_json(row["body"]) if row else None
 
+    def get_source_chunks_page(
+        self, notebook_id: str, source_id: str, *, offset: int, limit: int
+    ) -> tuple[int, list[Chunk]] | None:
+        """Return (total, chunk slice) without hydrating the full source body."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT json_array_length(body, '$.chunks') AS total,"
+                " (SELECT json_group_array(json(value)) FROM"
+                " (SELECT value FROM json_each(body, '$.chunks') LIMIT ? OFFSET ?)) AS page"
+                " FROM sources WHERE id = ? AND notebook_id = ?",
+                (limit, offset, source_id, notebook_id),
+            ).fetchone()
+        if not row:
+            return None
+        items = json.loads(row["page"]) if row["page"] else []
+        return (row["total"] or 0), [Chunk.model_validate(item) for item in items]
+
     def find_source_chunks_for_user(
         self, user_id: str, source_id: str, *, offset: int, limit: int
     ) -> tuple[int, list[Chunk]] | None:
@@ -471,23 +488,16 @@ class Store:
         """
         with self._connect() as con:
             owner = con.execute(
-                "SELECT 1 FROM sources s JOIN notebooks n ON n.id = s.notebook_id"
+                "SELECT s.notebook_id FROM sources s JOIN notebooks n ON n.id = s.notebook_id"
                 " WHERE s.id = ? AND n.user_id = ?",
                 (source_id, user_id),
             ).fetchone()
             if not owner:
                 return None
-            row = con.execute(
-                "SELECT json_array_length(body, '$.chunks') AS total,"
-                " (SELECT json_group_array(json(value)) FROM"
-                " (SELECT value FROM json_each(body, '$.chunks') LIMIT ? OFFSET ?)) AS page"
-                " FROM sources WHERE id = ?",
-                (limit, offset, source_id),
-            ).fetchone()
-        if not row:
-            return None
-        items = json.loads(row["page"]) if row["page"] else []
-        return (row["total"] or 0), [Chunk.model_validate(item) for item in items]
+            notebook_id = owner["notebook_id"]
+        return self.get_source_chunks_page(
+            notebook_id, source_id, offset=offset, limit=limit
+        )
 
     def update_source(
         self,
