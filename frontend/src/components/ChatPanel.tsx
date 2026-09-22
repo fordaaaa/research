@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import * as api from "../api";
 import type { ChatMessage, ChatSession } from "../api";
 import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 
 interface Props {
   notebookId: string;
@@ -121,6 +122,7 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
               {loadingMessages && <div className="flex items-center gap-2 text-sm text-neutral-500"><Spinner /> Loading history…</div>}
               {!loadingMessages && messages.length === 0 && <p className="text-sm text-neutral-500">No messages yet. Ask a question when AI is configured.</p>}
               {messages.map((item) => <article key={item.id} className={`rounded-xl p-3 text-sm ${item.role === "user" ? "ml-6 bg-neutral-800" : "mr-6 bg-neutral-950"}`}><p className="whitespace-pre-wrap leading-relaxed text-neutral-200">{item.text}</p>{item.citations.length > 0 && <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">{item.citations.map((citation, index) => <button key={`${item.id}-${citation.source_id}-${index}`} type="button" className="min-h-11 rounded-lg border border-neutral-700 px-2 hover:bg-neutral-800" onClick={() => onOpenSource(citation.source_id)}>[{index + 1}] {citation.source_title}</button>)}</div>}{item.model && <p className="mt-2 text-[11px] text-neutral-600">Answered by {item.model}</p>}</article>)}
+              {busy && <div className="mr-6 flex items-center gap-2 rounded-xl bg-neutral-950 p-3 text-sm text-neutral-500"><ThinkingDots state="composing" /> Thinking…</div>}
             </div>
             <form className="mt-3 flex gap-2" onSubmit={sendMessage}><input className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 text-base outline-none focus:border-neutral-500 sm:text-sm" placeholder={configured ? "Ask about this notebook…" : "Set up AI to ask your sources…"} value={message} disabled={!configured || !selectedId || busy} onChange={(event) => setMessage(event.target.value)} /><button className="min-h-11 rounded-lg bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200 disabled:opacity-50" disabled={!configured || !selectedId || busy || !message.trim()} type="submit">{busy ? "Sending…" : "Send"}</button></form>
           </div>

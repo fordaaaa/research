@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { OutlineDeep, OutlineReport, ResearchOutline } from "../api";
 import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 import { Badge, Button, Card, EmptyState, SectionHeader } from "./ui";
 import { inputCls } from "./ui";
 
@@ -164,7 +165,7 @@ export default function OutlinePanel({ notebookId, aiConfigured, onSourcesChange
               onChange={(e) => setTopic(e.target.value)}
             />
             <Button type="submit" disabled={busy || topic.trim().length < 3} className="shrink-0">
-              {busy && <Spinner size={13} />}
+              {busy && <ThinkingDots state="solving" />}
               {busy ? "Drafting" : "Draft outline"}
             </Button>
           </form>
@@ -264,7 +265,7 @@ export default function OutlinePanel({ notebookId, aiConfigured, onSourcesChange
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={runDeep} disabled={busy || outline.items.length === 0}>
-              {busy && <Spinner size={13} />}
+              {busy && <ThinkingDots state="searching" />}
               {busy ? "Researching" : `Research ${outline.items.length} item${outline.items.length === 1 ? "" : "s"}`}
             </Button>
             <Button variant="ghost" onClick={() => setPhase("pick")}>All outlines</Button>
@@ -328,7 +329,7 @@ export default function OutlinePanel({ notebookId, aiConfigured, onSourcesChange
           ) : (
             <>
               <Button onClick={runReport} disabled={busy}>
-                {busy && <Spinner size={13} />}
+                {busy && <ThinkingDots state="composing" />}
                 {busy ? "Writing" : aiConfigured ? "Write report with AI" : "Write report"}
               </Button>
               {!aiConfigured && <p className="text-xs text-neutral-600">structured digest grouped by your outline — no key needed</p>}
