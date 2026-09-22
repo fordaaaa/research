@@ -12,6 +12,8 @@ interface Props {
   onOpenSource: (sourceId: string) => void;
 }
 
+const PAGE_SIZE = 50;
+
 export default function ChatPanel({ notebookId, configured, onConfigure, onOpenSource }: Props) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -19,7 +21,9 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   const [message, setMessage] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
 
@@ -41,11 +45,15 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   }, [notebookId]);
 
   useEffect(() => {
-    if (!selectedId) { setMessages([]); return; }
+    if (!selectedId) { setMessages([]); setHasMore(false); return; }
     let active = true;
     setLoadingMessages(true);
-    api.listChatMessages(notebookId, selectedId)
-      .then((next) => active && setMessages(next))
+    api.listChatMessages(notebookId, selectedId, PAGE_SIZE + 1)
+      .then((next) => {
+        if (!active) return;
+        if (next.length > PAGE_SIZE) { setMessages(next.slice(1)); setHasMore(true); }
+        else { setMessages(next); setHasMore(false); }
+      })
       .catch((err) => active && setError(err instanceof Error ? err.message : "could not load chat history"))
       .finally(() => active && setLoadingMessages(false));
     return () => { active = false; };
@@ -61,8 +69,25 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
     } catch (err) { setError(err instanceof Error ? err.message : "could not create chat session"); }
   }
 
-  async function deleteSession(id: string) {
-    setError(null);
+  async function loadOlder() {
+    if (!selectedId || loadingMore || !hasMore || messages.length === 0) return;
+    const sessionId = selectedId;
+    const oldestId = messages[0].id;
+    setLoadingMore(true); setError(null);
+    try {
+      const older = await api.listChatMessages(notebookId, sessionId, PAGE_SIZE + 1, oldestId);
+      if (selectedIdRef.current !== sessionId) return;
+      if (older.length > PAGE_SIZE) setMessages((current) => [...older.slice(1), ...current]);
+      else { setMessages((current) => [...older, ...current]); setHasMore(false); }
+    } catch (err) {
+      if (selectedIdRef.current !== sessionId) return;
+      setError(err instanceof Error ? err.message : "could not load older messages");
+    } finally {
+      if (selectedIdRef.current === sessionId) setLoadingMore(false);
+    }
+  }
+
+  async function deleteSession(id: string) {    setError(null);
     try {
       await api.deleteChatSession(notebookId, id);
       const remaining = sessions.filter((session) => session.id !== id);
@@ -77,9 +102,10 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed || !selectedId || busy || !configured) return;
-    setBusy(true); setError(null);
+    if (!trimmed || !selectedId || !configured || busyIds.includes(selectedId)) return;
     const sessionId = selectedId;
+    setBusyIds((current) => (current.includes(sessionId) ? current : [...current, sessionId]));
+    setError(null);
     const userMessage: ChatMessage = { id: `pending-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`, session_id: sessionId, role: "user", text: trimmed, citations: [], model: null, created_at: new Date().toISOString() };
     setMessages((current) => [...current, userMessage]); setMessage("");
     try {
@@ -96,11 +122,12 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
       setMessages((current) => current.filter((item) => item.id !== userMessage.id));
       setError(err instanceof Error ? err.message : "could not send message");
     } finally {
-      setBusy(false);
+      setBusyIds((current) => current.filter((id) => id !== sessionId));
     }
   }
 
   const selected = sessions.find((session) => session.id === selectedId);
+  const busy = selectedId !== null && busyIds.includes(selectedId);
   return (
     <section className="mx-auto mb-8 w-full max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -120,6 +147,7 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
             {selected && <p className="mb-2 text-xs font-medium text-neutral-500">{selected.title}</p>}
             <div className="max-h-80 space-y-3 overflow-y-auto rounded-xl border border-neutral-800 p-3" aria-live="polite">
               {loadingMessages && <div className="flex items-center gap-2 text-sm text-neutral-500"><Spinner /> Loading history…</div>}
+              {!loadingMessages && hasMore && <button type="button" className="min-h-11 w-full rounded-lg border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-50" disabled={loadingMore} onClick={() => void loadOlder()}>{loadingMore ? "Loading…" : "Show older messages"}</button>}
               {!loadingMessages && messages.length === 0 && <p className="text-sm text-neutral-500">No messages yet. Ask a question when AI is configured.</p>}
               {messages.map((item) => <article key={item.id} className={`rounded-xl p-3 text-sm ${item.role === "user" ? "ml-6 bg-neutral-800" : "mr-6 bg-neutral-950"}`}><p className="whitespace-pre-wrap leading-relaxed text-neutral-200">{item.text}</p>{item.citations.length > 0 && <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">{item.citations.map((citation, index) => <button key={`${item.id}-${citation.source_id}-${index}`} type="button" className="min-h-11 rounded-lg border border-neutral-700 px-2 hover:bg-neutral-800" onClick={() => onOpenSource(citation.source_id)}>[{index + 1}] {citation.source_title}</button>)}</div>}{item.model && <p className="mt-2 text-[11px] text-neutral-600">Answered by {item.model}</p>}</article>)}
               {busy && <div className="mr-6 flex items-center gap-2 rounded-xl bg-neutral-950 p-3 text-sm text-neutral-500"><ThinkingDots state="composing" /> Thinking…</div>}

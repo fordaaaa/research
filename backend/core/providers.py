@@ -8,13 +8,14 @@ from core import gemini, openrouter
 FALLBACK_MODELS: dict[str, list[str]] = {
     "gemini": ["gemini-2.5-flash-lite", "gemini-2.0-flash"],
     "openrouter": [
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-chat-v3-0324:free",
     ],
 }
 DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-2.5-flash",
-    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
+    "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
 }
 
 _ADAPTERS = {"gemini": gemini, "openrouter": openrouter}

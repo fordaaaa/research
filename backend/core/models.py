@@ -167,7 +167,7 @@ AIProvider = Literal["gemini", "openrouter"]
 
 AI_DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-2.5-flash",
-    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
+    "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
 }
 
 

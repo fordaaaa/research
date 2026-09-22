@@ -1,7 +1,8 @@
 """Source routes: upload, paste, list, get, chunks, delete.
 
-The 50 MB upload cap is enforced *during* streaming — see `_read_capped` —
-so a multi-GB payload is rejected without buffering the full body.
+The 50 MB per-file cap is enforced *during* streaming (see `_read_capped`),
+and a combined cap of 4x the per-file limit bounds the whole request, so a
+bulk multi-file payload is rejected file-by-file without unbounded work.
 All routes require login; source access is refused outside the owner's notebooks.
 """
 from __future__ import annotations
@@ -15,6 +16,7 @@ from core.ingest import IngestError
 from core.models import PasteCreate, Source, SourceUpdate, UrlCreate, User
 
 MAX_FILES = 20
+MAX_TOTAL_MULTIPLE = 4  # combined upload cap, as a multiple of the per-file cap
 
 
 def register(app: FastAPI) -> None:
@@ -29,9 +31,18 @@ def register(app: FastAPI) -> None:
         if len(files) > MAX_FILES:
             raise HTTPException(status_code=400, detail=f"max {MAX_FILES} files per upload")
         created, errors = [], []
+        accepted = 0
+        total_cap = MAX_TOTAL_MULTIPLE * parsers.MAX_BYTES
         for f in files:
             try:
                 data = await _read_capped(f)
+                if accepted + len(data) > total_cap:
+                    raise IngestError(
+                        "combined upload size exceeds"
+                        f" {MAX_TOTAL_MULTIPLE}x the per-file limit",
+                        status=413,
+                    )
+                accepted += len(data)
                 source = ingest.ingest_bytes(
                     get_store(app), notebook_id, f.filename, f.content_type, data
                 )
@@ -97,13 +108,13 @@ def register(app: FastAPI) -> None:
         user: User = Depends(get_current_user),
     ):
         source_id = safe_id(source_id, "source_id")
-        source = get_store(app).find_source_for_user(user.id, source_id)
-        if not source:
+        page = get_store(app).find_source_chunks_for_user(
+            user.id, source_id, offset=offset, limit=limit
+        )
+        if not page:
             raise HTTPException(status_code=404, detail="source not found")
-        return {
-            "total": len(source.chunks),
-            "chunks": source.chunks[offset : offset + limit],
-        }
+        total, chunks = page
+        return {"total": total, "chunks": chunks}
 
     @app.delete("/api/sources/{source_id}", status_code=204)
     def delete_source(source_id: str, user: User = Depends(get_current_user)):

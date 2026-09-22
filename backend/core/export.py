@@ -7,6 +7,7 @@ function over the store — no notebook, repository, or framework dependencies.
 from __future__ import annotations
 
 import io
+import json
 import re
 import zipfile
 
@@ -19,6 +20,11 @@ def slugify(name: str) -> str:
     return slug or "untitled"
 
 
+def _yaml(value: str | list[str]) -> str:
+    """Render a frontmatter scalar/sequence so titles and tags cannot inject keys."""
+    return json.dumps(value)
+
+
 def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes, str]:
     """Return (zip file bytes, suggested download filename)."""
     notebook = store.get_notebook(user_id, notebook_id)
@@ -28,7 +34,7 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        index = ["---", f"title: {notebook.name}", "kind: notebook", "---", ""]
+        index = ["---", f"title: {_yaml(notebook.name)}", "kind: notebook", "---", ""]
         source_filenames = {
             summary.id: f"{summary.id}-{slugify(summary.title)}.md"
             for summary in summaries
@@ -66,7 +72,7 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
                 continue
             zf.writestr(
                 f"notes/{note.id}-{slugify(note.title)}.md",
-                _render_note(full_note, source_filenames, store),
+                _render_note(full_note, source_filenames),
             )
 
     filename = f"{slugify(notebook.name)}-export.zip"
@@ -76,12 +82,12 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
 def _render_source(source: Source) -> str:
     parts = [
         "---",
-        f"title: {source.title}",
-        f"kind: {source.kind}",
-        f"tags: {', '.join(source.tags)}",
+        f"title: {_yaml(source.title)}",
+        f"kind: {_yaml(source.kind)}",
+        f"tags: {_yaml(source.tags)}",
     ]
     if "url" in source.meta:
-        parts.append(f"url: {source.meta['url']}")
+        parts.append(f"url: {_yaml(str(source.meta['url']))}")
     parts += ["---", ""]
     for page in source.pages:
         if len(source.pages) > 1:
@@ -92,14 +98,14 @@ def _render_source(source: Source) -> str:
     return "\n".join(parts)
 
 
-def _render_note(note: Note, source_filenames: dict[str, str], store: Store) -> str:
+def _render_note(note: Note, source_filenames: dict[str, str]) -> str:
     parts = [
         "---",
-        f"title: {note.title}",
+        f"title: {_yaml(note.title)}",
         "kind: note",
         f"rev: {note.rev}",
-        f"updated_at: {note.updated_at.isoformat()}",
-        f"tags: {', '.join(note.tags)}",
+        f"updated_at: {_yaml(note.updated_at.isoformat())}",
+        f"tags: {_yaml(note.tags)}",
         "---",
         "",
         note.body,
@@ -111,8 +117,9 @@ def _render_note(note: Note, source_filenames: dict[str, str], store: Store) -> 
     else:
         for citation in note.citations:
             filename = source_filenames.get(citation.source_id)
-            if filename and store.get_source(note.notebook_id, citation.source_id):
-                parts.append(f"- [[{filename}]] — chunk {citation.chunk_seq}")
+            if filename:
+                stem = filename.removesuffix(".md")
+                parts.append(f"- [[{stem}]] — chunk {citation.chunk_seq}")
             else:
                 parts.append(
                     f"- [deleted source] `{citation.source_id}` — chunk {citation.chunk_seq}"

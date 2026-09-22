@@ -21,6 +21,7 @@ from core.models import (
     AISettingsUpdate,
     ChatMessage,
     ChatSession,
+    Chunk,
     Citation,
     Flashcard,
     Note,
@@ -460,6 +461,44 @@ class Store:
             ).fetchone()
         return Source.model_validate_json(row["body"]) if row else None
 
+    def get_source_chunks_page(
+        self, notebook_id: str, source_id: str, *, offset: int, limit: int
+    ) -> tuple[int, list[Chunk]] | None:
+        """Return (total, chunk slice) without hydrating the full source body."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT json_array_length(body, '$.chunks') AS total,"
+                " (SELECT json_group_array(json(value)) FROM"
+                " (SELECT value FROM json_each(body, '$.chunks') LIMIT ? OFFSET ?)) AS page"
+                " FROM sources WHERE id = ? AND notebook_id = ?",
+                (limit, offset, source_id, notebook_id),
+            ).fetchone()
+        if not row:
+            return None
+        items = json.loads(row["page"]) if row["page"] else []
+        return (row["total"] or 0), [Chunk.model_validate(item) for item in items]
+
+    def find_source_chunks_for_user(
+        self, user_id: str, source_id: str, *, offset: int, limit: int
+    ) -> tuple[int, list[Chunk]] | None:
+        """Return (total, chunk slice) without hydrating the full source body.
+
+        Ownership is enforced through the notebooks join; chunks are sliced
+        inside SQLite so a 50 MB source costs one page, not a full parse.
+        """
+        with self._connect() as con:
+            owner = con.execute(
+                "SELECT s.notebook_id FROM sources s JOIN notebooks n ON n.id = s.notebook_id"
+                " WHERE s.id = ? AND n.user_id = ?",
+                (source_id, user_id),
+            ).fetchone()
+            if not owner:
+                return None
+            notebook_id = owner["notebook_id"]
+        return self.get_source_chunks_page(
+            notebook_id, source_id, offset=offset, limit=limit
+        )
+
     def update_source(
         self,
         notebook_id: str,
@@ -775,13 +814,27 @@ class Store:
             cur = con.execute("DELETE FROM chat_sessions WHERE id = ? AND notebook_id = ?", (session_id, notebook_id))
             return cur.rowcount > 0
 
-    def list_chat_messages(self, session_id: str) -> list[ChatMessage]:
+    def list_chat_messages(
+        self, session_id: str, *, limit: int | None = None, before: str | None = None
+    ) -> list[ChatMessage]:
+        """Chronological messages; with limit, the newest window (for paging)."""
+        query = "SELECT * FROM chat_messages WHERE session_id = ?"
+        params: list[object] = [session_id]
+        if before is not None:
+            query += (
+                " AND (created_at, rowid) < (SELECT created_at, rowid"
+                " FROM chat_messages WHERE id = ? AND session_id = ?)"
+            )
+            params += [before, session_id]
+        query += " ORDER BY created_at DESC, rowid DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
         with self._connect() as con:
-            rows = con.execute(
-                "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY created_at, rowid",
-                (session_id,),
-            ).fetchall()
-        return [_chat_message_from_row(row) for row in rows]
+            rows = con.execute(query, params).fetchall()
+        messages = [_chat_message_from_row(row) for row in rows]
+        messages.reverse()
+        return messages
 
     def append_chat_exchange(
         self,
@@ -827,10 +880,15 @@ class Store:
             parsed = parse_query(query)
         except EmptyQuery:
             return []
+        source_ids_set = set(source_ids) if source_ids else None
+        tags_set = set(tags) if tags else None
         sources = [
             source
             for summary in self.list_sources(notebook_id)
-            if (source := self.get_source(notebook_id, summary.id)) is not None
+            if (not kind or summary.kind == kind)
+            and (not source_ids_set or summary.id in source_ids_set)
+            and (not tags_set or (tags_set & set(summary.tags)))
+            and (source := self.get_source(notebook_id, summary.id)) is not None
         ]
         n_docs = len(sources)
         df = {term: 0 for term in set(parsed.terms)}
@@ -843,16 +901,8 @@ class Store:
             for term in df.keys() & document_terms:
                 df[term] += 1
 
-        source_filter = set(source_ids) if source_ids else None
-        tag_filter = set(tags) if tags else None
         hits: list[SearchHit] = []
         for src in sources:
-            if kind and src.kind != kind:
-                continue
-            if source_filter and src.id not in source_filter:
-                continue
-            if tag_filter and not (tag_filter & set(src.tags)):
-                continue
             for chunk in src.chunks:
                 matched, score, matched_stems = score_chunk(
                     chunk.text, parsed, df=df, n_docs=n_docs

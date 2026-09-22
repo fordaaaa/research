@@ -1,7 +1,7 @@
 """Optional, cited notebook chat backed by a user-supplied free-tier key."""
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from core import providers, skills
@@ -61,14 +61,22 @@ def register(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail="chat session not found")
 
     @app.get("/api/notebooks/{notebook_id}/chat/sessions/{session_id}/messages", response_model=list[ChatMessage])
-    def list_messages(notebook_id: str, session_id: str, user: User = Depends(get_current_user)):
+    def list_messages(
+        notebook_id: str,
+        session_id: str,
+        limit: int = Query(default=100, ge=1, le=500),
+        before: str | None = None,
+        user: User = Depends(get_current_user),
+    ):
         notebook_id = safe_id(notebook_id, "notebook_id")
         session_id = safe_id(session_id, "session_id")
+        if before is not None:
+            before = safe_id(before, "before")
         store = get_store(app)
         notebook_or_404(store, user.id, notebook_id)
         if not store.get_chat_session(notebook_id, session_id):
             raise HTTPException(status_code=404, detail="chat session not found")
-        return store.list_chat_messages(session_id)
+        return store.list_chat_messages(session_id, limit=limit, before=before)
 
     @app.post("/api/notebooks/{notebook_id}/chat/sessions/{session_id}/messages", response_model=ChatMessage)
     def session_message(notebook_id: str, session_id: str, body: ChatRequest, user: User = Depends(get_current_user)):

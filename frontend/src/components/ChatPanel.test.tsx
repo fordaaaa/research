@@ -91,4 +91,47 @@ describe("ChatPanel sessions", () => {
     expect(screen.queryByText("Late answer.")).toBeNull();
     expect(screen.queryByText("Late question")).toBeNull();
   });
+
+  it("only disables the composer of the session that is sending", async () => {
+    const second = { ...session, id: "session-2", title: "Second chat" };
+    vi.mocked(api.listChatSessions).mockResolvedValue([session, second]);
+    vi.mocked(api.listChatMessages).mockImplementation(async (_notebookId: string, sessionId: string) => {
+      if (sessionId === "session-2") return [];
+      return [assistant];
+    });
+    let resolveSend!: (value: ChatMessage) => void;
+    const pending = new Promise<ChatMessage>((resolve) => { resolveSend = resolve; });
+    vi.mocked(api.sendChatMessage).mockReturnValue(pending);
+    renderPanel();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cell biology" })).toBeTruthy());
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Busy question" } });
+    fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+    await waitFor(() => expect(api.sendChatMessage).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Second chat" }));
+    await waitFor(() => expect(screen.queryByText("Mitochondria make ATP.")).toBeNull());
+    expect(screen.getByRole("textbox")).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: /^send$/i })).toBeTruthy();
+    resolveSend({ ...assistant, id: "message-done", session_id: "session-1", text: "Done." });
+  });
+
+  it("pages long histories behind a show-older button", async () => {
+    const many: ChatMessage[] = Array.from({ length: 51 }, (_, i) => ({
+      ...assistant,
+      id: `message-${i}`,
+      text: `History ${i}`,
+    }));
+    vi.mocked(api.listChatSessions).mockResolvedValue([session]);
+    vi.mocked(api.listChatMessages).mockImplementation(
+      async (_notebookId: string, _sessionId: string, _limit?: number, before?: string) => {
+        if (before) return [{ ...assistant, id: "message-0", text: "History 0" }];
+        return many;
+      }
+    );
+    renderPanel();
+    await waitFor(() => expect(screen.getByText("History 50")).toBeTruthy());
+    expect(screen.queryByText("History 0")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /show older messages/i }));
+    await waitFor(() => expect(screen.getByText("History 0")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /show older messages/i })).toBeNull();
+  });
 });
