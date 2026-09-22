@@ -124,7 +124,7 @@ def test_falls_back_to_backup_model(monkeypatch):
     monkeypatch.setattr(providers, "sleep", lambda seconds: None)
     answer, model = providers.generate("openrouter", "key", "stale-model:free", "prompt")
     assert answer == "backup answer"
-    assert model == "meta-llama/llama-3.3-70b-instruct:free"
+    assert model == "nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 def test_auth_failure_aborts_without_backups(monkeypatch):
@@ -156,7 +156,7 @@ def test_ai_settings_roundtrip_openrouter(tmp_path):
     assert saved.model_dump() == {
         "configured": True,
         "provider": "openrouter",
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
     }
     assert store.ai_key(uid) == "sk-or-long-enough-key"
     assert store.get_ai_settings(uid).provider == "openrouter"

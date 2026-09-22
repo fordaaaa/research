@@ -20,7 +20,7 @@ const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: str
   openrouter: {
     name: "OpenRouter",
     keyLabel: "OpenRouter API key",
-    model: "meta-llama/llama-3.3-70b-instruct:free",
+    model: "nvidia/nemotron-3-ultra-550b-a55b:free",
     helper: "Create a key at openrouter.ai and pick any model ending in :free. Free model names change over time.",
   },
 };
