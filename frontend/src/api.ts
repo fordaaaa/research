@@ -147,6 +147,19 @@ async function j<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** 401-aware check for empty (204/200-without-body) responses. */
+async function jVoid(res: Response): Promise<void> {
+  if (res.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event("research:unauthorized"));
+    throw new Error("login required");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+  }
+}
+
 export const register = (email: string, password: string) =>
   apiFetch(`${BASE}/auth/register`, {
     method: "POST",
@@ -196,9 +209,7 @@ export const createNotebook = (name: string) =>
   }).then(j<Notebook>);
 
 export const deleteNotebook = (id: string) =>
-  apiFetch(`${BASE}/notebooks/${id}`, { method: "DELETE" }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  apiFetch(`${BASE}/notebooks/${id}`, { method: "DELETE" }).then(jVoid);
 
 export const exportNotebookUrl = (id: string) => `${BASE}/notebooks/${id}/export`;
 
@@ -288,9 +299,7 @@ export const addPaste = (notebookId: string, title: string, text: string) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, text }),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  }).then(jVoid);
 
 export const addUrl = (notebookId: string, url: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/sources/url`, {
@@ -318,9 +327,7 @@ export const getSource = (id: string) =>
   apiFetch(`${BASE}/sources/${id}`).then(j<SourceDetail>);
 
 export const deleteSource = (id: string) =>
-  apiFetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  apiFetch(`${BASE}/sources/${id}`, { method: "DELETE" }).then(jVoid);
 
 export const listNotes = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/notes`).then(j<NoteSummary[]>);
@@ -349,9 +356,7 @@ export async function updateNote(notebookId: string, noteId: string, body: NoteU
 }
 
 export const deleteNote = (notebookId: string, noteId: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/notes/${noteId}`, { method: "DELETE" }).then((response) => {
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  });
+  apiFetch(`${BASE}/notebooks/${notebookId}/notes/${noteId}`, { method: "DELETE" }).then(jVoid);
 
 export const createDemo = () =>
   apiFetch(`${BASE}/demo`, { method: "POST" }).then(j<Notebook>);
@@ -374,9 +379,7 @@ export const saveAISettings = (apiKey: string, model: string, provider: AIProvid
   }).then(j<AISettings>);
 
 export const clearAISettings = () =>
-  apiFetch(`${BASE}/settings/ai`, { method: "DELETE" }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  });
+  apiFetch(`${BASE}/settings/ai`, { method: "DELETE" }).then(jVoid);
 
 export interface ResearchPlan {
   topic: string;
@@ -445,9 +448,7 @@ export const getChatSession = (notebookId: string, sessionId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`).then(j<ChatSession>);
 
 export const deleteChatSession = (notebookId: string, sessionId: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`, { method: "DELETE" }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  });
+  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`, { method: "DELETE" }).then(jVoid);
 
 export const listChatMessages = (notebookId: string, sessionId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`).then(j<ChatMessage[]>);
@@ -522,9 +523,7 @@ export const updateOutline = (notebookId: string, outlineId: string, body: { top
   }).then(j<ResearchOutline>);
 
 export const deleteOutline = (notebookId: string, outlineId: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, { method: "DELETE" }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  apiFetch(`${BASE}/notebooks/${notebookId}/outlines/${outlineId}`, { method: "DELETE" }).then(jVoid);
 
 export const draftOutline = (notebookId: string, topic: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/outlines/draft`, {
@@ -615,9 +614,7 @@ export const createSkill = (body: { name: string; instructions: string; triggers
   }).then(j<Skill>);
 
 export const deleteSkill = (id: string) =>
-  apiFetch(`${BASE}/skills/${id}`, { method: "DELETE" }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  apiFetch(`${BASE}/skills/${id}`, { method: "DELETE" }).then(jVoid);
 
 export const getMemory = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/memory`).then(j<{ notes: string }>);
@@ -698,9 +695,7 @@ export const listCardSuggestions = (notebookId: string, limit = 5) =>
   );
 
 export const deleteCard = (notebookId: string, cardId: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then((r) => {
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  });
+  apiFetch(`${BASE}/notebooks/${notebookId}/cards/${cardId}`, { method: "DELETE" }).then(jVoid);
 
 export interface GlossaryEntry {
   term: string;
