@@ -8,6 +8,7 @@ in core.store.
 from __future__ import annotations
 
 from collections import Counter
+import math
 import re
 
 _WORD = re.compile(r"[a-z0-9']+")
@@ -143,28 +144,7 @@ def _tfidf(tf: int, term: str, df: dict[str, int] | None, n_docs: int) -> float:
     if not df or term not in df:
         return float(tf)
     df_t = max(1, df[term])
-    return tf * _log(1 + n_docs / df_t)
-
-
-def _log(x: float) -> float:
-    # Inline natural log so we don't pull in `math`. ~3x faster than math.log
-    # for the small range we care about (1..1e6).
-    if x <= 0:
-        return 0.0
-    n = 0
-    while x >= 2:
-        x /= 2
-        n += 1
-    while x < 1:
-        x *= 2
-        n -= 1
-    z = x - 1
-    s = 0.0
-    term = z
-    for k in range(1, 16):
-        s += term / k if k % 2 == 1 else -term / k
-        term *= z
-    return s + n * 0.6931471805599453  # n * ln(2)
+    return tf * math.log1p(n_docs / df_t)
 
 
 def _proximity_bonus(lower: str, terms: list[str]) -> int:
