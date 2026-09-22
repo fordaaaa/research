@@ -244,3 +244,28 @@ def test_invalid_id_returns_400(client):
     assert client.get("/api/notebooks/notahexid/search", params={"q": "x"}).status_code == 400
     assert client.get("/api/sources/notahexid").status_code == 400
     assert client.delete("/api/notebooks/notahexid").status_code == 400
+
+
+def test_source_chunks_page_avoids_full_hydration(client, monkeypatch):
+    from core import store as store_module
+
+    nb = client.post("/api/notebooks", json={"name": "Paging"}).json()
+    src = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Long", "text": "Chunkable content here. " * 200},
+    ).json()
+    assert src["chunk_count"] > 2
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("full source hydration must not happen")
+
+    monkeypatch.setattr(store_module.Store, "get_source", _boom)
+    monkeypatch.setattr(store_module.Store, "find_source", _boom)
+    monkeypatch.setattr(store_module.Store, "find_source_for_user", _boom)
+
+    page = client.get(f"/api/sources/{src['id']}/chunks", params={"offset": 1, "limit": 2})
+    assert page.status_code == 200
+    body = page.json()
+    assert body["total"] == src["chunk_count"]
+    assert [c["seq"] for c in body["chunks"]] == [1, 2]
+    assert client.get("/api/sources/abcdef123456/chunks").status_code == 404

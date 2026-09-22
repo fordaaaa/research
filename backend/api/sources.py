@@ -97,13 +97,13 @@ def register(app: FastAPI) -> None:
         user: User = Depends(get_current_user),
     ):
         source_id = safe_id(source_id, "source_id")
-        source = get_store(app).find_source_for_user(user.id, source_id)
-        if not source:
+        page = get_store(app).find_source_chunks_for_user(
+            user.id, source_id, offset=offset, limit=limit
+        )
+        if not page:
             raise HTTPException(status_code=404, detail="source not found")
-        return {
-            "total": len(source.chunks),
-            "chunks": source.chunks[offset : offset + limit],
-        }
+        total, chunks = page
+        return {"total": total, "chunks": chunks}
 
     @app.delete("/api/sources/{source_id}", status_code=204)
     def delete_source(source_id: str, user: User = Depends(get_current_user)):

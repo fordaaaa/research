@@ -111,3 +111,32 @@ def test_export_keeps_notebook_ownership_boundary(client):
         )
         other.headers.update({"Authorization": f"Bearer {registered.json()['token']}"})
         assert other.get(f"/api/notebooks/{nb['id']}/export").status_code == 404
+
+
+def test_export_note_citations_do_not_refetch_sources(client, monkeypatch):
+    from core import store as store_module
+
+    nb = client.post("/api/notebooks", json={"name": "Cites"}).json()
+    src = client.post(
+        f"/api/notebooks/{nb['id']}/sources/text",
+        json={"title": "Cited Source", "text": "A cited passage."},
+    ).json()
+    client.post(
+        f"/api/notebooks/{nb['id']}/notes",
+        json={
+            "title": "A note",
+            "body": "Three citations.",
+            "citations": [{"source_id": src["id"], "chunk_seq": 0}] * 3,
+        },
+    )
+
+    calls: list[str] = []
+    orig = store_module.Store.get_source
+
+    def counting(self, notebook_id, source_id):
+        calls.append(source_id)
+        return orig(self, notebook_id, source_id)
+
+    monkeypatch.setattr(store_module.Store, "get_source", counting)
+    assert client.get(f"/api/notebooks/{nb['id']}/export").status_code == 200
+    assert calls == [src["id"]]

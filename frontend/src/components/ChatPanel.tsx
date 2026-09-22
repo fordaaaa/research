@@ -18,7 +18,7 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   const [message, setMessage] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
 
@@ -76,9 +76,10 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed || !selectedId || busy || !configured) return;
-    setBusy(true); setError(null);
+    if (!trimmed || !selectedId || !configured || busyIds.includes(selectedId)) return;
     const sessionId = selectedId;
+    setBusyIds((current) => (current.includes(sessionId) ? current : [...current, sessionId]));
+    setError(null);
     const userMessage: ChatMessage = { id: `pending-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`, session_id: sessionId, role: "user", text: trimmed, citations: [], model: null, created_at: new Date().toISOString() };
     setMessages((current) => [...current, userMessage]); setMessage("");
     try {
@@ -95,11 +96,12 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
       setMessages((current) => current.filter((item) => item.id !== userMessage.id));
       setError(err instanceof Error ? err.message : "could not send message");
     } finally {
-      setBusy(false);
+      setBusyIds((current) => current.filter((id) => id !== sessionId));
     }
   }
 
   const selected = sessions.find((session) => session.id === selectedId);
+  const busy = selectedId !== null && busyIds.includes(selectedId);
   return (
     <section className="mx-auto mb-8 w-full max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">

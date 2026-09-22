@@ -96,3 +96,32 @@ def test_search_uses_source_document_frequency(tmp_path):
     assert rare_hit.source_id == rare.id
     assert rare_hit.score > common_hit.score
     assert rare_hit.matched_terms == ["quasar"]
+
+
+def test_search_kind_filter_skips_excluded_bodies(tmp_path, monkeypatch):
+    store = _store(tmp_path)
+    nb = store.create_notebook(store._test_uid, "Skip")
+    ingest.ingest_text(store, nb.id, "Pasted", "photosynthesis happens in leaves")
+    store.create_source(
+        Source(
+            id=new_id(),
+            notebook_id=nb.id,
+            kind="pdf",
+            title="Paper",
+            tags=[],
+            created_at=utcnow(),
+            pages=[Page(number=1, text="photosynthesis in this paper")],
+            chunks=[Chunk(seq=0, pages=[1], text="photosynthesis in this paper")],
+        )
+    )
+    calls: list[str] = []
+    orig = Store.get_source
+
+    def counting(self, notebook_id, source_id):
+        calls.append(source_id)
+        return orig(self, notebook_id, source_id)
+
+    monkeypatch.setattr(Store, "get_source", counting)
+    hits = store.search(nb.id, "photosynthesis", kind="pdf")
+    assert len(hits) == 1
+    assert calls == [hits[0].source_id]
