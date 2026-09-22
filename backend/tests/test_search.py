@@ -1,4 +1,9 @@
 from core import search
+import math
+
+
+def test_tfidf_uses_exact_log1p():
+    assert search._tfidf(2, "cell", {"cell": 2}, 1) == 2 * math.log1p(1 / 2)
 
 
 def test_parses_terms_and_phrases():

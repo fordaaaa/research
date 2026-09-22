@@ -450,8 +450,15 @@ export const getChatSession = (notebookId: string, sessionId: string) =>
 export const deleteChatSession = (notebookId: string, sessionId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}`, { method: "DELETE" }).then(jVoid);
 
-export const listChatMessages = (notebookId: string, sessionId: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`).then(j<ChatMessage[]>);
+export const listChatMessages = (notebookId: string, sessionId: string, limit?: number, before?: string) => {
+  const params = new URLSearchParams();
+  if (limit !== undefined) params.set("limit", String(limit));
+  if (before) params.set("before", before);
+  const query = params.toString();
+  return apiFetch(
+    `${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages${query ? `?${query}` : ""}`
+  ).then(j<ChatMessage[]>);
+};
 
 export const sendChatMessage = (notebookId: string, sessionId: string, message: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`, {
