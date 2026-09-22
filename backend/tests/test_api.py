@@ -269,3 +269,19 @@ def test_source_chunks_page_avoids_full_hydration(client, monkeypatch):
     assert body["total"] == src["chunk_count"]
     assert [c["seq"] for c in body["chunks"]] == [1, 2]
     assert client.get("/api/sources/abcdef123456/chunks").status_code == 404
+
+
+def test_combined_upload_cap_rejects_bulk_request(client, monkeypatch):
+    from core import parsers
+
+    monkeypatch.setattr(parsers, "MAX_BYTES", 1024)
+    nb = client.post("/api/notebooks", json={"name": "Bulk"}).json()
+    r = client.post(
+        f"/api/notebooks/{nb['id']}/sources",
+        files=[("files", (f"f{i}.txt", b"x" * 1000, "text/plain")) for i in range(5)],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["sources"]) == 4
+    assert len(body["errors"]) == 1
+    assert "combined" in body["errors"][0]["detail"]
