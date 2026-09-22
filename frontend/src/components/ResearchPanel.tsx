@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { ResearchCandidate, ResearchPlan, ResearchSynthesis } from "../api";
-import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 
 interface Props {
   notebookId: string;
@@ -159,7 +159,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >
-            {busy && <Spinner size={13} />}
+            {busy && <ThinkingDots state="solving" />}
             {busy ? "Planning" : "Plan"}
           </button>
         </form>
@@ -210,7 +210,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
               disabled={busy || plan.queries.length === 0}
               onClick={runGather}
             >
-              {busy && <Spinner size={13} />}
+              {busy && <ThinkingDots state="searching" />}
               {busy ? "Searching" : "Find sources"}
             </button>
             <button className="px-2 py-2 text-xs text-neutral-500 hover:text-red-400" onClick={startOver}>
@@ -285,7 +285,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
               disabled={busy}
               onClick={runSynthesize}
             >
-              {busy && <Spinner size={13} />}
+              {busy && <ThinkingDots state="composing" />}
               {busy ? "Writing" : aiConfigured ? "Write overview with AI" : "Write overview"}
             </button>
           )}

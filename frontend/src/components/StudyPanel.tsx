@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
 import type { CardSuggestion, Flashcard, MindmapNode } from "../api";
 import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 import { Button, Card, EmptyState, SectionHeader, Tabs } from "./ui";
 import { inputCls } from "./ui";
 import ReviewSession from "./study/ReviewSession";
@@ -541,7 +542,7 @@ function GuideSection({ notebookId, onSourcesChanged }: { notebookId: string; on
       {!markdown ? (
         <div className="mt-3">
           <Button onClick={generate} disabled={busy}>
-            {busy && <Spinner size={13} />}
+            {busy && <ThinkingDots state="composing" />}
             {busy ? "Building" : "Build guide"}
           </Button>
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { searchWeb } from "../api";
 import type { SearchHit, WebSearchResult } from "../api";
 import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 
 interface Props {
   onSearch: (q: string) => Promise<SearchHit[]>;
@@ -71,7 +72,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           type="submit"
           disabled={searching}
         >
-          {searching && <Spinner size={13} />}
+          {searching && <ThinkingDots state="searching" />}
           Search
         </button>
       </form>

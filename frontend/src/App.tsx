@@ -12,6 +12,7 @@ import SettingsDialog from "./components/SettingsDialog";
 import OutlinePanel from "./components/OutlinePanel";
 import HumanizerPanel from "./components/HumanizerPanel";
 import SkillsPanel from "./components/SkillsPanel";
+import ThinkingDots from "./components/ThinkingDots";
 import StudyPanel from "./components/StudyPanel";
 import ReaderModal from "./components/ReaderModal";
 import NotesPanel from "./components/NotesPanel";
@@ -188,7 +189,10 @@ export default function App() {
 
       {!authReady ? (
         <main className="flex-1 overflow-y-auto p-8">
-          <p className="text-center text-sm text-neutral-500">Loading…</p>
+          <div className="flex flex-col items-center gap-3 pt-16">
+            <ThinkingDots state="working" size={64} />
+            <p className="text-center text-sm text-neutral-500">Loading…</p>
+          </div>
         </main>
       ) : !user ? (
         <AuthPanel onAuthed={setUser} />
