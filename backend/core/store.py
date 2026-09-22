@@ -827,10 +827,15 @@ class Store:
             parsed = parse_query(query)
         except EmptyQuery:
             return []
+        source_ids_set = set(source_ids) if source_ids else None
+        tags_set = set(tags) if tags else None
         sources = [
             source
             for summary in self.list_sources(notebook_id)
-            if (source := self.get_source(notebook_id, summary.id)) is not None
+            if (not kind or summary.kind == kind)
+            and (not source_ids_set or summary.id in source_ids_set)
+            and (not tags_set or (tags_set & set(summary.tags)))
+            and (source := self.get_source(notebook_id, summary.id)) is not None
         ]
         n_docs = len(sources)
         df = {term: 0 for term in set(parsed.terms)}
@@ -843,16 +848,8 @@ class Store:
             for term in df.keys() & document_terms:
                 df[term] += 1
 
-        source_filter = set(source_ids) if source_ids else None
-        tag_filter = set(tags) if tags else None
         hits: list[SearchHit] = []
         for src in sources:
-            if kind and src.kind != kind:
-                continue
-            if source_filter and src.id not in source_filter:
-                continue
-            if tag_filter and not (tag_filter & set(src.tags)):
-                continue
             for chunk in src.chunks:
                 matched, score, matched_stems = score_chunk(
                     chunk.text, parsed, df=df, n_docs=n_docs
