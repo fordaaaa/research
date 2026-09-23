@@ -120,10 +120,10 @@ export default function AuthPanel({ onAuthed }: Props) {
           <div className="pointer-events-none absolute -right-24 -top-20 h-[430px] w-[430px] rounded-full border border-mark/15" aria-hidden="true" />
           <div className="pointer-events-none absolute -right-8 -top-4 h-[340px] w-[340px] rounded-full border border-mark/20" aria-hidden="true" />
           <div className="pointer-events-none absolute right-16 top-20 h-44 w-44 rounded-full bg-aqua/40 blur-3xl" aria-hidden="true" />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.22em] text-aquabright">A better way to learn</p>
+          <p className="relative text-xs font-semibold uppercase tracking-[0.22em] text-aquabright">Notaeo for students</p>
           <div className="relative max-w-lg">
-            <h1 className="font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">Make room for<br /><em>curiosity.</em></h1>
-            <p className="mt-6 max-w-md text-sm leading-7 text-mark/80">Bring sources, questions, notes, and study tools into one thoughtful space. Your work stays yours.</p>
+            <h1 className="font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">Start with your sources.</h1>
+            <p className="mt-6 max-w-md text-sm leading-7 text-mark/80">Bring class notes, PDFs, and articles into one place. Find useful passages, organize ideas, and study from what you actually read.</p>
           </div>
           <div className="relative flex flex-wrap gap-2 text-[11px] font-medium text-mark/80">
             <span className="rounded-full border border-mark/20 px-3 py-2">Collect sources</span>

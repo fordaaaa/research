@@ -34,9 +34,9 @@ export default function NotebookPicker({ notebooks, tourPending = false, onOpen,
           <div className="pointer-events-none absolute -right-8 -top-16 h-80 w-80 rounded-full border border-mark/20" aria-hidden="true" />
           <div className="pointer-events-none absolute right-8 top-8 h-52 w-52 rounded-full bg-aqua/30 blur-3xl" aria-hidden="true" />
           <div className="relative max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-aquabright">Your research space</p>
-            <h1 className="mt-4 font-display text-4xl leading-tight sm:text-5xl">A place for every idea.</h1>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-mark/80">Collect sources, make sense of what you find, and turn it into work you can keep. A free account is required; core workflows need no AI key and have no paywall for local use.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-aquabright">Your study library</p>
+            <h1 className="mt-4 font-display text-4xl leading-tight sm:text-5xl">Your books, notes, and questions.</h1>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-mark/80">Make a notebook for each class or assignment. Collect sources, search them, take notes, and build study material. A free account is required; core tools need no AI key and have no paywall for local use.</p>
           </div>
         </section>
 

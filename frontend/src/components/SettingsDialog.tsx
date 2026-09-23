@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
 import type { AIProvider } from "../api";
+import type { Appearance, FontName, ThemeName } from "../appearance";
 import Spinner from "./Spinner";
 import { useMountTransition } from "../useMountTransition";
 
@@ -8,6 +9,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onChanged: (configured: boolean) => void;
+  appearance: Appearance;
+  onAppearanceChange: (appearance: Appearance) => void;
 }
 
 const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: string; helper: string }> = {
@@ -25,7 +28,18 @@ const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: str
   },
 };
 
-export default function SettingsDialog({ open, onClose, onChanged }: Props) {
+const THEMES: { value: ThemeName; label: string; swatch: string }[] = [
+  { value: "paper", label: "Paper", swatch: "bg-[#f6f5f0] border-[#d9dedb]" },
+  { value: "ocean", label: "Ocean", swatch: "bg-[#edf5f1] border-[#a4c9c0]" },
+  { value: "night", label: "Night", swatch: "bg-[#171d29] border-[#4a566b]" },
+];
+
+const FONTS: { value: FontName; label: string }[] = [
+  { value: "readable", label: "Readable" },
+  { value: "maple", label: "Maple Mono" },
+];
+
+export default function SettingsDialog({ open, onClose, onChanged, appearance, onAppearanceChange }: Props) {
   const [configured, setConfigured] = useState(false);
   const [provider, setProvider] = useState<AIProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
@@ -49,13 +63,41 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 ${open ? "animate-page-in" : "animate-fade-out pointer-events-none"}`}>
-      <div className={`w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
+      <div role="dialog" aria-modal="true" aria-label="Settings" className={`max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-semibold">Optional AI</h2>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key is saved with your account and used only when you request an AI feature.</p>
+            <h2 className="font-display text-xl font-semibold">Settings</h2>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Make your study space comfortable for you.</p>
           </div>
           <button className="text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close settings">×</button>
+        </div>
+        <section className="mt-6 space-y-4 border-b border-neutral-800 pb-6" aria-label="Appearance">
+          <div>
+            <h3 className="text-sm font-semibold">Appearance</h3>
+            <p className="mt-1 text-xs text-neutral-500">Saved on this device. Your notes and account are unchanged.</p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-neutral-300">Theme</p>
+            <div className="grid grid-cols-3 gap-2">
+              {THEMES.map((theme) => (
+                <button key={theme.value} type="button" aria-pressed={appearance.theme === theme.value} onClick={() => onAppearanceChange({ ...appearance, theme: theme.value })} className={`min-h-11 rounded-xl border p-2 text-left text-xs font-medium transition-colors ${appearance.theme === theme.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
+                  <span className={`mb-2 block h-7 rounded-md border ${theme.swatch}`} aria-hidden="true" />{theme.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-neutral-300">Text style</p>
+            <div className="grid grid-cols-2 gap-2">
+              {FONTS.map((font) => (
+                <button key={font.value} type="button" aria-pressed={appearance.font === font.value} onClick={() => onAppearanceChange({ ...appearance, font: font.value })} className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${appearance.font === font.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`} style={{ fontFamily: font.value === "maple" ? '"Maple Mono", monospace' : '"Atkinson Hyperlegible Next", sans-serif' }}>{font.label}</button>
+              ))}
+            </div>
+          </div>
+        </section>
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold">Optional AI</h3>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key is saved with your account and used only when you request an AI feature.</p>
         </div>
         <form
           className="mt-5 space-y-3"

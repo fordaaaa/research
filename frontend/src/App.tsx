@@ -26,6 +26,8 @@ import {
   WORKSPACE_VIEWS,
 } from "./workspaceNavigation";
 import type { MobileSection, WorkspaceView } from "./workspaceNavigation";
+import { applyAppearance, readAppearance, saveAppearance } from "./appearance";
+import type { Appearance } from "./appearance";
 
 const MOBILE_SECTIONS: { value: MobileSection; label: string }[] = [
   { value: "library", label: "Library" },
@@ -74,6 +76,12 @@ export default function App() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [tourStage, setTourStage] = useState<TourStage>("none");
   const [tourIndex, setTourIndex] = useState(0);
+  const [appearance, setAppearance] = useState<Appearance>(readAppearance);
+
+  useEffect(() => {
+    applyAppearance(appearance);
+    saveAppearance(appearance);
+  }, [appearance]);
 
   const handleAuthed = useCallback((nextUser: User, isNewAccount = false) => {
     const stage = isNewAccount ? "landing" : savedTourStage(nextUser.id);
@@ -433,6 +441,8 @@ export default function App() {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         onChanged={setAIConfigured}
+        appearance={appearance}
+        onAppearanceChange={setAppearance}
       />
       <ReaderModal sourceId={readingId} onClose={() => setReadingId(null)} />
       {user && ((tourStage === "landing" && !notebook) || (tourStage === "workspace" && !!notebook)) && (
