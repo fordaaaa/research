@@ -542,7 +542,7 @@ function GuideSection({ notebookId, onSourcesChanged }: { notebookId: string; on
       {!markdown ? (
         <div className="mt-3">
           <Button onClick={generate} disabled={busy}>
-            {busy && <ThinkingDots state="composing" />}
+            {busy && <ThinkingDots state="composing" theme="dark" />}
             {busy ? "Building" : "Build guide"}
           </Button>
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}

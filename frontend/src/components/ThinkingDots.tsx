@@ -1,13 +1,14 @@
 import { ThinkingOrb } from "thinking-orbs";
-import type { OrbSize, OrbState } from "thinking-orbs";
+import type { OrbSize, OrbState, OrbTheme } from "thinking-orbs";
 
 /**
  * App-themed wrapper around the `thinking-orbs` web original
  * (MIT © Jakub Antalik — see THIRD-PARTY-NOTICES.md).
  *
  * Theme: this app is light-first (seafoam page `#edf5f1`, `--color-seafoam`;
- * see `src/index.css`), so the orb is pinned to `theme="light"` (dark ink
- * dots). `auto` is deliberately NOT used: it falls back to the OS
+ * see `src/index.css`), so the default is `theme="light"` (dark ink
+ * dots). Primary buttons need `theme="dark"` (light ink). `auto` is not used:
+ * it falls back to the OS
  * `prefers-color-scheme`, which would render light-ink dots on our light
  * background for dark-mode OS users. No new palette is introduced — the
  * library's own monochrome ink is the themed choice.
@@ -40,14 +41,16 @@ interface Props {
   label?: string;
   className?: string;
   speed?: number;
+  /** Use dark on deep-sea primary buttons; light on page and card surfaces. */
+  theme?: OrbTheme;
 }
 
-export default function ThinkingDots({ state = "working", size = 20, label, className = "", speed = 1 }: Props) {
+export default function ThinkingDots({ state = "working", size = 20, label, className = "", speed = 1, theme = "light" }: Props) {
   return (
     <ThinkingOrb
       state={state}
       size={size}
-      theme="light"
+      theme={theme}
       speed={speed}
       aria-label={label ?? THINKING_LABELS[state]}
       className={`shrink-0 ${className}`}

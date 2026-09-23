@@ -72,7 +72,7 @@ export default function SearchPanel({ onSearch, onImportUrl }: Props) {
           type="submit"
           disabled={searching}
         >
-          {searching && <ThinkingDots state="searching" />}
+          {searching && <ThinkingDots state="searching" theme="dark" />}
           Search
         </button>
       </form>

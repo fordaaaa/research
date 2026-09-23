@@ -159,7 +159,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >
-            {busy && <ThinkingDots state="solving" />}
+            {busy && <ThinkingDots state="solving" theme="dark" />}
             {busy ? "Planning" : "Plan"}
           </button>
         </form>
@@ -210,7 +210,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
               disabled={busy || plan.queries.length === 0}
               onClick={runGather}
             >
-              {busy && <ThinkingDots state="searching" />}
+              {busy && <ThinkingDots state="searching" theme="dark" />}
               {busy ? "Searching" : "Find sources"}
             </button>
             <button className="px-2 py-2 text-xs text-neutral-500 hover:text-red-400" onClick={startOver}>
@@ -285,7 +285,7 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
               disabled={busy}
               onClick={runSynthesize}
             >
-              {busy && <ThinkingDots state="composing" />}
+              {busy && <ThinkingDots state="composing" theme="dark" />}
               {busy ? "Writing" : aiConfigured ? "Write overview with AI" : "Write overview"}
             </button>
           )}
