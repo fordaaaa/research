@@ -27,7 +27,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
     <main className="flex-1 overflow-y-auto animate-page-in">
       <div className="mx-auto w-full max-w-3xl space-y-8 p-4 sm:p-8">
         <section className="pt-6 text-center sm:pt-10">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">research, locally</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Notaeo, locally</h1>
           <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-neutral-400">
             A free study app for school: collect sources, research any topic, and study with flashcards, guides, and mind maps. Needs a free account — no AI key needed for core workflows, no paywall for local use.
           </p>

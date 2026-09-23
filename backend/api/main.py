@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(web_dir: Path | None = None) -> FastAPI:
     """Create the API, optionally serving a built frontend at the site root."""
-    app = FastAPI(title="research", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Notaeo", version="0.1.0", lifespan=lifespan)
     desktop_token = os.environ.get("RESEARCH_DESKTOP_TOKEN") or None
     # Desktop sidecar is same-origin only (WKWebView on a loopback port);
     # development keeps the Vite origin so `npm run dev` can call the API.

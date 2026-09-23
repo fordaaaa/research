@@ -14,6 +14,7 @@ vi.mock("../api", async () => {
     deleteChatSession: vi.fn(),
     listChatMessages: vi.fn(),
     sendChatMessage: vi.fn(),
+    sendHostedChatMessage: vi.fn(),
   };
 });
 
@@ -33,6 +34,31 @@ function renderPanel(configured = true) {
   render(<ChatPanel notebookId="notebook-1" configured={configured} onConfigure={onConfigure} onOpenSource={onOpenSource} />);
   return { onConfigure, onOpenSource };
 }
+
+it("uses hosted AI without a personal key when available", async () => {
+  vi.mocked(api.listChatSessions).mockResolvedValue([session]);
+  vi.mocked(api.listChatMessages).mockResolvedValue([]);
+  vi.mocked(api.sendHostedChatMessage).mockResolvedValue(assistant);
+  render(<ChatPanel notebookId="notebook-1" configured={false} hostedAvailable onConfigure={vi.fn()} onOpenSource={vi.fn()} />);
+  await waitFor(() => expect(screen.getByRole("textbox")).toHaveProperty("disabled", true));
+  fireEvent.click(screen.getByRole("button", { name: "Use hosted AI" }));
+  await waitFor(() => expect(screen.getByRole("textbox")).toHaveProperty("disabled", false));
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "What makes ATP?" } });
+  fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+  await waitFor(() => expect(api.sendHostedChatMessage).toHaveBeenCalledWith("notebook-1", "session-1", "What makes ATP?"));
+});
+
+it("requires a fresh hosted AI choice for a different notebook", async () => {
+  vi.mocked(api.listChatSessions).mockResolvedValue([session]);
+  vi.mocked(api.listChatMessages).mockResolvedValue([]);
+  const props = { configured: false, hostedAvailable: true, onConfigure: vi.fn(), onOpenSource: vi.fn() };
+  const view = render(<ChatPanel notebookId="notebook-1" {...props} />);
+  await waitFor(() => expect(screen.getByRole("textbox")).toHaveProperty("disabled", true));
+  fireEvent.click(screen.getByRole("button", { name: "Use hosted AI" }));
+  await waitFor(() => expect(screen.getByRole("textbox")).toHaveProperty("disabled", false));
+  view.rerender(<ChatPanel notebookId="notebook-2" {...props} />);
+  await waitFor(() => expect(screen.getByRole("textbox")).toHaveProperty("disabled", true));
+});
 
 describe("ChatPanel sessions", () => {
   beforeEach(() => {

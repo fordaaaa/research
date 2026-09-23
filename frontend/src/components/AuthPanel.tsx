@@ -117,7 +117,7 @@ export default function AuthPanel({ onAuthed }: Props) {
     <main className="flex-1 overflow-y-auto animate-page-in">
       <div className="mx-auto w-full max-w-sm space-y-6 p-4 sm:p-8">
         <section className="pt-6 text-center sm:pt-10">
-          <h1 className="text-3xl font-semibold tracking-tight">research, locally</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Notaeo, locally</h1>
           <p className="mt-2 text-sm leading-relaxed text-neutral-500">
             Your notebooks live in your account on this server — nobody else can see them.
           </p>

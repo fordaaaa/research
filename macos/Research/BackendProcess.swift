@@ -24,11 +24,11 @@ final class BackendProcess: ObservableObject {
             withExtension: nil,
             subdirectory: "backend"
         ) else {
-            state = .failed("The bundled research backend is missing.")
+            state = .failed("The bundled Notaeo backend is missing.")
             return
         }
         guard let webDirectory = Bundle.main.resourceURL?.appending(path: "web") else {
-            state = .failed("The bundled research frontend is missing.")
+            state = .failed("The bundled Notaeo frontend is missing.")
             return
         }
 

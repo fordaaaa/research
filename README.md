@@ -1,4 +1,4 @@
-# research
+# Notaeo
 
 ![Local-first research notebook](docs/images/repository-preview.jpg)
 
@@ -17,10 +17,9 @@ AI — but it does need an account (see below).
   log in. Every notebook, source, outline, card, skill, note, and AI key
   belongs to exactly one user; cross-user access is always 404. Email +
   password today, Google OAuth next, Apple at App Store time.
-- **Optional AI:** bring your own key (Gemini or OpenRouter, stored
-  per-user) for chat, synthesis, reports, and rewrites — or wait for hosted
-  AI credits (planned, limited free allowance + paid tiers later). No local
-  LLMs by design.
+- **Optional AI:** the local app supports per-user Gemini or OpenRouter keys;
+  the separate hosted server offers OpenCode free-model chat when configured.
+  No local LLMs by design.
 
 ## Stack
 
@@ -80,7 +79,7 @@ Pixel/Chromium, and opt-in deployed-backend testing.
 
 ```sh
 sh scripts/build_macos_app.sh
-open macos/build/Build/Products/Release/Research.app
+open macos/build/Build/Products/Release/Notaeo.app
 ```
 
 The build uses Xcode at `/Applications/Xcode-26.3.0.app` by default
@@ -107,4 +106,4 @@ implicit sync. Details: [`docs/PRODUCT.md`](docs/PRODUCT.md).
 - [x] M5 — keyless study tools (scheduled flashcards, grounded drafts, glossary, quiz, study guides, mind maps, Anki/Obsidian export)
 - [x] M7 — multi-user: SQLite store, email auth with per-user data, login UI, authenticated exports
 - [ ] M3 — native desktop polish (macOS alpha → Windows) and distribution readiness
-- [ ] M6 — optional remote AI experiments (BYOK today, hosted credits via the private server later), only if they add value without becoming required
+- [ ] M6 — optional remote AI experiments (local BYOK and hosted OpenCode chat), only if they add value without becoming required

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Research
+@testable import Notaeo
 
 /// Safe filenames and navigation policy for native downloads.
 final class DownloadHandlerTests: XCTestCase {

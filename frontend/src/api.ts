@@ -467,6 +467,16 @@ export const sendChatMessage = (notebookId: string, sessionId: string, message: 
     body: JSON.stringify({ message }),
   }).then(j<ChatMessage>);
 
+export const getHostedAIStatus = () =>
+  apiFetch(`${BASE}/ai/hosted/status`).then(j<{ enabled: boolean; allowance_remaining: number | null }>);
+
+export const sendHostedChatMessage = (notebookId: string, sessionId: string, message: string) =>
+  apiFetch(`${BASE}/ai/hosted/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  }).then(j<ChatMessage>);
+
 export interface OutlineItem {
   id: string;
   label: string;

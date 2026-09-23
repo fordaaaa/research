@@ -1,6 +1,6 @@
 # macOS distribution status
 
-`sh scripts/build_macos_app.sh` produces an arm64 `Research.app` in
+`sh scripts/build_macos_app.sh` produces an arm64 `Notaeo.app` in
 `macos/build/Build/Products/Release/`. It bundles the local FastAPI sidecar
 and web assets, checks the sidecar architecture, and verifies an ad-hoc
 signature. This build is suitable for local development and manual testing.

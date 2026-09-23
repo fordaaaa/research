@@ -8,13 +8,16 @@ import ThinkingDots from "./ThinkingDots";
 interface Props {
   notebookId: string;
   configured: boolean;
+  hostedAvailable?: boolean;
   onConfigure: () => void;
   onOpenSource: (sourceId: string) => void;
 }
 
 const PAGE_SIZE = 50;
 
-export default function ChatPanel({ notebookId, configured, onConfigure, onOpenSource }: Props) {
+export default function ChatPanel({ notebookId, configured, hostedAvailable = false, onConfigure, onOpenSource }: Props) {
+  const [hostedOptIn, setHostedOptIn] = useState(false);
+  useEffect(() => { setHostedOptIn(false); }, [notebookId]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -102,14 +105,16 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed || !selectedId || !configured || busyIds.includes(selectedId)) return;
+    if (!trimmed || !selectedId || !(configured || (hostedAvailable && hostedOptIn)) || busyIds.includes(selectedId)) return;
     const sessionId = selectedId;
     setBusyIds((current) => (current.includes(sessionId) ? current : [...current, sessionId]));
     setError(null);
     const userMessage: ChatMessage = { id: `pending-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`, session_id: sessionId, role: "user", text: trimmed, citations: [], model: null, created_at: new Date().toISOString() };
     setMessages((current) => [...current, userMessage]); setMessage("");
     try {
-      const answer = await api.sendChatMessage(notebookId, sessionId, trimmed);
+      const answer = hostedAvailable && hostedOptIn
+        ? await api.sendHostedChatMessage(notebookId, sessionId, trimmed)
+        : await api.sendChatMessage(notebookId, sessionId, trimmed);
       setSessions((current) => current.map((session) => session.id === sessionId ? {
         ...session,
         title: session.title === "New conversation" ? trimmed.slice(0, 80) : session.title,
@@ -134,6 +139,7 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
         <div><h2 className="text-sm font-semibold">Ask your sources</h2><p className="mt-0.5 text-xs text-neutral-500">AI is an optional enhancer; your imported sources and chat history remain available without it.</p></div>
         <div className="flex items-center gap-2">
           {!configured && <button type="button" className="min-h-11 rounded-lg border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800" onClick={onConfigure}>Set up AI</button>}
+{hostedAvailable && <button type="button" title="Hosted AI sends notebook excerpts to OpenCode; avoid sensitive material." className="min-h-11 rounded-lg border border-teal-700 px-3 text-xs text-teal-300 hover:bg-teal-950" onClick={() => setHostedOptIn((value) => !value)}>{hostedOptIn ? (configured ? "Use my key" : "Stop hosted AI") : "Use hosted AI"}</button>}
           <button type="button" className="min-h-11 rounded-lg bg-neutral-100 px-3 text-xs font-semibold text-neutral-900 hover:bg-neutral-200" onClick={() => void newSession()}>New chat</button>
         </div>
       </div>
@@ -148,11 +154,12 @@ export default function ChatPanel({ notebookId, configured, onConfigure, onOpenS
             <div className="max-h-80 space-y-3 overflow-y-auto rounded-xl border border-neutral-800 p-3" aria-live="polite">
               {loadingMessages && <div className="flex items-center gap-2 text-sm text-neutral-500"><Spinner /> Loading history…</div>}
               {!loadingMessages && hasMore && <button type="button" className="min-h-11 w-full rounded-lg border border-neutral-700 px-3 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-50" disabled={loadingMore} onClick={() => void loadOlder()}>{loadingMore ? "Loading…" : "Show older messages"}</button>}
-              {!loadingMessages && messages.length === 0 && <p className="text-sm text-neutral-500">No messages yet. Ask a question when AI is configured.</p>}
+              {!loadingMessages && messages.length === 0 && <p className="text-sm text-neutral-500">No messages yet. Ask a question when AI is available.</p>}
               {messages.map((item) => <article key={item.id} className={`rounded-xl p-3 text-sm ${item.role === "user" ? "ml-6 bg-neutral-800" : "mr-6 bg-neutral-950"}`}><p className="whitespace-pre-wrap leading-relaxed text-neutral-200">{item.text}</p>{item.citations.length > 0 && <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">{item.citations.map((citation, index) => <button key={`${item.id}-${citation.source_id}-${index}`} type="button" className="min-h-11 rounded-lg border border-neutral-700 px-2 hover:bg-neutral-800" onClick={() => onOpenSource(citation.source_id)}>[{index + 1}] {citation.source_title}</button>)}</div>}{item.model && <p className="mt-2 text-[11px] text-neutral-600">Answered by {item.model}</p>}</article>)}
               {busy && <div className="mr-6 flex items-center gap-2 rounded-xl bg-neutral-950 p-3 text-sm text-neutral-500"><ThinkingDots state="composing" /> Thinking…</div>}
             </div>
-            <form className="mt-3 flex gap-2" onSubmit={sendMessage}><input className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 text-base outline-none focus:border-neutral-500 sm:text-sm" placeholder={configured ? "Ask about this notebook…" : "Set up AI to ask your sources…"} value={message} disabled={!configured || !selectedId || busy} onChange={(event) => setMessage(event.target.value)} /><button className="min-h-11 rounded-lg bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200 disabled:opacity-50" disabled={!configured || !selectedId || busy || !message.trim()} type="submit">{busy ? "Sending…" : "Send"}</button></form>
+            {hostedAvailable && hostedOptIn && <p className="mt-3 text-xs text-neutral-500">Hosted AI sends relevant excerpts to OpenCode’s free model. Avoid sensitive material; availability and limits can change.</p>}
+<form className="mt-3 flex gap-2" onSubmit={sendMessage}><input className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 text-base outline-none focus:border-neutral-500 sm:text-sm" placeholder={configured || (hostedAvailable && hostedOptIn) ? "Ask about this notebook…" : "Set up AI to ask your sources…"} value={message} disabled={!(configured || (hostedAvailable && hostedOptIn)) || !selectedId || busy} onChange={(event) => setMessage(event.target.value)} /><button className="min-h-11 rounded-lg bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200 disabled:opacity-50" disabled={!(configured || (hostedAvailable && hostedOptIn)) || !selectedId || busy || !message.trim()} type="submit">{busy ? "Sending…" : "Send"}</button></form>
           </div>
         </div>
       )}

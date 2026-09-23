@@ -42,6 +42,7 @@ export default function App() {
   const [mobileLibraryPane, setMobileLibraryPane] = useState<"sources" | "notes">("sources");
   const [backendUp, setBackendUp] = useState(true);
   const [aiConfigured, setAIConfigured] = useState(false);
+  const [hostedAIAvailable, setHostedAIAvailable] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [readingId, setReadingId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -93,6 +94,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     api.getAISettings().then((settings) => setAIConfigured(settings.configured)).catch(() => setAIConfigured(false));
+    api.getHostedAIStatus().then((status) => setHostedAIAvailable(status.enabled)).catch(() => setHostedAIAvailable(false));
   }, [user]);
 
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function App() {
           className="text-lg font-semibold tracking-tight hover:text-neutral-100"
           onClick={() => setNotebook(null)}
         >
-          research
+          Notaeo
         </button>
         {notebook && (
           <nav className="min-w-0 flex items-center gap-2 text-sm text-neutral-500" aria-label="Breadcrumb">
@@ -293,6 +295,7 @@ export default function App() {
               <ChatPanel
                 notebookId={notebook.id}
                 configured={aiConfigured}
+                hostedAvailable={hostedAIAvailable}
                 onConfigure={() => setShowSettings(true)}
                 onOpenSource={setReadingId}
               />

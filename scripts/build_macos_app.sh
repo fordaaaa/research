@@ -17,7 +17,7 @@ DEVELOPER_DIR="$developer_dir" xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   clean build
 
-app_path="$repo_dir/macos/build/Build/Products/$configuration/Research.app"
+app_path="$repo_dir/macos/build/Build/Products/$configuration/Notaeo.app"
 resources_path="$app_path/Contents/Resources"
 
 mkdir -p "$resources_path/web"
