@@ -28,7 +28,7 @@ export function Button({ variant = "primary", className = "", ...rest }: ButtonP
 
 export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
   return (
-    <div className={`rounded-2xl border border-neutral-800 bg-neutral-900/40 ${className}`}>
+    <div className={`rounded-2xl border border-neutral-800 bg-neutral-900 shadow-[0_4px_22px_rgba(6,48,62,0.035)] ${className}`}>
       {children}
     </div>
   );
@@ -93,7 +93,7 @@ export function Tabs<T extends string>({
   }
 
   return (
-    <div className={`flex gap-1 rounded-xl bg-neutral-900 p-1 w-fit max-w-full overflow-x-auto ${className}`} role="tablist">
+    <div className={`flex gap-1 rounded-xl border border-neutral-800 bg-seafoam/70 p-1 w-fit max-w-full overflow-x-auto ${className}`} role="tablist">
       {options.map((option, index) => (
         <button
           key={option.value}
@@ -106,7 +106,7 @@ export function Tabs<T extends string>({
           type="button"
           className={`min-h-11 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors ${
             value === option.value
-              ? "bg-neutral-100 text-neutral-950"
+              ? "bg-neutral-900 text-neutral-100 shadow-[0_1px_5px_rgba(6,48,62,0.09)]"
               : "text-neutral-500 hover:text-neutral-200"
           }`}
           onClick={() => onChange(option.value)}

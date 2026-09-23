@@ -115,14 +115,27 @@ export default function AuthPanel({ onAuthed }: Props) {
 
   return (
     <main className="flex-1 overflow-y-auto animate-page-in">
-      <div className="mx-auto w-full max-w-sm space-y-6 p-4 sm:p-8">
-        <section className="pt-6 text-center sm:pt-10">
-          <h1 className="text-3xl font-semibold tracking-tight">Notaeo, locally</h1>
-          <p className="mt-2 text-sm leading-relaxed text-neutral-500">
-            Your notebooks live in your account on this server — nobody else can see them.
-          </p>
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl gap-8 p-4 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)] lg:items-center lg:gap-16 lg:p-12">
+        <section className="relative flex min-h-[330px] flex-col justify-between overflow-hidden rounded-[2rem] bg-brand-deep p-8 text-mark shadow-[0_28px_75px_rgba(6,48,62,0.17)] sm:p-12 lg:min-h-[580px]">
+          <div className="pointer-events-none absolute -right-24 -top-20 h-[430px] w-[430px] rounded-full border border-mark/15" aria-hidden="true" />
+          <div className="pointer-events-none absolute -right-8 -top-4 h-[340px] w-[340px] rounded-full border border-mark/20" aria-hidden="true" />
+          <div className="pointer-events-none absolute right-16 top-20 h-44 w-44 rounded-full bg-aqua/40 blur-3xl" aria-hidden="true" />
+          <p className="relative text-xs font-semibold uppercase tracking-[0.22em] text-aquabright">A better way to learn</p>
+          <div className="relative max-w-lg">
+            <h1 className="font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">Make room for<br /><em>curiosity.</em></h1>
+            <p className="mt-6 max-w-md text-sm leading-7 text-mark/80">Bring sources, questions, notes, and study tools into one thoughtful space. Your work stays yours.</p>
+          </div>
+          <div className="relative flex flex-wrap gap-2 text-[11px] font-medium text-mark/80">
+            <span className="rounded-full border border-mark/20 px-3 py-2">Collect sources</span>
+            <span className="rounded-full border border-mark/20 px-3 py-2">Research freely</span>
+            <span className="rounded-full border border-mark/20 px-3 py-2">Study your way</span>
+          </div>
         </section>
-        <Card className="p-5">
+        <div className="mx-auto w-full max-w-md py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-aqua">Welcome to Notaeo</p>
+          <h2 className="mt-3 font-display text-3xl font-semibold">{mode === "login" ? "Welcome back." : "Begin your journey."}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-500">Your notebooks live in your account on this server — nobody else can see them.</p>
+        <Card className="mt-7 p-5 shadow-[0_16px_45px_rgba(6,48,62,0.06)] sm:p-7">
           <div className="mb-4 flex gap-1 rounded-xl bg-neutral-900 p-1">
             {(["login", "register"] as const).map((m) => (
               <button
@@ -190,6 +203,8 @@ export default function AuthPanel({ onAuthed }: Props) {
             </p>
           )}
         </Card>
+        <p className="mt-6 text-center text-xs leading-relaxed text-neutral-500">No AI key is needed to collect, search, read, or export your sources.</p>
+        </div>
       </div>
     </main>
   );

@@ -214,17 +214,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
-      <header className="sticky top-0 z-40 border-b border-neutral-800/80 bg-neutral-950/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 shrink-0">
+      <header className="sticky top-0 z-40 flex min-h-16 shrink-0 items-center gap-3 border-b border-neutral-800 bg-neutral-900/95 px-4 shadow-[0_1px_10px_rgba(6,48,62,0.04)] backdrop-blur sm:px-7">
         <button
           data-tour="home"
-          className="text-lg font-semibold tracking-tight hover:text-neutral-100"
+          className="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight hover:text-aqua"
           onClick={() => setNotebook(null)}
         >
+          <span className="flex h-8 w-8 items-center justify-center rounded-[11px] bg-brand-deep font-display text-lg text-mark" aria-hidden="true">n.</span>
           Notaeo
         </button>
         {notebook && (
           <nav className="min-w-0 flex items-center gap-2 text-sm text-neutral-500" aria-label="Breadcrumb">
-            <span aria-hidden="true">/</span>
+            <span aria-hidden="true" className="px-1 text-neutral-700">/</span>
             <span className="truncate text-neutral-300">{notebook.name}</span>
             {sources.length > 0 && (
               <span className="hidden sm:inline text-xs text-neutral-600">
@@ -237,14 +238,15 @@ export default function App() {
           {!backendUp && <Badge tone="warn">backend not reachable</Badge>}
           {user && (
             <>
-              <span className="hidden max-w-40 truncate text-xs text-neutral-500 sm:inline">{user.email}</span>
-              <button type="button" className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100" onClick={startTour}>Take a tour</button>
-              <button data-tour="settings" type="button" className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100" onClick={() => setShowSettings(true)}>Settings</button>
+              <button type="button" aria-label="Take a tour" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 py-2 text-xs font-medium text-neutral-500 transition-colors hover:bg-seafoam hover:text-neutral-100 sm:px-3" onClick={startTour}><span aria-hidden="true" className="sm:hidden">?</span><span className="hidden sm:inline">Take a tour</span></button>
+              <button data-tour="settings" type="button" className="rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:bg-seafoam hover:text-neutral-100" onClick={() => setShowSettings(true)}>Settings</button>
               <button
-                className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100"
+                aria-label={`Log out ${user.email}`}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-800 bg-seafoam text-xs font-semibold text-wave transition-colors hover:border-aqua"
                 onClick={logOut}
               >
-                Log out
+                {user.email.charAt(0).toUpperCase()}
+                <span className="sr-only">{user.email}</span>
               </button>
             </>
           )}
@@ -276,8 +278,24 @@ export default function App() {
           }}
         />
       ) : (
-        <div key={notebook.id} className="mx-auto w-full max-w-7xl flex-1 grid gap-5 p-4 pb-24 sm:p-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:pb-6 animate-page-in">
-          <aside className={`${mobileSection === "library" ? "block" : "hidden"} min-w-0 space-y-5 lg:sticky lg:top-[60px] lg:block lg:self-start lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto lg:pr-1`}>
+        <div key={notebook.id} className="mx-auto grid w-full max-w-[1600px] flex-1 gap-4 p-4 pb-24 sm:p-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:pb-6 xl:grid-cols-[215px_minmax(0,1fr)_300px] xl:gap-0 xl:p-0 animate-page-in">
+          <nav aria-label="Workspace tools" className="hidden border-r border-neutral-800 bg-neutral-900/60 px-3 py-6 xl:sticky xl:top-16 xl:order-1 xl:flex xl:h-[calc(100vh-4rem)] xl:flex-col">
+            <button type="button" onClick={() => setNotebook(null)} className="mb-8 flex min-h-11 items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-neutral-500 hover:bg-neutral-900 hover:text-neutral-100"><span aria-hidden="true">←</span> All notebooks</button>
+            <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-600">Workspace</p>
+            <div data-tour="workspace-tabs" className="mt-3 space-y-1">
+              {WORKSPACE_VIEWS.map((option) => (
+                <button key={option.value} type="button" aria-label={option.label} aria-current={view === option.value ? "page" : undefined} onClick={() => selectView(option.value)} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors ${view === option.value ? "bg-brand-deep text-mark shadow-sm" : "text-neutral-500 hover:bg-neutral-900 hover:text-neutral-100"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${view === option.value ? "bg-aquabright" : "bg-neutral-700"}`} aria-hidden="true" />{option.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-auto rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+              <p className="font-display text-base font-semibold">Make it yours.</p>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your sources, notes, and exports stay together in this notebook.</p>
+            </div>
+          </nav>
+          <aside className={`${mobileSection === "library" ? "block" : "hidden"} min-w-0 space-y-4 lg:sticky lg:top-[84px] lg:block lg:self-start lg:max-h-[calc(100vh-104px)] lg:overflow-y-auto xl:top-16 xl:order-3 xl:h-[calc(100vh-4rem)] xl:max-h-none xl:space-y-0 xl:border-l xl:border-neutral-800 xl:bg-neutral-900/45 xl:p-4`}>
+            <div className="hidden px-1 pb-4 xl:block"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-aqua">Source library</p><h2 className="mt-1 font-display text-xl font-semibold">Your material <span className="font-sans text-sm font-normal text-neutral-500">{sources.length}</span></h2></div>
             <Tabs
               options={[{ value: "sources", label: "Sources" }, { value: "notes", label: "Notes" }]}
               value={mobileLibraryPane}
@@ -331,8 +349,9 @@ export default function App() {
               </div>
             )}
           </aside>
-          <main className={`${mobileSection === "library" ? "hidden" : "block"} min-w-0 space-y-5 lg:block`}>
-            <div data-tour="workspace-tabs" className="hidden lg:block"><Tabs options={WORKSPACE_VIEWS} value={view} onChange={selectView} /></div>
+          <main className={`${mobileSection === "library" ? "hidden" : "block"} min-w-0 space-y-5 lg:block xl:order-2 xl:p-7`}>
+            <div className="hidden items-end justify-between border-b border-neutral-800 pb-5 xl:flex"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-aqua">{notebook.name}</p><h1 className="mt-1 font-display text-3xl font-semibold">{WORKSPACE_VIEWS.find((option) => option.value === view)?.label}</h1></div><span className="text-xs text-neutral-500">{sources.length} source{sources.length === 1 ? "" : "s"} in this notebook</span></div>
+            <div data-tour="workspace-tabs" className="hidden lg:block xl:hidden"><Tabs options={WORKSPACE_VIEWS} value={view} onChange={selectView} /></div>
             {mobileSection !== "library" && (
               <Tabs
                 options={WORKSPACE_VIEWS.filter((option) => viewsForMobileSection(mobileSection).includes(option.value))}
@@ -342,11 +361,34 @@ export default function App() {
               />
             )}
             {view === "research" && (
-              <ResearchPanel
-                notebookId={notebook.id}
-                aiConfigured={aiConfigured}
-                onSourcesChanged={() => refreshSources(notebook.id)}
-              />
+              <>
+                <ResearchPanel
+                  notebookId={notebook.id}
+                  aiConfigured={aiConfigured}
+                  onSourcesChanged={() => refreshSources(notebook.id)}
+                />
+                {sources.length === 0 && (
+                  <section className="pt-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-aqua">Start here</p>
+                    <h2 className="mt-1 font-display text-2xl font-semibold">A good place to begin</h2>
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-neutral-500">Every strong project starts with something to explore. Add a source from the library, or discover something new on the public web.</p>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <button type="button" onClick={() => selectView("search")} className="group rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-left shadow-[0_4px_22px_rgba(6,48,62,0.035)] transition hover:-translate-y-0.5 hover:border-aqua/50">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-seafoam text-lg text-aqua" aria-hidden="true">⌕</span>
+                        <span className="mt-4 block font-display text-lg font-semibold">Find a source</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-neutral-500">Search for a topic and bring useful pages into this notebook.</span>
+                        <span className="mt-4 block text-xs font-semibold text-aqua">Explore the web →</span>
+                      </button>
+                      <button type="button" onClick={() => selectView("notes")} className="group rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-left shadow-[0_4px_22px_rgba(6,48,62,0.035)] transition hover:-translate-y-0.5 hover:border-aqua/50">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-seafoam font-display text-lg text-aqua" aria-hidden="true">✎</span>
+                        <span className="mt-4 block font-display text-lg font-semibold">Capture a thought</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-neutral-500">Begin with a note, then connect ideas as your library grows.</span>
+                        <span className="mt-4 block text-xs font-semibold text-aqua">Open notes →</span>
+                      </button>
+                    </div>
+                  </section>
+                )}
+              </>
             )}
             {view === "deep" && (
               <OutlinePanel

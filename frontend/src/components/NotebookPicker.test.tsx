@@ -30,6 +30,24 @@ function renderWithNotebook() {
   return { onOpen, onDelete };
 }
 
+it("filters the notebook library by name without deleting or hiding the create form", () => {
+  render(
+    <NotebookPicker
+      notebooks={[
+        { id: "biology", name: "Biology", created_at: "2026-01-01T00:00:00Z" },
+        { id: "history", name: "History", created_at: "2026-01-02T00:00:00Z" },
+      ]}
+      onOpen={vi.fn()}
+      onCreate={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search notebooks" }), { target: { value: "bio" } });
+  expect(screen.getByRole("button", { name: "Open Biology" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Open History" })).toBeNull();
+  expect(screen.getByPlaceholderText(/new notebook name/i)).toBeTruthy();
+});
+
 describe("NotebookPicker account messaging", () => {
   it("states a free/local account is required and never claims 'no account'", () => {
     renderPicker();
