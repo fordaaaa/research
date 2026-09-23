@@ -95,8 +95,8 @@ on every data route. `GET /api/runtime` reports the boundary. Network use
 is explicit-only (web search, URL ingest, BYOK AI, Google OAuth) — no
 implicit sync. Details: [`docs/PRODUCT.md`](docs/PRODUCT.md).
 
-- **Windows desktop** is next, then **iOS and Android** from the shared
-  responsive UI wherever feasible.
+- **Windows desktop** is deferred. The iOS and Android client lives in the
+  separate `research-mobile` repository.
 
 ## Roadmap
 

@@ -17,7 +17,7 @@ paid service.
   keyless/no-AI local/self-hosted product: ingestion, search, reader, study
   tools, exports, keyless public-web discovery, the shared responsive
   frontend/client behavior, the local service, and BYOK provider adapters.
-- **Private `fordaaaa/research-server`** owns hosted operations only: cloud
+- **Private `fordaaaa/research-server`** is a separate repository and owns hosted operations only: cloud
   accounts infrastructure, managed cloud storage/sync,
   subscriptions/entitlements, hosted AI credits/routing, rate limits and
   abuse controls, admin/operations tooling, and production
@@ -46,12 +46,11 @@ paid service.
 
 ## Platforms
 
-1. **macOS and Windows desktop first** — native shells around the shared
-   backend + responsive web UI. macOS alpha exists (SwiftUI shell, loopback
-   sidecar, ad-hoc-signed arm64, data in Application Support, not
-   notarized); Windows is next.
-2. **Then iOS and Android**, built from the same shared responsive UI
-   wherever feasible.
+1. **macOS and web now** — the macOS SwiftUI shell runs this repo's responsive
+   web UI against a local loopback sidecar. Windows is deferred by owner
+   direction (2026-09-23).
+2. **iOS and Android live in the separate `research-mobile` repository.**
+   Changes to this repo's React frontend do not automatically reach that app.
 - **Local-runtime boundary (desktop):** the sidecar binds `127.0.0.1` only
   on an ephemeral port; the shell passes a per-launch `RESEARCH_DESKTOP_TOKEN`
   exchanged for an HttpOnly `SameSite=Strict` session cookie (constant-time

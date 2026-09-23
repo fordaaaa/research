@@ -1,6 +1,6 @@
 # Third-party notices
 
-This app is proprietary. The following open-source package is bundled with it;
+This app is MIT licensed. The following third-party package is bundled with it;
 its copyright and license notice is preserved here as required by its license.
 
 ## thinking-orbs

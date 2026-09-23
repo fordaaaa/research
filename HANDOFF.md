@@ -3,7 +3,8 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, hosted multi-user pivot landed (SQLite + email auth,
-> per-user data). The working tree contains the tested study/mobile batch below.
+> per-user data). Web and macOS polish plus Gemini model maintenance are the
+> current work. Windows is deferred; mobile lives in `research-mobile`.
 > Owner direction: hosted backend (`research-server`) with thin clients, App
 > Store later ($99 program budgeted then, not now). Login order: email (done)
 > → Google → Apple last.
@@ -14,7 +15,7 @@ Live state of the project. **Read this first** before doing anything.
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
 
-## Uncommitted study/mobile batch (2026-09-20)
+## Study/mobile batch shipped (2026-09-20)
 
 - Flashcards v2 adds safe legacy SQLite migration, due-card queues, persisted
   again/hard/good/easy scheduling, editing, tags/filtering, source-grounded
@@ -28,10 +29,24 @@ Live state of the project. **Read this first** before doing anything.
   runs start isolated FastAPI/Vite servers; remote runs use
   `RESEARCH_E2E_BASE_URL` and gate stateful tests behind explicit credentials or
   `RESEARCH_E2E_ALLOW_REGISTRATION=1`.
-- Verification: backend `195 passed`; frontend `93 passed`; production build
-  passes; lint completes with warnings only; all `6` local mobile E2E tests
-  pass; `sh scripts/build_macos_app.sh` passes with an arm64 sidecar and signed
-  Release app.
+- Historical verification at that milestone: backend `195 passed`; frontend
+  `93 passed`; production build, six local mobile E2E tests, and the signed
+  arm64 app build passed.
+
+## Web and macOS polish (2026-09-23)
+
+- Thinking orbs use contrasting ink on deep-sea primary buttons. The web app
+  and macOS shell share this frontend. The separate `research-mobile` app has
+  its own `expo-thinking-orbs` integration and spinner fallback.
+- The macOS shell uses a native save panel for WebKit downloads, has startup
+  timeout/crash handling, an app icon, and an Xcode unit-test target. Local
+  builds remain ad-hoc signed; notarization is not required.
+- New Gemini settings use `gemini-3.5-flash-lite`; fallback models are
+  `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite`. Saved user model choices
+  remain unchanged. Session chat now includes matching saved skills.
+- Verification for this batch: backend `214 passed`; frontend `107 passed`,
+  build clean, lint warnings only, mobile browser E2E `6 passed`, Xcode unit
+  tests pass, and `sh scripts/build_macos_app.sh` builds/signs the arm64 app.
 
 ## Current state
 
@@ -83,7 +98,7 @@ Live state of the project. **Read this first** before doing anything.
 6. **SQLite store** — multi-user data lives in `app.db` (WAL) under the data dir; per-user rows everywhere, cross-user access is 404. Swap inside `core/store.py` only. One-shot JSON import: `backend/scripts/migrate_json_to_sqlite.py`.
 7. **Public/private boundary (locked)** — this repo stays MIT and holds the complete useful keyless/no-AI local/self-hosted product (ingest, search, reader, study, exports, discovery, shared UI, local service, BYOK adapters). Private `fordaaaa/research-server` owns hosted operations only: cloud accounts, managed storage/sync, subscriptions/entitlements, hosted AI credits/routing, rate limits/abuse controls, admin/ops, production secrets/infra. Never imply access to private code or gate local flows on it.
 8. **Three AI modes (locked)** — no-AI first-class, BYOK (per-user Gemini/OpenRouter key), hosted credits later (limited free allowance + paid tiers, routed/entitled by the private server).
-9. **Platforms (locked)** — macOS and Windows desktop first (native shells over the shared backend + responsive UI), then iOS and Android from that UI wherever feasible.
+9. **Platforms (owner update 2026-09-23)** — macOS and web now; Windows deferred. iOS and Android live in the separate `research-mobile` repository.
 10. **Hosted-launch legal (locked, owner + lawyer required)** — launch needs Terms of Service, Privacy Policy, Acceptable Use/AI terms, subscription/cancellation language, retention/export/deletion commitments, copyright/takedown handling, and student/minor-data treatment. Legal review is required; docs must not draft definitive legal claims.
 11. **Coding-worker policy (locked)** — every future coding worker writes a meaningful failing test first, implements, runs targeted tests, runs the repo-required broader checks, reports exact evidence, and commits only after reviewer approval.
 
@@ -139,7 +154,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Next milestones
 
-- **M3** — native app polish: icon, native export/download handoff, streamed chat, automated Xcode tests, and distribution investigation without paid defaults.
+- **M3** — icon, native export/download handoff, and automated Xcode tests shipped. Distribution status is documented in `docs/MACOS_DISTRIBUTION.md`; streamed chat and public distribution work remain, with paid notarization optional for local builds.
 - **M7 — SHIPPED (multi-user):** SQLite store, email auth (pbkdf2 + 30d sessions), per-user everything, login UI, JSON→SQLite migration script, private `research-server` self-host repo.
 - **Next: Google OAuth**, then Apple at App Store time ($99 program).
 - **M5 — SHIPPED (student-ready v2 in working tree):** scheduled flashcards with grounded drafts, mobile review, glossary, quiz, Anki TSV export, keyless one-page study guides, keyless mind maps, in-app source reader, one-click demo notebook, and notebook zip export.
