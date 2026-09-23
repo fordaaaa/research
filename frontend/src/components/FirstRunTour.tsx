@@ -31,6 +31,7 @@ export default function FirstRunTour({ step, index, total, nextLabel, onNext, on
   const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    let frame = 0;
     const findVisibleTarget = () => step.targets
       ?.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
       .find((element) => {
@@ -38,18 +39,32 @@ export default function FirstRunTour({ step, index, total, nextLabel, onNext, on
         return bounds.width > 0 && bounds.height > 0;
       });
     const measure = () => {
-      setViewport({ width: window.innerWidth, height: window.innerHeight });
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setViewport((current) => current.width === width && current.height === height ? current : { width, height });
       const target = findVisibleTarget();
-      if (!target) { setSpotlight(null); return; }
+      if (!target) { setSpotlight((current) => current === null ? current : null); return; }
       const bounds = target.getBoundingClientRect();
-      setSpotlight({ left: bounds.left - 8, top: bounds.top - 8, width: bounds.width + 16, height: bounds.height + 16 });
+      const left = Math.max(0, bounds.left - 8);
+      const top = Math.max(0, bounds.top - 8);
+      const right = Math.min(width, bounds.right + 8);
+      const bottom = Math.min(height, bounds.bottom + 8);
+      if (right <= left || bottom <= top) { setSpotlight((current) => current === null ? current : null); return; }
+      const next = { left, top, width: right - left, height: bottom - top };
+      setSpotlight((current) => current && current.left === next.left && current.top === next.top && current.width === next.width && current.height === next.height ? current : next);
+    };
+    const followTarget = () => {
+      measure();
+      frame = window.requestAnimationFrame(followTarget);
     };
     const firstTarget = findVisibleTarget();
     firstTarget?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
     measure();
+    if (typeof window.requestAnimationFrame === "function") frame = window.requestAnimationFrame(followTarget);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
+      if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
