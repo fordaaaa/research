@@ -6,7 +6,7 @@ import { Button, Card } from "./ui";
 import { inputCls } from "./ui";
 
 interface Props {
-  onAuthed: (user: User) => void;
+  onAuthed: (user: User, isNewAccount?: boolean) => void;
 }
 
 declare global {
@@ -105,7 +105,7 @@ export default function AuthPanel({ onAuthed }: Props) {
         ? await api.login(email.trim(), password)
         : await api.register(email.trim(), password);
       api.setToken(res.token);
-      onAuthed(res.user);
+      onAuthed(res.user, mode === "register");
     } catch (err) {
       setError(err instanceof Error ? err.message : "could not sign in");
     } finally {

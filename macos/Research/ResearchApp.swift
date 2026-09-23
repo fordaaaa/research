@@ -77,7 +77,7 @@ private struct StartupView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: false)) {
+            withAnimation(.linear(duration: 5.4).repeatForever(autoreverses: false)) {
                 animating = true
             }
         }

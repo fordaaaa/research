@@ -13,6 +13,8 @@ import OutlinePanel from "./components/OutlinePanel";
 import HumanizerPanel from "./components/HumanizerPanel";
 import SkillsPanel from "./components/SkillsPanel";
 import ThinkingDots from "./components/ThinkingDots";
+import FirstRunTour from "./components/FirstRunTour";
+import type { TourStep } from "./components/FirstRunTour";
 import StudyPanel from "./components/StudyPanel";
 import ReaderModal from "./components/ReaderModal";
 import NotesPanel from "./components/NotesPanel";
@@ -33,6 +35,27 @@ const MOBILE_SECTIONS: { value: MobileSection; label: string }[] = [
   { value: "ai", label: "AI" },
 ];
 
+type TourStage = "none" | "landing" | "waiting" | "workspace";
+const tourKey = (userId: string) => `notaeo:onboarding:${userId}`;
+const savedTourStage = (userId: string): TourStage => {
+  const value = localStorage.getItem(tourKey(userId));
+  return value === "landing" || value === "waiting" || value === "workspace" ? value : "none";
+};
+
+const LANDING_TOUR: TourStep[] = [
+  { title: "Looks like you're new here. Let's get you started.", description: "Notaeo works with your own sources. You can collect, read, and study without setting up AI." },
+  { title: "Start with a notebook", description: "Make one for a class, assignment, or topic. Everything you add stays organized here.", targets: ['[data-tour="create-notebook"]'] },
+  { title: "Or try the demo", description: "Open the sample notebook to see the workspace before adding your own material. Open any notebook to continue the tour.", targets: ['[data-tour="demo-notebook"]'] },
+];
+
+const WORKSPACE_TOUR: TourStep[] = [
+  { title: "Bring your sources in", description: "Upload a document or paste text here. Your notebook gives every source a place to live.", targets: ['[data-tour="add-sources"]'] },
+  { title: "Find your way around", description: "These sections take you from research and search to notes, study tools, and optional AI.", targets: ['[data-tour="workspace-tabs"]', 'nav[aria-label="Notebook sections"]'] },
+  { title: "Your source library", description: "Open sources to read them, and come back to this list whenever you need the original material.", targets: ['[data-tour="source-list"]'] },
+  { title: "Take your work with you", description: "Export the notebook as Markdown when you want a copy outside Notaeo.", targets: ['[data-tour="export-notebook"]'] },
+  { title: "You're ready to explore", description: "The Notaeo button brings you back to your notebooks. Settings are available in the top bar; AI remains optional.", targets: ['[data-tour="home"]'] },
+];
+
 export default function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebook, setNotebook] = useState<Notebook | null>(null);
@@ -49,6 +72,16 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [tourStage, setTourStage] = useState<TourStage>("none");
+  const [tourIndex, setTourIndex] = useState(0);
+
+  const handleAuthed = useCallback((nextUser: User, isNewAccount = false) => {
+    const stage = isNewAccount ? "landing" : savedTourStage(nextUser.id);
+    if (isNewAccount) localStorage.setItem(tourKey(nextUser.id), stage);
+    setTourStage(stage);
+    setTourIndex(0);
+    setUser(nextUser);
+  }, []);
 
   const refreshNotebooks = useCallback(async () => {
     try {
@@ -78,7 +111,7 @@ export default function App() {
       return;
     }
     api.me()
-      .then(setUser)
+      .then((nextUser) => handleAuthed(nextUser))
       .catch(() => api.clearToken())
       .finally(() => setAuthReady(true));
     const onUnauthorized = () => {
@@ -89,7 +122,38 @@ export default function App() {
     };
     window.addEventListener("research:unauthorized", onUnauthorized);
     return () => window.removeEventListener("research:unauthorized", onUnauthorized);
-  }, []);
+  }, [handleAuthed]);
+
+  useEffect(() => {
+    if (!user || !notebook || (tourStage !== "waiting" && tourStage !== "landing")) return;
+    localStorage.setItem(tourKey(user.id), "workspace");
+    setTourIndex(0);
+    setTourStage("workspace");
+  }, [user, notebook, tourStage]);
+
+  const finishTour = () => {
+    if (user) localStorage.setItem(tourKey(user.id), "done");
+    setTourStage("none");
+    setTourIndex(0);
+  };
+
+  const advanceTour = () => {
+    const steps = tourStage === "landing" ? LANDING_TOUR : WORKSPACE_TOUR;
+    if (tourIndex < steps.length - 1) { setTourIndex((index) => index + 1); return; }
+    if (tourStage === "landing") {
+      if (user) localStorage.setItem(tourKey(user.id), "waiting");
+      setTourStage("waiting");
+      setTourIndex(0);
+    } else finishTour();
+  };
+
+  const startTour = () => {
+    if (!user) return;
+    const stage = notebook ? "workspace" : "landing";
+    localStorage.setItem(tourKey(user.id), stage);
+    setTourStage(stage);
+    setTourIndex(0);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -145,12 +209,14 @@ export default function App() {
     setSources([]);
     setNotebooks([]);
     setAIConfigured(false);
+    setTourStage("none");
   };
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <header className="sticky top-0 z-40 border-b border-neutral-800/80 bg-neutral-950/90 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3 shrink-0">
         <button
+          data-tour="home"
           className="text-lg font-semibold tracking-tight hover:text-neutral-100"
           onClick={() => setNotebook(null)}
         >
@@ -172,6 +238,8 @@ export default function App() {
           {user && (
             <>
               <span className="hidden max-w-40 truncate text-xs text-neutral-500 sm:inline">{user.email}</span>
+              <button type="button" className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100" onClick={startTour}>Take a tour</button>
+              <button data-tour="settings" type="button" className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100" onClick={() => setShowSettings(true)}>Settings</button>
               <button
                 className="rounded-full px-3 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-100"
                 onClick={logOut}
@@ -180,12 +248,6 @@ export default function App() {
               </button>
             </>
           )}
-          <button
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${aiConfigured ? "bg-emerald-950 text-emerald-300 hover:bg-emerald-900" : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"}`}
-            onClick={() => setShowSettings(true)}
-          >
-            {aiConfigured ? "AI ready" : "AI off"}
-          </button>
         </div>
       </header>
 
@@ -197,10 +259,11 @@ export default function App() {
           </div>
         </main>
       ) : !user ? (
-        <AuthPanel onAuthed={setUser} />
+        <AuthPanel onAuthed={handleAuthed} />
       ) : !notebook ? (
         <NotebookPicker
           notebooks={notebooks}
+          tourPending={tourStage === "waiting"}
           onOpen={openNotebook}
           onCreate={async (name) => {
             const nb = await api.createNotebook(name);
@@ -222,7 +285,7 @@ export default function App() {
               className="lg:hidden"
             />
             <div className={`${mobileLibraryPane === "sources" ? "space-y-5" : "hidden"} lg:block lg:space-y-5`}>
-            <Card className="p-5">
+            <div data-tour="add-sources"><Card className="p-5">
               <UploadZone
                 onUpload={async (files) => {
                   const res = await api.uploadFiles(notebook.id, files);
@@ -234,8 +297,8 @@ export default function App() {
                   await refreshSources(notebook.id);
                 }}
               />
-            </Card>
-            <Card className="p-5">
+            </Card></div>
+            <div data-tour="source-list"><Card className="p-5">
               <SourceList
                 sources={sources}
                 onOpen={setReadingId}
@@ -246,6 +309,7 @@ export default function App() {
               />
               <div className="mt-4 border-t border-neutral-800 pt-3">
                 <button
+                  data-tour="export-notebook"
                   className="text-xs font-medium text-neutral-300 underline hover:text-neutral-100 disabled:opacity-50"
                   onClick={handleExport}
                   disabled={exportBusy}
@@ -259,7 +323,7 @@ export default function App() {
                 )}
                 <p className="mt-1 text-[11px] text-neutral-600">Obsidian-style markdown, including guides and reports.</p>
               </div>
-            </Card>
+            </Card></div>
             </div>
             {mobileLibraryPane === "notes" && (
               <div className="block lg:hidden">
@@ -268,7 +332,7 @@ export default function App() {
             )}
           </aside>
           <main className={`${mobileSection === "library" ? "hidden" : "block"} min-w-0 space-y-5 lg:block`}>
-            <Tabs options={WORKSPACE_VIEWS} value={view} onChange={selectView} className="hidden lg:flex" />
+            <div data-tour="workspace-tabs" className="hidden lg:block"><Tabs options={WORKSPACE_VIEWS} value={view} onChange={selectView} /></div>
             {mobileSection !== "library" && (
               <Tabs
                 options={WORKSPACE_VIEWS.filter((option) => viewsForMobileSection(mobileSection).includes(option.value))}
@@ -329,6 +393,17 @@ export default function App() {
         onChanged={setAIConfigured}
       />
       <ReaderModal sourceId={readingId} onClose={() => setReadingId(null)} />
+      {user && ((tourStage === "landing" && !notebook) || (tourStage === "workspace" && !!notebook)) && (
+        <FirstRunTour
+          step={(tourStage === "landing" ? LANDING_TOUR : WORKSPACE_TOUR)[tourIndex]}
+          index={tourIndex}
+          total={(tourStage === "landing" ? LANDING_TOUR : WORKSPACE_TOUR).length}
+          nextLabel={tourStage === "landing" && tourIndex === LANDING_TOUR.length - 1 ? "Explore a notebook" : tourStage === "workspace" && tourIndex === WORKSPACE_TOUR.length - 1 ? "Finish" : "Next"}
+          onNext={advanceTour}
+          onBack={() => setTourIndex((index) => Math.max(0, index - 1))}
+          onSkip={finishTour}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { inputCls } from "./ui";
 
 interface Props {
   notebooks: Notebook[];
+  tourPending?: boolean;
   onOpen: (nb: Notebook) => void;
   onCreate: (name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -17,7 +18,7 @@ const WORKFLOWS = [
   { title: "Study", text: "Flashcards with practice mode, one-page guides, mind maps, Anki export, and Obsidian export. Free for local use." },
 ];
 
-export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }: Props) {
+export default function NotebookPicker({ notebooks, tourPending = false, onOpen, onCreate, onDelete }: Props) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
@@ -33,7 +34,8 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
           </p>
         </section>
 
-        <Card className="p-5">
+        {tourPending && <p className="rounded-xl border border-aqua/30 bg-seafoam p-3 text-sm text-neutral-300">Your tour continues inside a notebook. Create one or open the demo to see the rest.</p>}
+        <div data-tour="create-notebook"><Card className="p-5">
           <form
             className="flex flex-col gap-2 sm:flex-row"
             onSubmit={async (e) => {
@@ -66,6 +68,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
           <div className="mt-3 flex items-center gap-2 border-t border-neutral-800 pt-3">
             <p className="text-xs text-neutral-500">New here?</p>
             <button
+              data-tour="demo-notebook"
               type="button"
               className="min-h-11 rounded-lg px-2 text-xs font-medium text-aqua underline underline-offset-2 hover:text-wave disabled:opacity-50"
               disabled={demoBusy}
@@ -85,7 +88,7 @@ export default function NotebookPicker({ notebooks, onOpen, onCreate, onDelete }
               {demoBusy ? "Building demo…" : "Open a demo notebook →"}
             </button>
           </div>
-        </Card>
+        </Card></div>
 
         <section>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
