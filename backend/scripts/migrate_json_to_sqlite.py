@@ -125,7 +125,7 @@ def main() -> None:
             AISettingsUpdate(
                 provider=ai.get("provider", "gemini"),
                 api_key=ai["api_key"],
-                model=ai.get("model", "gemini-2.5-flash"),
+                model=ai.get("model", "gemini-3.5-flash-lite"),
             ),
         )
         print("imported AI settings (re-enter the key if it fails; it was stored as-is)")

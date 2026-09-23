@@ -166,7 +166,7 @@ class WebSearchResult(BaseModel):
 AIProvider = Literal["gemini", "openrouter"]
 
 AI_DEFAULT_MODELS: dict[str, str] = {
-    "gemini": "gemini-2.5-flash",
+    "gemini": "gemini-3.5-flash-lite",
     "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
 }
 
@@ -174,7 +174,7 @@ AI_DEFAULT_MODELS: dict[str, str] = {
 class AISettingsUpdate(BaseModel):
     provider: AIProvider = "gemini"
     api_key: str = Field(min_length=10, max_length=500)
-    model: str = Field(default="gemini-2.5-flash", min_length=1, max_length=100)
+    model: str = Field(default="gemini-3.5-flash-lite", min_length=1, max_length=100)
 
     @model_validator(mode="before")
     @classmethod

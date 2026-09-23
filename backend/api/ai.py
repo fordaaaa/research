@@ -110,6 +110,9 @@ def register(app: FastAPI) -> None:
             "SOURCES:\n" + sources_text + "\n\n"
             f"RECENT CHAT:\n{history_text}\n\nNOTE EXCERPTS:\n{notes_text}\n\nQUESTION: {body.message}"
         )
+        matched = skills.match_skills(store.list_skills(user.id), body.message)
+        if matched:
+            prompt += "\n\n" + skills.skills_section(matched)
         try:
             answer, used_model = providers.generate(configured.provider, key, configured.model, prompt)
         except providers.AIError as exc:

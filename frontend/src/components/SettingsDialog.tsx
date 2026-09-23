@@ -14,7 +14,7 @@ const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: str
   gemini: {
     name: "Google Gemini",
     keyLabel: "Gemini API key",
-    model: "gemini-2.5-flash",
+    model: "gemini-3.5-flash-lite",
     helper: "Create a key in Google AI Studio’s free tier. Availability and limits vary by region.",
   },
   openrouter: {
@@ -53,7 +53,7 @@ export default function SettingsDialog({ open, onClose, onChanged }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-semibold">Optional AI</h2>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key stays on this Mac and is only sent to your chosen AI provider when you ask a question.</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Your key is saved with your account and used only when you request an AI feature.</p>
           </div>
           <button className="text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close settings">×</button>
         </div>

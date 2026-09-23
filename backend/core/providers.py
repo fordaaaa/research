@@ -6,7 +6,7 @@ from time import sleep
 from core import gemini, openrouter
 
 FALLBACK_MODELS: dict[str, list[str]] = {
-    "gemini": ["gemini-2.5-flash-lite", "gemini-2.0-flash"],
+    "gemini": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"],
     "openrouter": [
         "nvidia/nemotron-3-ultra-550b-a55b:free",
         "meta-llama/llama-3.3-70b-instruct:free",
@@ -14,7 +14,7 @@ FALLBACK_MODELS: dict[str, list[str]] = {
     ],
 }
 DEFAULT_MODELS: dict[str, str] = {
-    "gemini": "gemini-2.5-flash",
+    "gemini": "gemini-3.5-flash-lite",
     "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
 }
 

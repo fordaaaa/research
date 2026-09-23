@@ -173,3 +173,16 @@ def test_ai_settings_start_unconfigured_then_clear(tmp_path):
     assert store.get_ai_settings(uid).configured is True
     store.clear_ai_settings(uid)
     assert store.get_ai_settings(uid).configured is False
+
+
+def test_new_gemini_settings_use_a_current_free_model(tmp_path):
+    store, uid = _user(tmp_path)
+    saved = store.save_ai_settings(uid, AISettingsUpdate(api_key="secret-key-which-is-long-enough"))
+    assert saved.model == "gemini-3.5-flash-lite"
+    assert providers.DEFAULT_MODELS["gemini"] == saved.model
+
+
+def test_gemini_fallbacks_skip_shutdown_models():
+    assert providers._model_chain("gemini", "gemini-2.5-flash") == [
+        "gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"
+    ]

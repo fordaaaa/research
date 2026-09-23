@@ -75,6 +75,29 @@ def test_session_can_be_grounded_by_notebook_notes_without_sources(client, monke
     assert "changed from blue to green" in captured["prompt"]
 
 
+def test_session_chat_includes_matching_saved_skill(client, monkeypatch):
+    nb = client.post("/api/notebooks", json={"name": "Study"}).json()
+    session = client.post(f"/api/notebooks/{nb['id']}/chat/sessions", json={}).json()
+    client.post(f"/api/notebooks/{nb['id']}/sources/text", json={"title": "Notes", "text": "Mitosis has four phases."})
+    client.post("/api/skills", json={"name": "Exam prep", "instructions": "Answer with flashcards.", "triggers": ["exam"]})
+    client.put("/api/settings/ai", json={"api_key": "long-enough-test-key", "model": "test-model"})
+    from api import ai
+
+    prompts: list[str] = []
+
+    def fake_generate(provider, key, model, prompt):
+        prompts.append(prompt)
+        return "Mitosis has four phases. [1]", model
+
+    monkeypatch.setattr(ai.providers, "generate", fake_generate)
+    response = client.post(
+        f"/api/notebooks/{nb['id']}/chat/sessions/{session['id']}/messages",
+        json={"message": "Help me prepare for the exam"},
+    )
+    assert response.status_code == 200
+    assert "Answer with flashcards." in prompts[0]
+
+
 def test_chat_messages_support_limit_and_before_cursor(client, monkeypatch):
     nb = client.post("/api/notebooks", json={"name": "Pages"}).json()
     base = f"/api/notebooks/{nb['id']}/chat/sessions"
