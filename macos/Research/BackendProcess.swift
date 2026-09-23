@@ -15,6 +15,7 @@ final class BackendProcess: ObservableObject {
     private var outputPipe: Pipe?
     private var outputBuffer = ""
     private var launchToken = ""
+    private var startupTask: Task<Void, Never>?
 
     func start() {
         stop()
@@ -50,7 +51,10 @@ final class BackendProcess: ObservableObject {
             }
             process.terminationHandler = { [weak self] process in
                 Task { @MainActor in
-                    guard let self, case .ready = self.state else { return }
+                    guard let self, self.process === process else { return }
+                    self.startupTask?.cancel()
+                    self.startupTask = nil
+                    guard self.state != .idle else { return }
                     self.state = .failed("The local backend stopped unexpectedly (status \(process.terminationStatus)).")
                 }
             }
@@ -58,12 +62,21 @@ final class BackendProcess: ObservableObject {
             self.process = process
             self.outputPipe = pipe
             state = .starting
+            startupTask = Task { [weak self, weak process] in
+                try? await Task.sleep(for: .seconds(20))
+                guard let self, !Task.isCancelled, let process, self.process === process,
+                      self.state == .starting else { return }
+                self.stop()
+                self.state = .failed("The local backend did not start within 20 seconds. Try Again to restart it.")
+            }
         } catch {
             state = .failed("Could not start the local backend: \(error.localizedDescription)")
         }
     }
 
     func stop() {
+        startupTask?.cancel()
+        startupTask = nil
         outputPipe?.fileHandleForReading.readabilityHandler = nil
         outputPipe = nil
         outputBuffer = ""
@@ -71,6 +84,7 @@ final class BackendProcess: ObservableObject {
             process.terminate()
         }
         process = nil
+        state = .idle
     }
 
     private func consumeOutput(_ text: String) {
@@ -79,6 +93,8 @@ final class BackendProcess: ObservableObject {
         outputBuffer = lines.last.map(String.init) ?? ""
         for line in lines.dropLast() where line.hasPrefix("RESEARCH_READY ") {
             guard let url = URL(string: String(line.dropFirst("RESEARCH_READY ".count))) else { continue }
+            startupTask?.cancel()
+            startupTask = nil
             state = .ready(url.appending(queryItems: [URLQueryItem(name: "desktop_token", value: launchToken)]))
         }
     }
