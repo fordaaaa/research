@@ -11,6 +11,27 @@ read them in-app, research the public web, and study with flashcards,
 one-page guides, and mind maps. Self-hosting stays $0 — a SQLite file, no
 paid service.
 
+## Student workflow to build next
+
+The product promise is **turn sources into understanding and defensible work**,
+not just provide a chat box. A student should be able to import a book or
+article, find a useful passage, save a fact or quotation with its source and
+page, organize that evidence into an outline, write an essay draft with
+citations, and export it. Search, reading, capture, drafting, and export must
+remain useful without AI; optional AI may help explain, suggest, or revise
+without silently inventing evidence.
+
+Prioritize the missing links in this order:
+
+1. **Evidence capture:** reader selection → saved note with source/page or
+   chunk citation, plus copyable citation details.
+2. **Essay workspace:** outline, draft, evidence picker, word count, and
+   bibliography/export in one flow. AI suggestions remain opt-in.
+3. **Student planning:** opt-in due dates, study reminders, and calendar export
+   after the source-to-essay loop works. External calendar connections and
+   notifications need explicit consent and platform-specific design; they
+   should not become a requirement for local study.
+
 ## Public vs. private boundary
 
 - **This repo (`research`, public, MIT)** holds the complete useful
