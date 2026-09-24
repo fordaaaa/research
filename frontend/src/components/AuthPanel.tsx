@@ -115,33 +115,35 @@ export default function AuthPanel({ onAuthed }: Props) {
 
   return (
     <main className="flex-1 overflow-y-auto animate-page-in">
-      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl gap-8 p-4 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)] lg:items-center lg:gap-16 lg:p-12">
-        <section className="relative flex min-h-[330px] flex-col justify-between overflow-hidden rounded-[2rem] bg-brand-deep p-8 text-mark shadow-[0_28px_75px_rgba(6,48,62,0.17)] sm:p-12 lg:min-h-[580px]">
-          <div className="pointer-events-none absolute -right-24 -top-20 h-[430px] w-[430px] rounded-full border border-mark/15" aria-hidden="true" />
-          <div className="pointer-events-none absolute -right-8 -top-4 h-[340px] w-[340px] rounded-full border border-mark/20" aria-hidden="true" />
-          <div className="pointer-events-none absolute right-16 top-20 h-44 w-44 rounded-full bg-aqua/40 blur-3xl" aria-hidden="true" />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.22em] text-aquabright">Notaeo for students</p>
-          <div className="relative max-w-lg">
-            <h1 className="font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">Start with your sources.</h1>
-            <p className="mt-6 max-w-md text-sm leading-7 text-mark/80">Bring class notes, PDFs, and articles into one place. Find useful passages, organize ideas, and study from what you actually read.</p>
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-start gap-12 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(380px,430px)] lg:items-center lg:gap-16 lg:py-12">
+        <section className="hidden lg:block">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-aqua">Read · Research · Remember</p>
+          <h2 className="mt-5 max-w-xl font-display text-5xl font-semibold leading-[1.12] tracking-tight">Make more of what you read.</h2>
+          <p className="mt-5 max-w-lg text-base leading-7 text-neutral-500">Keep the chapters, papers, and class notes for each assignment together. Find what matters, then turn it into notes and study material.</p>
+          <div className="relative mt-9 max-w-lg rounded-[1.75rem] border border-neutral-800 bg-seafoam/70 p-5 shadow-[0_22px_55px_rgba(6,48,62,0.06)]" aria-hidden="true">
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-[0_8px_25px_rgba(6,48,62,0.05)]">
+              <div className="flex items-center justify-between gap-3 border-b border-neutral-800 pb-4">
+                <div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-aqua">Biology notebook</p><p className="mt-1 font-display text-lg font-semibold">Chapter 3 · Cell structure</p></div>
+                <span className="rounded-lg bg-seafoam px-2.5 py-1.5 text-[10px] font-semibold text-wave">SOURCE</span>
+              </div>
+              <div className="mt-4 space-y-2"><div className="h-2 w-full rounded-full bg-neutral-800" /><div className="h-2 w-[86%] rounded-full bg-neutral-800" /><div className="h-2 w-[62%] rounded-full bg-neutral-800" /></div>
+              <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300">Search sources</span><span className="rounded-full border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300">Take notes</span><span className="rounded-full border border-neutral-800 px-3 py-1.5 text-xs text-neutral-300">Make flashcards</span></div>
+            </div>
           </div>
-          <div className="relative flex flex-wrap gap-2 text-[11px] font-medium text-mark/80">
-            <span className="rounded-full border border-mark/20 px-3 py-2">Collect sources</span>
-            <span className="rounded-full border border-mark/20 px-3 py-2">Research freely</span>
-            <span className="rounded-full border border-mark/20 px-3 py-2">Study your way</span>
-          </div>
+          <p className="mt-5 max-w-lg text-xs leading-relaxed text-neutral-500">Your source library, search, notes, and study tools work without an AI key.</p>
         </section>
-        <div className="mx-auto w-full max-w-md py-5">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-aqua">Welcome to Notaeo</p>
-          <h2 className="mt-3 font-display text-3xl font-semibold">{mode === "login" ? "Welcome back." : "Begin your journey."}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-neutral-500">Your notebooks live in your account on this server — nobody else can see them.</p>
-        <Card className="mt-7 p-5 shadow-[0_16px_45px_rgba(6,48,62,0.06)] sm:p-7">
-          <div className="mb-4 flex gap-1 rounded-xl bg-neutral-900 p-1">
+        <section className="mx-auto w-full max-w-md">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-aqua">Your Notaeo account</p>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight">{mode === "login" ? "Sign in to Notaeo" : "Create your account"}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-500">Your notebooks are private to your account on this server.</p>
+        <Card className="mt-6 p-5 shadow-[0_16px_45px_rgba(6,48,62,0.06)] sm:p-7">
+          <div className="mb-6 flex gap-1 rounded-xl bg-seafoam p-1">
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${mode === m ? "bg-neutral-100 text-neutral-950" : "text-neutral-500 hover:text-neutral-200"}`}
+                aria-pressed={mode === m}
+                className={`min-h-11 flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-neutral-900 text-neutral-100 shadow-[0_1px_6px_rgba(6,48,62,0.08)]" : "text-neutral-500 hover:text-neutral-200"}`}
                 onClick={() => {
                   setMode(m);
                   setError(null);
@@ -152,36 +154,20 @@ export default function AuthPanel({ onAuthed }: Props) {
             ))}
           </div>
           <form
-            className="space-y-2"
+            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
               submit();
             }}
           >
-            <input
-              className={inputCls}
-              type="email"
-              autoComplete="email"
-              placeholder="Email address"
-              value={email}
-              maxLength={320}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              className={inputCls}
-              type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              placeholder={mode === "login" ? "Password" : "Password (8+ characters)"}
-              value={password}
-              maxLength={128}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div><label htmlFor="auth-email" className="mb-1.5 block text-xs font-semibold text-neutral-300">Email address</label><input id="auth-email" className={inputCls} type="email" autoComplete="email" placeholder="Email address" value={email} maxLength={320} onChange={(e) => setEmail(e.target.value)} /></div>
+            <div><label htmlFor="auth-password" className="mb-1.5 block text-xs font-semibold text-neutral-300">Password</label><input id="auth-password" className={inputCls} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder={mode === "login" ? "Password" : "Password (8+ characters)"} value={password} maxLength={128} onChange={(e) => setPassword(e.target.value)} />{mode === "register" && <p className="mt-1 text-xs text-neutral-500">Use at least 8 characters.</p>}</div>
             <Button type="submit" className="w-full" disabled={busy || !email.trim() || !password}>
               {busy && <Spinner size={13} />}
-              {busy ? "Please wait" : mode === "login" ? "Log in" : "Create account"}
+              {busy ? "Please wait" : mode === "login" ? "Sign in" : "Create account"}
             </Button>
           </form>
-          {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-xs text-red-400">{error}</p>}
           {googleClientId && (
             <div className="mt-4 space-y-2">
               <div className="flex items-center gap-2 text-[11px] text-neutral-600">
@@ -199,12 +185,12 @@ export default function AuthPanel({ onAuthed }: Props) {
           )}
           {mode === "register" && (
             <p className="mt-3 text-xs leading-relaxed text-neutral-600">
-              One account per email. Passwords are hashed — they never touch the disk in the clear.
+              One account per email. Your password is stored as a hash, not in plain text.
             </p>
           )}
         </Card>
-        <p className="mt-6 text-center text-xs leading-relaxed text-neutral-500">No AI key is needed to collect, search, read, or export your sources.</p>
-        </div>
+        <p className="mt-5 text-center text-xs leading-relaxed text-neutral-500">No AI key is needed to collect, search, read, or export your sources.</p>
+        </section>
       </div>
     </main>
   );
