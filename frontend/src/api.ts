@@ -172,7 +172,11 @@ export const login = (email: string, password: string) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-  }).then(j<AuthResult>);
+  }).then((res) => {
+    // Bad credentials are not an expired session; keep the auth form visible.
+    if (res.status === 401) throw new Error("Incorrect email or password");
+    return j<AuthResult>(res);
+  });
 
 export const logout = () =>
   apiFetch(`${BASE}/auth/logout`, { method: "POST" }).then((r) => {
@@ -195,7 +199,10 @@ export const googleLogin = (idToken: string) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id_token: idToken }),
-  }).then(j<AuthResult>);
+  }).then((res) => {
+    if (res.status === 401) throw new Error("Google sign-in failed");
+    return j<AuthResult>(res);
+  });
 
 const BASE = "/api";
 
