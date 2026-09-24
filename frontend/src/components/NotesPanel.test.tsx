@@ -113,4 +113,20 @@ describe("NotesPanel", () => {
     const body = (await screen.findByLabelText("Note body")) as HTMLTextAreaElement;
     expect(body.value).toBe("Second body.");
   });
+
+  it("adds reader-captured evidence without discarding an open draft", async () => {
+    apiMocks.listNotes.mockResolvedValue([note]);
+    apiMocks.getNote.mockResolvedValue(note);
+    const captured = {
+      ...note, id: "123456789abc", title: "Evidence from Cell Biology, p. 3",
+      body: "> Cells have membranes.", citations: [{ source_id: "abcdef123456", chunk_seq: 0 }],
+    };
+    const { rerender } = render(<NotesPanel notebookId="111111111111" autosaveMs={60_000} />);
+    const body = await screen.findByLabelText("Note body") as HTMLTextAreaElement;
+    fireEvent.change(body, { target: { value: "My unfinished draft" } });
+
+    rerender(<NotesPanel notebookId="111111111111" autosaveMs={60_000} capturedNote={captured} />);
+    expect(await screen.findByRole("button", { name: captured.title })).toBeTruthy();
+    expect((screen.getByLabelText("Note body") as HTMLTextAreaElement).value).toBe("My unfinished draft");
+  });
 });

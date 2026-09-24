@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import * as api from "../api";
-import type { SourceDetail } from "../api";
+import type { Note, SourceDetail } from "../api";
 import Spinner from "./Spinner";
 import { useMountTransition } from "../useMountTransition";
 import { usePrefersReducedMotion } from "../useMountTransition";
@@ -9,18 +9,27 @@ import { usePrefersReducedMotion } from "../useMountTransition";
 interface Props {
   sourceId: string | null;
   onClose: () => void;
+  onEvidenceSaved?: (note: Note) => void;
+  onViewNotes?: () => void;
 }
 
-export default function ReaderModal({ sourceId, onClose }: Props) {
+export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onViewNotes }: Props) {
   const [source, setSource] = useState<SourceDetail | null>(null);
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savingSeq, setSavingSeq] = useState<number | null>(null);
+  const [savedSeqs, setSavedSeqs] = useState<number[]>([]);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const mounted = useMountTransition(sourceId !== null, 150);
   const reducedMotion = usePrefersReducedMotion();
   const pagesLength = source?.pages.length ?? 0;
+  const pagesLengthRef = useRef(pagesLength);
+  pagesLengthRef.current = pagesLength;
 
   useEffect(() => {
     if (sourceId === null) return;
@@ -37,6 +46,8 @@ export default function ReaderModal({ sourceId, onClose }: Props) {
     setSource(null);
     setPage(0);
     setError(null);
+    setSaveError(null);
+    setSavedSeqs([]);
     api.getSource(sourceId)
       .then((next) => { if (active) setSource(next); })
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : "could not open source"); });
@@ -51,16 +62,17 @@ export default function ReaderModal({ sourceId, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
-      if (pagesLength === 0) return;
+      const count = pagesLengthRef.current;
+      if (count === 0) return;
       if (e.key === "ArrowLeft") setPage((p) => Math.max(0, p - 1));
-      if (e.key === "ArrowRight") setPage((p) => Math.min(pagesLength - 1, p + 1));
+      if (e.key === "ArrowRight") setPage((p) => Math.min(count - 1, p + 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, pagesLength]);
+  }, [sourceId]);
 
   if (!mounted) return null;
   const open = sourceId !== null;
@@ -80,6 +92,29 @@ export default function ReaderModal({ sourceId, onClose }: Props) {
     const dy = event.clientY - start.y;
     if (Math.abs(dx) < 56 || Math.abs(dx) <= Math.abs(dy)) return;
     setPage((p) => dx < 0 ? Math.min(pages.length - 1, p + 1) : Math.max(0, p - 1));
+  }
+
+  async function savePassage(passage: NonNullable<SourceDetail["important_passages"]>[number]) {
+    if (!source || savingSeq !== null) return;
+    setSavingSeq(passage.chunk_seq);
+    setSaveError(null);
+    const pageLabel = passage.pages.join(", ") || "1";
+    const titlePageLabel = pageLabel.length > 40 ? `${pageLabel.slice(0, 37)}…` : pageLabel;
+    const titleSuffix = `, p. ${titlePageLabel}`;
+    const titlePrefix = "Evidence from ";
+    try {
+      const created = await api.createNote(source.notebook_id, {
+        title: `${titlePrefix}${source.title.slice(0, 200 - titlePrefix.length - titleSuffix.length)}${titleSuffix}`,
+        body: `${passage.text.split("\n").map((line) => `> ${line}`).join("\n")}\n\nSource: ${source.title}, p. ${pageLabel}`,
+        citations: [{ source_id: source.id, chunk_seq: passage.chunk_seq }],
+      });
+      setSavedSeqs((current) => [...current, passage.chunk_seq]);
+      onEvidenceSaved?.(created);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save passage");
+    } finally {
+      setSavingSeq(null);
+    }
   }
 
   return (
@@ -123,15 +158,30 @@ export default function ReaderModal({ sourceId, onClose }: Props) {
                 <span className="rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">local extraction · no AI</span>
               </div>
               <ol className="mt-3 space-y-3">
-                {source.important_passages.map((passage) => (
-                  <li key={passage.chunk_seq} className="border-l-2 border-emerald-400 pl-3">
+                {source.important_passages.map((passage, index) => (
+                  <li key={`${passage.chunk_seq}-${index}`} className="border-l-2 border-emerald-400 pl-3">
                     <p className="text-sm leading-relaxed text-neutral-200">{passage.text}</p>
                     <p className="mt-1 text-[11px] text-neutral-500">
                       Page {passage.pages.join(", ") || 1} · relevance {Math.round(passage.score * 100)}%
                     </p>
+                    <button
+                      type="button"
+                      className="mt-2 min-h-11 rounded-lg border border-neutral-700 px-3 text-xs font-semibold text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
+                      disabled={savingSeq !== null || savedSeqs.includes(passage.chunk_seq)}
+                      onClick={() => savePassage(passage)}
+                    >
+                      {savedSeqs.includes(passage.chunk_seq) ? "Saved to notes" : savingSeq === passage.chunk_seq ? "Saving…" : "Save passage to notes"}
+                    </button>
                   </li>
                 ))}
               </ol>
+              {savedSeqs.length > 0 && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 pt-3">
+                  <p className="text-xs text-neutral-500">Saved {savedSeqs.length} passage{savedSeqs.length === 1 ? "" : "s"}. Add more or continue writing.</p>
+                  {onViewNotes && <button type="button" className="min-h-11 rounded-lg bg-aqua px-4 text-xs font-semibold text-neutral-950" onClick={onViewNotes}>View notes →</button>}
+                </div>
+              )}
+              {saveError && <p role="alert" className="mt-3 text-xs text-red-400">{saveError}</p>}
             </section>
           )}
           {current && (

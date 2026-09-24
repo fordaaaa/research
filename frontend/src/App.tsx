@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "./api";
-import type { Notebook, SourceSummary, User } from "./api";
+import type { Note, Notebook, SourceSummary, User } from "./api";
 import AuthPanel from "./components/AuthPanel";
 import NotebookPicker from "./components/NotebookPicker";
 import UploadZone from "./components/UploadZone";
@@ -70,6 +70,7 @@ export default function App() {
   const [hostedAIAvailable, setHostedAIAvailable] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [readingId, setReadingId] = useState<string | null>(null);
+  const [capturedNote, setCapturedNote] = useState<Note | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
@@ -353,7 +354,7 @@ export default function App() {
             </div>
             {mobileLibraryPane === "notes" && (
               <div className="block lg:hidden">
-                <NotesPanel notebookId={notebook.id} />
+                <NotesPanel notebookId={notebook.id} capturedNote={capturedNote} />
               </div>
             )}
           </aside>
@@ -424,7 +425,7 @@ export default function App() {
               />
             )}
             {view === "study" && <StudyPanel notebookId={notebook.id} onSourcesChanged={() => refreshSources(notebook.id)} onOpenSource={setReadingId} />}
-            {view === "notes" && <NotesPanel notebookId={notebook.id} />}
+            {view === "notes" && <NotesPanel notebookId={notebook.id} capturedNote={capturedNote} />}
             {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
             {view === "skills" && <SkillsPanel notebookId={notebook.id} />}
           </main>
@@ -444,7 +445,10 @@ export default function App() {
         appearance={appearance}
         onAppearanceChange={setAppearance}
       />
-      <ReaderModal sourceId={readingId} onClose={() => setReadingId(null)} />
+      <ReaderModal sourceId={readingId} onClose={() => setReadingId(null)} onEvidenceSaved={setCapturedNote} onViewNotes={() => {
+        setReadingId(null);
+        selectView("notes");
+      }} />
       {user && ((tourStage === "landing" && !notebook) || (tourStage === "workspace" && !!notebook)) && (
         <FirstRunTour
           step={(tourStage === "landing" ? LANDING_TOUR : WORKSPACE_TOUR)[tourIndex]}

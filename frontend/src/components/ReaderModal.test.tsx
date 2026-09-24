@@ -7,11 +7,12 @@ import ReaderModal from "./ReaderModal";
 
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
-  return { ...actual, getSource: vi.fn() };
+  return { ...actual, getSource: vi.fn(), createNote: vi.fn() };
 });
 
 afterEach(() => cleanup());
 beforeEach(() => {
+  vi.mocked(api.createNote).mockReset();
   vi.mocked(api.getSource).mockResolvedValue({
     id: "source-1", notebook_id: "notebook-1", kind: "pdf", title: "Notes", tags: [],
     meta: { page_count: 3 }, created_at: "2026-01-01T00:00:00Z", chunk_count: 3,
@@ -27,9 +28,9 @@ describe("ReaderModal mobile paging", () => {
     await waitFor(() => expect(screen.getByText("Page one")).toBeTruthy());
     expect(document.body.style.overflow).toBe("hidden");
     fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(screen.getByText("Page two")).toBeTruthy();
+    expect(await screen.findByText("Page two")).toBeTruthy();
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(screen.getByText("Page one")).toBeTruthy();
+    expect(await screen.findByText("Page one")).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
     rerender(<ReaderModal sourceId={null} onClose={onClose} />);
@@ -64,6 +65,75 @@ describe("ReaderModal mobile paging", () => {
     expect(await screen.findByRole("heading", { name: /important passages/i })).toBeTruthy();
     expect(screen.getByText("The central result is reproducible.")).toBeTruthy();
     expect(screen.getByText(/local extraction/i)).toBeTruthy();
+  });
+
+  it("saves an important passage as a cited note and opens notes", async () => {
+    vi.mocked(api.getSource).mockResolvedValueOnce({
+      id: "123456789abc", notebook_id: "abcdef123456", kind: "pdf", title: "Cell Biology", tags: [],
+      meta: { page_count: 1 }, created_at: "2026-01-01T00:00:00Z", chunk_count: 1,
+      pages: [{ number: 3, text: "Cells have membranes." }], chunks: [{ seq: 0, pages: [3], text: "Cells have membranes." }],
+      important_passages: [{ text: "Cells have membranes.", score: 0.8, chunk_seq: 0, pages: [3] }],
+    } satisfies SourceDetail);
+    const created: api.Note = {
+      id: "111111111111", notebook_id: "abcdef123456", title: "Evidence from Cell Biology, p. 3",
+      body: "> Cells have membranes.\n\nSource: Cell Biology, p. 3", tags: [],
+      citations: [{ source_id: "123456789abc", chunk_seq: 0 }], rev: 1,
+      created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    };
+    vi.mocked(api.createNote).mockResolvedValue(created);
+    const onEvidenceSaved = vi.fn();
+    const onViewNotes = vi.fn();
+    render(<ReaderModal sourceId="123456789abc" onClose={vi.fn()} onEvidenceSaved={onEvidenceSaved} onViewNotes={onViewNotes} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /save passage to notes/i }));
+    await waitFor(() => expect(api.createNote).toHaveBeenCalledWith("abcdef123456", {
+      title: "Evidence from Cell Biology, p. 3",
+      body: "> Cells have membranes.\n\nSource: Cell Biology, p. 3",
+      citations: [{ source_id: "123456789abc", chunk_seq: 0 }],
+    }));
+    await waitFor(() => expect(onEvidenceSaved).toHaveBeenCalledWith(created));
+    const saved = screen.getByRole("button", { name: "Saved to notes" });
+    expect(saved).toHaveProperty("disabled", true);
+    fireEvent.click(saved);
+    expect(api.createNote).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /view notes/i }));
+    expect(onViewNotes).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the reader open and reports a failed evidence save", async () => {
+    vi.mocked(api.getSource).mockResolvedValueOnce({
+      id: "123456789abc", notebook_id: "abcdef123456", kind: "pdf", title: "Cell Biology", tags: [],
+      meta: { page_count: 1 }, created_at: "2026-01-01T00:00:00Z", chunk_count: 1,
+      pages: [{ number: 3, text: "Cells have membranes." }], chunks: [{ seq: 0, pages: [3], text: "Cells have membranes." }],
+      important_passages: [{ text: "Cells have membranes.", score: 0.8, chunk_seq: 0, pages: [3] }],
+    } satisfies SourceDetail);
+    vi.mocked(api.createNote).mockRejectedValue(new Error("Save failed"));
+    const onEvidenceSaved = vi.fn();
+    render(<ReaderModal sourceId="123456789abc" onClose={vi.fn()} onEvidenceSaved={onEvidenceSaved} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /save passage to notes/i }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Save failed");
+    expect(onEvidenceSaved).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save passage to notes/i })).toHaveProperty("disabled", false);
+  });
+
+  it("keeps generated note titles within the API limit for long source and page lists", async () => {
+    const pages = Array.from({ length: 45 }, (_, i) => i + 1);
+    vi.mocked(api.getSource).mockResolvedValueOnce({
+      id: "123456789abc", notebook_id: "abcdef123456", kind: "pdf", title: "A".repeat(300), tags: [],
+      meta: {}, created_at: "2026-01-01T00:00:00Z", chunk_count: 1,
+      pages: [{ number: 1, text: "Useful quote" }], chunks: [{ seq: 0, pages, text: "Useful quote" }],
+      important_passages: [{ text: "Useful quote", score: 0.8, chunk_seq: 0, pages }],
+    } satisfies SourceDetail);
+    vi.mocked(api.createNote).mockResolvedValue({} as api.Note);
+    render(<ReaderModal sourceId="123456789abc" onClose={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /save passage to notes/i }));
+    await waitFor(() => expect(api.createNote).toHaveBeenCalledTimes(1));
+    const body = vi.mocked(api.createNote).mock.calls[0][1];
+    expect(body.title.length).toBeLessThanOrEqual(200);
+    expect(body.body).toContain("Source: ");
+    expect(body.citations).toEqual([{ source_id: "123456789abc", chunk_seq: 0 }]);
   });
 
   it("ignores a stale source response when the reader switches sources", async () => {

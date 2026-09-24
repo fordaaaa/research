@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, SectionHeader, inputCls } from "./ui";
 interface Props {
   notebookId: string;
   autosaveMs?: number;
+  capturedNote?: Note | null;
 }
 
 function toSummary(note: Note): NoteSummary {
@@ -14,7 +15,7 @@ function toSummary(note: Note): NoteSummary {
   return summary;
 }
 
-export default function NotesPanel({ notebookId, autosaveMs = 900 }: Props) {
+export default function NotesPanel({ notebookId, autosaveMs = 900, capturedNote }: Props) {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [note, setNote] = useState<Note | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -27,6 +28,11 @@ export default function NotesPanel({ notebookId, autosaveMs = 900 }: Props) {
   useEffect(() => {
     noteRef.current = note;
   }, [note]);
+
+  useEffect(() => {
+    if (capturedNote?.notebook_id !== notebookId) return;
+    setNotes((items) => [toSummary(capturedNote), ...items.filter((item) => item.id !== capturedNote.id)]);
+  }, [capturedNote, notebookId]);
 
   const openNote = async (id: string) => {
     const request = openRequest.current + 1;

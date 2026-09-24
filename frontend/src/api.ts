@@ -339,7 +339,7 @@ export const deleteSource = (id: string) =>
 export const listNotes = (notebookId: string) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/notes`).then(j<NoteSummary[]>);
 
-export const createNote = (notebookId: string, body: { title: string; body: string }) =>
+export const createNote = (notebookId: string, body: { title: string; body: string; citations?: NoteCitation[] }) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/notes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
