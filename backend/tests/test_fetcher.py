@@ -1,4 +1,6 @@
-from core.fetcher import FetchError, fetch_article
+import httpx
+
+from core.fetcher import FetchError, _read_html, fetch_article
 
 
 def test_rejects_non_http_scheme():
@@ -24,3 +26,12 @@ def test_rejects_userinfo_and_private_hosts():
             assert False, "expected FetchError"
         except FetchError:
             pass
+
+
+def test_reads_xhtml_articles():
+    response = httpx.Response(
+        200,
+        headers={"content-type": "application/xhtml+xml; charset=utf-8"},
+        text="<html><body><article><p>Research text.</p></article></body></html>",
+    )
+    assert "Research text." in _read_html(response)

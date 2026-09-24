@@ -57,7 +57,7 @@ def _validate_url(url: str) -> None:
 
 def _read_html(response: httpx.Response) -> str:
     content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-    if content_type != "text/html":
+    if content_type not in {"text/html", "application/xhtml+xml"}:
         raise FetchError("url did not return HTML", status=415)
     length = response.headers.get("content-length")
     if length and length.isdigit() and int(length) > MAX_HTML_BYTES:
