@@ -114,6 +114,19 @@ def test_proximity_bonus_cluster_wins():
     assert close_score > apart_score
 
 
+def test_proximity_uses_closest_occurrences_not_first_hits():
+    query = search.parse_query("cat dog")
+    clustered = "cat " + "x " * 40 + "dog cat dog"
+    separated = "cat cat " + "x " * 40 + "dog dog"
+    _, clustered_score, _ = search.score_chunk(clustered, query)
+    _, separated_score, _ = search.score_chunk(separated, query)
+    assert clustered_score > separated_score
+
+
+def test_proximity_does_not_count_stems_inside_other_words():
+    assert search._proximity_bonus("cart dog " + "x " * 40 + "art", ["art", "dog"]) == 0
+
+
 def test_score_chunk_returns_matched_stems():
     q = search.parse_query("plant photosynthesis")
     _, _, stems = search.score_chunk("plant photosynthesis drives growth", q)

@@ -150,13 +150,28 @@ def _tfidf(tf: int, term: str, df: dict[str, int] | None, n_docs: int) -> float:
 def _proximity_bonus(lower: str, terms: list[str]) -> int:
     if not terms:
         return 0
-    positions = []
-    for t in terms:
-        pos = lower.find(t)
-        if pos == -1:
-            return 0
-        positions.append(pos)
-    span = max(positions) - min(positions)
-    if span <= PROXIMITY_WINDOW:
-        return int((PROXIMITY_WINDOW - span) / 3)
-    return 0
+    needed = set(terms)
+    occurrences = [
+        (match.start(), token)
+        for match in _WORD.finditer(lower)
+        if (token := stem(match.group())) in needed
+    ]
+    counts: Counter[str] = Counter()
+    present = 0
+    left = 0
+    best_span: int | None = None
+    for end_pos, token in occurrences:
+        counts[token] += 1
+        if counts[token] == 1:
+            present += 1
+        while present == len(needed):
+            span = end_pos - occurrences[left][0]
+            best_span = span if best_span is None else min(best_span, span)
+            left_token = occurrences[left][1]
+            counts[left_token] -= 1
+            if counts[left_token] == 0:
+                present -= 1
+            left += 1
+    if best_span is None or best_span > PROXIMITY_WINDOW:
+        return 0
+    return int((PROXIMITY_WINDOW - best_span) / 3)
