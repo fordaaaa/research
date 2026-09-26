@@ -135,6 +135,48 @@ def score_chunk(
     return True, score, matched_stems
 
 
+def is_single_token_query(query: ParsedQuery) -> bool:
+    """True when the query is one bare token (no phrases, no extra terms).
+
+    Reuses the parsed query so stopword removal and phrase extraction stay
+    consistent with the normal path; multi-token and phrase queries are
+    never eligible for prefix fallback.
+    """
+    return len(query.terms) == 1 and len(query.phrases) == 0
+
+
+def score_prefix_chunk(
+    text: str,
+    query: ParsedQuery,
+    df_prefix: int = 0,
+    n_docs: int = 1,
+) -> tuple[bool, float, list[str]]:
+    """Prefix fallback scorer for single-token queries with zero exact hits.
+
+    A chunk matches when any indexed stem starts with the query stem (or the
+    raw lowercased token, per existing normalization). Scoring mirrors the
+    normal path: prefix-term frequency scaled by smoothed IDF plus the same
+    single-term proximity bonus, so fallback hits sort like normal hits.
+    """
+    if not is_single_token_query(query):
+        return False, 0, []
+    q_stem = query.terms[0]
+    q_raw = query.original_terms[0] if query.original_terms else q_stem
+    counts = Counter(stemmed_words(text))
+    matched = sorted(
+        {t for t in counts if t.startswith(q_stem) or t.startswith(q_raw)}
+    )
+    if not matched:
+        return False, 0, []
+    tf = sum(counts[t] for t in matched)
+    df_t = max(1, df_prefix)
+    score = tf * math.log1p(n_docs / df_t)
+    # Single-term proximity bonus mirrors the normal path: one occurrence
+    # always yields best_span 0, i.e. int(PROXIMITY_WINDOW / 3).
+    score += int(PROXIMITY_WINDOW / 3)
+    return True, score, matched
+
+
 def _tfidf(tf: int, term: str, df: dict[str, int] | None, n_docs: int) -> float:
     """Plain term frequency scaled by smoothed inverse document frequency.
 
