@@ -38,7 +38,14 @@ from core.models import (
     User,
     utcnow,
 )
-from core.search import EmptyQuery, parse_query, score_chunk, stemmed_words
+from core.search import (
+    EmptyQuery,
+    is_single_token_query,
+    parse_query,
+    score_chunk,
+    score_prefix_chunk,
+    stemmed_words,
+)
 
 
 def new_id() -> str:
@@ -173,6 +180,12 @@ CREATE TABLE IF NOT EXISTS ai_settings (
     provider TEXT NOT NULL,
     api_key TEXT NOT NULL,
     model TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS user_progress (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    done_at TEXT NOT NULL,
+    PRIMARY KEY(user_id, key)
 );
 """
 
@@ -330,6 +343,15 @@ class Store:
         with self._connect() as con:
             con.execute("DELETE FROM sessions WHERE token_hash = ?", (digest,))
 
+    def purge_expired_sessions(self) -> int:
+        """Delete expired sessions; return the number of rows removed."""
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?",
+                (utcnow().isoformat(),),
+            )
+            return cur.rowcount
+
     # ---------- AI settings (per user) ----------
 
     def get_ai_settings(self, user_id: str) -> AISettings:
@@ -366,6 +388,31 @@ class Store:
     def clear_ai_settings(self, user_id: str) -> None:
         with self._connect() as con:
             con.execute("DELETE FROM ai_settings WHERE user_id = ?", (user_id,))
+
+    # ---------- onboarding progress (per user, survives new devices) ----------
+
+    PROGRESS_KEYS: tuple[str, ...] = ("add_source", "search", "export", "review")
+
+    def mark_progress(self, user_id: str, key: str) -> None:
+        """Idempotent upsert of one progress flag."""
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO user_progress (user_id, key, done_at) VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, key) DO UPDATE SET done_at=excluded.done_at",
+                (user_id, key, utcnow().isoformat()),
+            )
+
+    def get_progress(self, user_id: str) -> dict[str, bool]:
+        """Return {add_source, search, export, review} booleans (false defaults)."""
+        with self._connect() as con:
+            try:
+                rows = con.execute(
+                    "SELECT key FROM user_progress WHERE user_id = ?", (user_id,)
+                ).fetchall()
+            except Exception:
+                return {k: False for k in self.PROGRESS_KEYS}
+        done = {r["key"] for r in rows}
+        return {k: (k in done) for k in self.PROGRESS_KEYS}
 
     # ---------- notebooks ----------
 
@@ -814,6 +861,15 @@ class Store:
             cur = con.execute("DELETE FROM chat_sessions WHERE id = ? AND notebook_id = ?", (session_id, notebook_id))
             return cur.rowcount > 0
 
+    def get_chat_message(self, session_id: str, message_id: str) -> ChatMessage | None:
+        """Return one message of a session, or None if absent/foreign."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM chat_messages WHERE id = ? AND session_id = ?",
+                (message_id, session_id),
+            ).fetchone()
+        return _chat_message_from_row(row) if row else None
+
     def list_chat_messages(
         self, session_id: str, *, limit: int | None = None, before: str | None = None
     ) -> list[ChatMessage]:
@@ -919,8 +975,48 @@ class Store:
                         matched_terms=matched_stems,
                     )
                 )
+        if not hits and is_single_token_query(parsed):
+            q_stem = parsed.terms[0]
+            q_raw = parsed.original_terms[0] if parsed.original_terms else q_stem
+            df_prefix = 0
+            for source in sources:
+                document_terms = {
+                    term
+                    for chunk in source.chunks
+                    for term in stemmed_words(chunk.text)
+                }
+                if any(
+                    t.startswith(q_stem) or t.startswith(q_raw)
+                    for t in document_terms
+                ):
+                    df_prefix += 1
+            for src in sources:
+                for chunk in src.chunks:
+                    matched, score, matched_stems = score_prefix_chunk(
+                        chunk.text, parsed, df_prefix=df_prefix, n_docs=n_docs
+                    )
+                    if not matched:
+                        continue
+                    hits.append(
+                        SearchHit(
+                            source_id=src.id,
+                            source_title=src.title,
+                            pages=chunk.pages,
+                            score=score,
+                            snippet=_snippet(chunk.text, parsed.terms),
+                            matched_terms=matched_stems,
+                        )
+                    )
         hits.sort(key=lambda h: h.score, reverse=True)
-        return hits[offset : offset + limit]
+        seen: set[tuple[str, tuple[int, ...], str, float]] = set()
+        unique: list[SearchHit] = []
+        for h in hits:
+            key = (h.source_id, tuple(h.pages), h.snippet, h.score)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(h)
+        return unique[offset : offset + limit]
 
 
 def _user_from_row(row: Any) -> User:

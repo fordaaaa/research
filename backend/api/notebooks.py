@@ -25,11 +25,17 @@ def register(app: FastAPI) -> None:
     def list_notebooks(user: User = Depends(get_current_user)):
         return get_store(app).list_notebooks(user.id)
 
+    @app.get("/api/notebooks/{notebook_id}")
+    def get_notebook(notebook_id: str, user: User = Depends(get_current_user)):
+        notebook_id = safe_id(notebook_id, "notebook_id")
+        return notebook_or_404(get_store(app), user.id, notebook_id)
+
     @app.get("/api/notebooks/{notebook_id}/export")
     def export_notebook(notebook_id: str, user: User = Depends(get_current_user)):
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), user.id, notebook_id)
         data, filename = md_export.export_notebook(get_store(app), user.id, notebook_id)
+        get_store(app).mark_progress(user.id, "export")
         return StreamingResponse(
             io.BytesIO(data),
             media_type="application/zip",

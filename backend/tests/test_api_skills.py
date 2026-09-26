@@ -49,7 +49,7 @@ def test_skills_crud_round_trip(client):
 def test_skills_validate_input(client):
     assert client.post("/api/skills", json={"name": "", "instructions": "x"}).status_code == 422
     assert client.post("/api/skills", json={"name": "x", "instructions": ""}).status_code == 422
-    assert client.get("/api/skills/not-an-id").status_code == 400
+    assert client.get("/api/skills/not-an-id").status_code == 404
 
 
 def test_memory_round_trip_per_notebook(client):

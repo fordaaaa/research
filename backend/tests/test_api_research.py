@@ -80,7 +80,8 @@ def test_plan_404_unknown_notebook(client):
 
 def test_plan_rejects_invalid_id(client):
     response = client.post("/api/notebooks/not-an-id/research/plan", json={"topic": "crabs"})
-    assert response.status_code == 400
+    assert response.status_code == 404
+    assert response.json() == {"detail": "notebook not found"}
 
 
 def test_gather_merges_and_ranks_across_queries(client, monkeypatch):

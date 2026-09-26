@@ -13,6 +13,16 @@ MAX_SESSION_HISTORY_CHARS = 4_000
 
 
 def register(app: FastAPI) -> None:
+    @app.get("/api/ai/hosted/status")
+    def hosted_status(user: User = Depends(get_current_user)):
+        """Whether server-side hosted AI is available for this user.
+
+        This repo ships no hosted inference server, so the local default is
+        honestly `{"enabled": false}`. The private research-server overrides
+        this route when present to advertise hosted AI credits/routing.
+        """
+        return {"enabled": False}
+
     @app.get("/api/settings/ai")
     def get_settings(user: User = Depends(get_current_user)):
         return get_store(app).get_ai_settings(user.id)
@@ -76,6 +86,10 @@ def register(app: FastAPI) -> None:
         notebook_or_404(store, user.id, notebook_id)
         if not store.get_chat_session(notebook_id, session_id):
             raise HTTPException(status_code=404, detail="chat session not found")
+        if before is not None and store.get_chat_message(session_id, before) is None:
+            # Cursor targets a missing/foreign message: same 404 body as a
+            # malformed cursor so callers cannot probe message-id validity.
+            raise HTTPException(status_code=404, detail="chat message not found")
         return store.list_chat_messages(session_id, limit=limit, before=before)
 
     @app.post("/api/notebooks/{notebook_id}/chat/sessions/{session_id}/messages", response_model=ChatMessage)

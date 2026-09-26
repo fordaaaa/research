@@ -64,6 +64,11 @@ class Source(BaseModel):
         return restored
 
 
+class DuplicateRef(BaseModel):
+    id: str
+    title: str
+
+
 class SourceSummary(BaseModel):
     id: str
     notebook_id: str
@@ -73,6 +78,7 @@ class SourceSummary(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     chunk_count: int
+    duplicate_of: DuplicateRef | None = None
 
 
 class NoteCitation(BaseModel):
@@ -140,12 +146,30 @@ class SearchHit(BaseModel):
 
 
 class NotebookCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    """Create payload for POST /api/notebooks.
+
+    `title` is accepted as an alias of `name` (DX convenience): when both
+    are given, `name` wins; when only `title` is given, it is used as the
+    name. At least one non-blank value is required. The stored model keeps
+    `name` only.
+    """
+
+    name: str | None = Field(default=None, max_length=120)
+    title: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def _resolve_title_alias(self) -> "NotebookCreate":
+        effective = self.name if (self.name and self.name.strip()) else self.title
+        if effective is None or not effective.strip():
+            raise ValueError("name must not be blank")
+        self.name = effective
+        return self
 
 
 class PasteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200, default="Pasted note")
     text: str = Field(min_length=1, max_length=5_000_000)
+    force: bool = False
 
 
 class SourceUpdate(BaseModel):
@@ -155,6 +179,7 @@ class SourceUpdate(BaseModel):
 
 class UrlCreate(BaseModel):
     url: str = Field(min_length=5, max_length=2000)
+    force: bool = False
 
 
 class WebSearchResult(BaseModel):

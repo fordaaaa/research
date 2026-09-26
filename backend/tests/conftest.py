@@ -5,6 +5,24 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limits():
+    """Clear login + register buckets around every test.
+
+    Register throttle is 20/hour per client IP and the TestClient peer is
+    shared across tests, so without this the suite's hundreds of registers
+    would trip the guard. reset_login_rate_limits() also clears the
+    register buckets.
+    """
+    from api import auth as auth_module
+
+    if hasattr(auth_module, "reset_login_rate_limits"):
+        auth_module.reset_login_rate_limits()
+    yield
+    if hasattr(auth_module, "reset_login_rate_limits"):
+        auth_module.reset_login_rate_limits()
+
+
 @pytest.fixture()
 def data_dir(tmp_path: Path) -> Path:
     return tmp_path / "data"

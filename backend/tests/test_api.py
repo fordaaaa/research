@@ -241,9 +241,17 @@ def test_invalid_id_returns_400(client):
     # (URLs that try to traverse (e.g. "../etc") get normalized away by the
     # HTTP client and never reach the route at all, so we use a string that
     # passes through as-is but fails the id regex.)
-    assert client.get("/api/notebooks/notahexid/search", params={"q": "x"}).status_code == 400
-    assert client.get("/api/sources/notahexid").status_code == 400
-    assert client.delete("/api/notebooks/notahexid").status_code == 400
+    # Known resource ids return their not-found 404 (no oracle between
+    # malformed and well-formed-but-foreign); unknown names keep 400.
+    r = client.get("/api/notebooks/notahexid/search", params={"q": "x"})
+    assert r.status_code == 404
+    assert r.json() == {"detail": "notebook not found"}
+    r = client.get("/api/sources/notahexid")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "source not found"}
+    r = client.delete("/api/notebooks/notahexid")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "notebook not found"}
 
 
 def test_source_chunks_page_avoids_full_hydration(client, monkeypatch):

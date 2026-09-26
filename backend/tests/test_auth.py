@@ -27,14 +27,37 @@ def test_register_validates_email_and_password(data_dir, monkeypatch):
         assert client.post(
             "/api/auth/register", json={"email": "a@b.com", "password": "short"}
         ).status_code == 422
-        assert client.post(
+        first = client.post(
             "/api/auth/register",
             json={"email": "student@example.com", "password": "password123"},
-        ).status_code == 201
-        assert client.post(
+        )
+        assert first.status_code == 201
+        assert first.json()["token"]
+        dup = client.post(
             "/api/auth/register",
             json={"email": "STUDENT@example.com", "password": "password123"},
-        ).status_code == 409
+        )
+        assert dup.status_code == 200
+        dup_body = dup.json()
+        assert dup_body["registered"] is False
+        assert "token" not in dup_body
+        assert "user" not in dup_body
+        assert isinstance(dup_body.get("detail"), str) and dup_body["detail"]
+        assert "already registered" not in dup_body["detail"]
+        # duplicate must not mint a session: only the first register's session exists
+        from core.store import Store
+
+        store = Store(root=data_dir)
+        with store._connect() as con:
+            n = con.execute("SELECT COUNT(*) AS n FROM sessions").fetchone()["n"]
+        assert n == 1
+        # original credentials still log in after the duplicate attempt
+        ok = client.post(
+            "/api/auth/login",
+            json={"email": "student@example.com", "password": "password123"},
+        )
+        assert ok.status_code == 200
+        assert ok.json()["token"]
 
 
 def test_login_round_trip_and_wrong_password(data_dir, monkeypatch):

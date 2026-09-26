@@ -57,7 +57,7 @@ def test_outline_404s(client):
     nb = _nb(client)
     assert client.get(f"/api/notebooks/{nb['id']}/outlines/aaaaaaaaaaaa").status_code == 404
     assert client.get("/api/notebooks/aaaaaaaaaaaa/outlines").status_code == 404
-    assert client.post("/api/notebooks/not-an-id/outlines", json={"topic": "crabs"}).status_code == 400
+    assert client.post("/api/notebooks/not-an-id/outlines", json={"topic": "crabs"}).status_code == 404
 
 
 def test_draft_keyless_returns_heuristic(client):
