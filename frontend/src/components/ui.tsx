@@ -68,16 +68,41 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
+export function Skeleton({ lines = 3, className = "", live = true }: { lines?: number; className?: string; live?: boolean }) {
+  return (
+    <div
+      data-testid="skeleton"
+      role={live ? "status" : undefined}
+      aria-label={live ? "Loading content" : undefined}
+      className={`animate-pulse space-y-2 ${className}`}
+    >
+      {Array.from({ length: Math.max(1, lines) }).map((_, i) => (
+        <div
+          key={i}
+          data-skeleton-bar
+          aria-hidden="true"
+          className="h-3 rounded bg-neutral-800"
+          style={{ width: `${100 - ((i * 17) % 35)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function Tabs<T extends string>({
   options,
   value,
   onChange,
   className = "",
+  inert = false,
+  label,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (next: T) => void;
   className?: string;
+  inert?: boolean;
+  label?: string;
 }) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -92,8 +117,14 @@ export function Tabs<T extends string>({
     refs.current[next]?.focus();
   }
 
+  // Round 19 item 4: an off-breakpoint tablist stays mounted but hidden via
+  // CSS + inert — keeping aria-selected=true there is the twin-tabs smell
+  // (two selected tabs exposed at once). While inert, expose every tab as
+  // unselected (and untabbable); the internal `value` is untouched so
+  // re-show restores the selection exactly.
+  const exposed = !inert;
   return (
-    <div className={`flex gap-1 rounded-xl border border-neutral-800 bg-seafoam/70 p-1 w-fit max-w-full overflow-x-auto ${className}`} role="tablist">
+    <div inert={inert || undefined} className={`flex gap-1 rounded-xl border border-neutral-800 bg-seafoam/70 p-1 w-fit max-w-full overflow-x-auto ${className}`} role="tablist" aria-label={label}>
       {options.map((option, index) => (
         <button
           key={option.value}
@@ -101,8 +132,9 @@ export function Tabs<T extends string>({
             refs.current[index] = node;
           }}
           role="tab"
-          aria-selected={value === option.value}
-          tabIndex={value === option.value ? 0 : -1}
+          aria-selected={exposed && value === option.value}
+          aria-label={label ? `${option.label} (${label})` : undefined}
+          tabIndex={exposed && value === option.value ? 0 : -1}
           type="button"
           className={`min-h-11 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors ${
             value === option.value
@@ -136,16 +168,19 @@ export function BottomNav<T extends string>({
   value,
   onChange,
   className = "",
+  inert = false,
 }: {
   label: string;
   items: BottomNavItem<T>[];
   value: T;
   onChange: (next: T) => void;
   className?: string;
+  inert?: boolean;
 }) {
   return (
     <nav
       aria-label={label}
+      inert={inert || undefined}
       className={`safe-bottom z-30 grid border-t border-neutral-800 bg-neutral-900/95 p-2 shadow-[0_-10px_30px_rgba(6,48,62,0.08)] backdrop-blur ${className}`}
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
@@ -196,39 +231,90 @@ export function SwipeRow({
   actionLabel = "Row actions",
   actionWidth = 112,
   className = "",
+  hideToggleOnDesktop = false,
 }: {
   children: ReactNode;
   actions: ReactNode;
   actionLabel?: string;
   actionWidth?: number;
   className?: string;
+  hideToggleOnDesktop?: boolean;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   const [open, setOpen] = useState(false);
   const [dragOffset, setDragOffset] = useState<number | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  // True once a horizontal drag passed the capture threshold for this gesture.
+  const swiping = useRef(false);
+  // Pointer id we captured, if any — released on pointer end.
+  const capturedId = useRef<number | null>(null);
+  const CAPTURE_THRESHOLD = 12;
+
+  function tryCapture(target: EventTarget | null, pointerId: number) {
+    if (capturedId.current !== null) return;
+    const el = target as HTMLElement | null;
+    if (!el || typeof el.setPointerCapture !== "function") return;
+    try {
+      if (typeof el.hasPointerCapture === "function" && el.hasPointerCapture(pointerId)) {
+        capturedId.current = pointerId;
+        return;
+      }
+      el.setPointerCapture(pointerId);
+      capturedId.current = pointerId;
+    } catch {
+      // Best-effort: some browsers throw NotFoundError for mouse pointers.
+      // Swipe tracking works without capture, so never break the gesture.
+    }
+  }
+
+  function tryRelease(target: EventTarget | null, pointerId: number) {
+    if (capturedId.current === null) return;
+    capturedId.current = null;
+    const el = target as HTMLElement | null;
+    if (!el || typeof el.releasePointerCapture !== "function") return;
+    try {
+      if (typeof el.hasPointerCapture === "function" && !el.hasPointerCapture(pointerId)) return;
+      el.releasePointerCapture(pointerId);
+    } catch {
+      // Ignore — the pointer is gone or was never captured.
+    }
+  }
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     dragStart.current = { x: event.clientX, y: event.clientY };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    swiping.current = false;
+    // Deliberately no setPointerCapture here: capturing on pointerdown
+    // retargets the pointer to the surface, so clicks on inner controls
+    // (title, Read, Delete) never fire for mouse/touch.
   }
 
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
     if (dragStart.current === null) return;
+    const dx = event.clientX - dragStart.current.x;
+    const dy = event.clientY - dragStart.current.y;
+    if (!swiping.current) {
+      // Only engage the swipe (and capture the pointer) once a clear
+      // horizontal drag exceeds the threshold; taps and vertical scrolls
+      // must leave inner controls and scrolling untouched.
+      if (Math.abs(dx) < CAPTURE_THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
+      swiping.current = true;
+      tryCapture(event.currentTarget, event.pointerId);
+    }
     const origin = open ? -actionWidth : 0;
-    const next = Math.max(-actionWidth, Math.min(0, origin + event.clientX - dragStart.current.x));
+    const next = Math.max(-actionWidth, Math.min(0, origin + dx));
     setDragOffset(next);
   }
 
   function pointerEnd(event: PointerEvent<HTMLDivElement>) {
     const start = dragStart.current;
+    tryRelease(event.currentTarget, event.pointerId);
+    swiping.current = false;
     if (start === null) return;
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
     if (Math.abs(dy) > Math.abs(dx)) {
       dragStart.current = null;
       setDragOffset(null);
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
       return;
     }
     if (dx <= -56) setOpen(true);
@@ -236,24 +322,27 @@ export function SwipeRow({
     else if (dragOffset !== null) setOpen(Math.abs(dragOffset) > actionWidth / 2);
     dragStart.current = null;
     setDragOffset(null);
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
   }
 
   const offset = dragOffset ?? (open ? -actionWidth : 0);
   const revealed = open || dragOffset !== null;
   return (
     <div className={`relative overflow-hidden rounded-xl ${className}`}>
-      <div
-        role="group"
-        aria-label={actionLabel}
-        aria-hidden={!revealed}
-        inert={!revealed}
-        data-testid="swipe-row-actions"
-        className="absolute inset-y-0 right-0 flex items-stretch justify-end gap-1 p-1"
-        style={{ width: actionWidth, visibility: revealed ? "visible" : "hidden" }}
-      >
-        {actions}
-      </div>
+      {/* Round 24 item 1: swipe actions mount ONLY when revealed. The old
+          hidden-but-mounted copy (aria-hidden + inert + visibility:hidden)
+          shared accessible names with the visible inline Delete/Confirm
+          (SR rotor noise, automation traps). Closed rows expose no twin. */}
+      {revealed && (
+        <div
+          role="group"
+          aria-label={actionLabel}
+          data-testid="swipe-row-actions"
+          className="absolute inset-y-0 right-0 flex items-stretch justify-end gap-1 p-1"
+          style={{ width: actionWidth }}
+        >
+          {actions}
+        </div>
+      )}
       <div
         data-testid="swipe-row-surface"
         className={`relative flex min-h-11 items-center gap-2 bg-neutral-900 ${
@@ -270,10 +359,11 @@ export function SwipeRow({
           type="button"
           aria-expanded={open}
           aria-label={`${open ? "Hide" : "Show"} ${actionLabel}`}
-          className="min-h-11 shrink-0 rounded-lg px-3 text-xs font-semibold text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
+          title={`${open ? "Hide" : "Show"} ${actionLabel}`}
+          className={`min-h-11 min-w-11 shrink-0 rounded-lg px-2 text-base font-semibold text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 ${hideToggleOnDesktop ? "sm:hidden" : ""}`}
           onClick={() => setOpen((shown) => !shown)}
         >
-          {open ? "Close" : "Actions"}
+          <span aria-hidden="true">{open ? "✕" : "⋯"}</span>
         </button>
       </div>
     </div>

@@ -70,7 +70,7 @@ describe("ChatPanel sessions", () => {
     const { onOpenSource } = renderPanel();
     await waitFor(() => expect(screen.getByText("Mitochondria make ATP.")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: /Cell notes/i }));
-    expect(onOpenSource).toHaveBeenCalledWith("source-1");
+    expect(onOpenSource).toHaveBeenCalledWith("source-1", expect.anything());
   });
 
   it("keeps history readable but disables composer without an AI key", async () => {

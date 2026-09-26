@@ -15,7 +15,7 @@ it("highlights the requested control and closes on Escape", () => {
   render(<FirstRunTour step={{ title: "Create a notebook", description: "Start here.", targets: ['[data-tour="create-notebook"]'] }} index={1} total={3} onNext={vi.fn()} onBack={vi.fn()} onSkip={onSkip} />);
   expect(screen.getByTestId("tour-spotlight").style.left).toBe("32px");
   const dialog = screen.getByRole("dialog", { name: "Create a notebook" });
-  expect(dialog.getAttribute("aria-modal")).toBe("false");
+  expect(dialog.getAttribute("aria-modal")).toBe("true");
   target.focus();
   fireEvent.keyDown(document, { key: "Tab" });
   expect(document.activeElement).toBe(screen.getByRole("button", { name: "Skip tour" }));

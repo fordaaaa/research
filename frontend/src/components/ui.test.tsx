@@ -86,15 +86,14 @@ describe("mobile UI primitives", () => {
       </SwipeRow>,
     );
 
-    const group = screen.getByTestId("swipe-row-actions");
-    expect(group.getAttribute("aria-label")).toBe("Source actions");
-    expect(group.getAttribute("aria-hidden")).toBe("true");
-    expect(group.hasAttribute("inert")).toBe(true);
+    // Round 24 item 1: closed rows mount no hidden action twins — nothing
+    // in the a11y tree until revealed (no aria-hidden/inert placeholder).
+    expect(screen.queryByTestId("swipe-row-actions")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Show Source actions" }));
     const revealed = screen.getByTestId("swipe-row-actions");
-    expect(revealed.getAttribute("aria-hidden")).toBe("false");
-    expect(revealed.hasAttribute("inert")).toBe(false);
+    expect(revealed.getAttribute("aria-label")).toBe("Source actions");
     expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
   });
 
@@ -125,5 +124,50 @@ describe("mobile UI primitives", () => {
     const nav = screen.getByRole("navigation", { name: "Notebook sections" });
     expect(nav.className).not.toMatch(/sticky/);
     expect(nav.className).not.toMatch(/fixed/);
+  });
+
+  it("does not capture the pointer on pointerdown so inner clicks still fire", () => {
+    const onRead = vi.fn();
+    render(
+      <SwipeRow actionLabel="Source actions" actions={<button type="button">Delete</button>}>
+        <button type="button" onClick={onRead}>Read Cell notes</button>
+      </SwipeRow>,
+    );
+
+    const surface = screen.getByTestId("swipe-row-surface");
+    const capture = vi.fn();
+    (surface as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+    fireEvent.pointerDown(surface, { clientX: 120, clientY: 100, pointerId: 1 });
+    expect(capture).not.toHaveBeenCalled();
+
+    // A tap with only a tiny move must leave the row action clickable.
+    fireEvent.pointerMove(surface, { clientX: 124, clientY: 101, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 124, clientY: 101, pointerId: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Read Cell notes" }));
+    expect(onRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("captures only after a horizontal-drag threshold and survives capture throws", () => {
+    render(
+      <SwipeRow actionLabel="Source actions" actions={<button type="button">Delete</button>}>
+        <span>Cell biology notes</span>
+      </SwipeRow>,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Show Source actions" });
+    const surface = screen.getByTestId("swipe-row-surface");
+    const capture = vi.fn(() => {
+      throw new DOMException("capture failed", "NotFoundError");
+    });
+    (surface as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+
+    expect(() => {
+      fireEvent.pointerDown(surface, { clientX: 120, clientY: 100, pointerId: 7 });
+      fireEvent.pointerMove(surface, { clientX: 20, clientY: 102, pointerId: 7 });
+      fireEvent.pointerUp(surface, { clientX: 20, clientY: 102, pointerId: 7 });
+    }).not.toThrow();
+    expect(capture).toHaveBeenCalled();
+    // The large swipe still reveals actions despite the capture failure.
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
   });
 });

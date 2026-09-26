@@ -226,7 +226,17 @@ export default function NotesPanel({ notebookId, autosaveMs = 900, capturedNote 
               <p className="mt-2 text-xs text-neutral-500">Markdown · autosaved with revision protection · AI not required</p>
             </div>
           ) : (
-            <EmptyState title="Choose a note or create a new one" />
+            <div className="space-y-3 py-2 text-center">
+              <EmptyState title="Choose a note or create a new one" hint="Notes live with this notebook and work without AI." />
+              <button
+                type="button"
+                aria-label="Create your first note"
+                className="min-h-11 rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200"
+                onClick={create}
+              >
+                New note
+              </button>
+            </div>
           )}
           {error && <p role="alert" className="mt-3 text-xs text-red-400">{error}</p>}
         </section>
