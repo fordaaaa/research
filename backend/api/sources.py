@@ -8,6 +8,7 @@ All routes require login; source access is refused outside the owner's notebooks
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.responses import JSONResponse
 
 from api.deps import get_current_user, get_store, notebook_or_404, safe_id
 from core import ingest, parsers
@@ -49,28 +50,75 @@ def register(app: FastAPI) -> None:
                 created.append(_summary(source))
             except IngestError as exc:
                 errors.append({"file": f.filename, "detail": str(exc)})
+        if created:
+            get_store(app).mark_progress(user.id, "add_source")
         return {"sources": created, "errors": errors}
 
     @app.post("/api/notebooks/{notebook_id}/sources/text", status_code=201)
     def create_paste_source(
-        notebook_id: str, body: PasteCreate, user: User = Depends(get_current_user)
+        notebook_id: str,
+        body: PasteCreate,
+        force: bool = Query(default=False),
+        user: User = Depends(get_current_user),
     ):
+        """Paste a text source; `?force=true` query or `force` body skips the dupe hint."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), user.id, notebook_id)
-        source = ingest.ingest_text(get_store(app), notebook_id, body.title, body.text)
-        return _summary(source)
+        store = get_store(app)
+        # PRE-CHECK: warn about duplicates BEFORE ingesting anything, so a
+        # cancelled save leaves the notebook unchanged (no orphan copy).
+        if not (body.force or force):
+            duplicate = ingest.find_duplicate_text_source(store, notebook_id, body.text)
+            if duplicate is not None:
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "saved": False,
+                        "duplicate_of": {"id": duplicate.id, "title": duplicate.title},
+                    },
+                )
+        source = ingest.ingest_text(store, notebook_id, body.title, body.text)
+        store.mark_progress(user.id, "add_source")
+        return JSONResponse(
+            status_code=201,
+            content=_summary(source, duplicate_of=None, saved=True),
+        )
 
     @app.post("/api/notebooks/{notebook_id}/sources/url", status_code=201)
     def create_url_source(
-        notebook_id: str, body: UrlCreate, user: User = Depends(get_current_user)
+        notebook_id: str,
+        body: UrlCreate,
+        force: bool = Query(default=False),
+        user: User = Depends(get_current_user),
     ):
+        """Import a URL source; `?force=true` query or `force` body skips the dupe hint."""
         notebook_id = safe_id(notebook_id, "notebook_id")
         notebook_or_404(get_store(app), user.id, notebook_id)
         try:
-            source = ingest.ingest_url(get_store(app), notebook_id, body.url)
+            store = get_store(app)
+            # Fetch once up front so the duplicate pre-check runs BEFORE
+            # anything is persisted (no ingest-then-delete rollback needed).
+            details = ingest.fetcher.fetch_article_details(body.url)
         except FetchError as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc))
-        return _summary(source)
+        if not (body.force or force):
+            duplicate = ingest.find_duplicate_text_source(
+                store, notebook_id, details.text
+            )
+            if duplicate is not None:
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "saved": False,
+                        "duplicate_of": {"id": duplicate.id, "title": duplicate.title},
+                    },
+                )
+        source = ingest.ingest_fetched_url(store, notebook_id, body.url, details)
+        store.mark_progress(user.id, "add_source")
+        return JSONResponse(
+            status_code=201,
+            content=_summary(source, duplicate_of=None, saved=True),
+        )
 
     @app.get("/api/notebooks/{notebook_id}/sources")
     def list_sources(notebook_id: str, user: User = Depends(get_current_user)):
@@ -103,7 +151,7 @@ def register(app: FastAPI) -> None:
     @app.get("/api/sources/{source_id}/chunks")
     def get_chunks(
         source_id: str,
-        offset: int = 0,
+        offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, le=200),
         user: User = Depends(get_current_user),
     ):
@@ -125,11 +173,15 @@ def register(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail="source not found")
 
 
-def _summary(source: Source) -> dict:
+def _summary(
+    source: Source, duplicate_of: dict | None = None, saved: bool = True
+) -> dict:
     data = source.model_dump(mode="json")
     data.pop("pages")
     data.pop("chunks")
     data["chunk_count"] = len(source.chunks)
+    data["duplicate_of"] = duplicate_of
+    data["saved"] = saved
     return data
 
 

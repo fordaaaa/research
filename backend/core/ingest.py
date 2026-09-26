@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from core import chunker, fetcher, keypassages, parsers
 from core.models import ImportantPassage, Page, Source, utcnow
 from core.store import Store, new_id
@@ -38,6 +40,13 @@ def ingest_text(store: Store, notebook_id: str, title: str, text: str, extra_met
 def ingest_url(store: Store, notebook_id: str, url: str) -> Source:
     """Fetch a URL, extract its article text, and store it as a source."""
     details = fetcher.fetch_article_details(url)
+    return ingest_fetched_url(store, notebook_id, url, details)
+
+
+def ingest_fetched_url(
+    store: Store, notebook_id: str, url: str, details: fetcher.FetchDetails
+) -> Source:
+    """Persist already-fetched article details as a source (no refetch)."""
     text, title = details.text, details.title
     pages = [Page(number=1, text=text)]
     passages: list[ImportantPassage] = []
@@ -109,6 +118,47 @@ def _persist(
     )
     store.create_source(source)
     return source
+
+
+def normalize_text_for_dedup(text: str) -> str:
+    """Normalize incoming text for duplicate comparison (strip + CRLF folding)."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def text_sha256(text: str) -> str:
+    """sha256 of normalized text, hex-encoded."""
+    return hashlib.sha256(normalize_text_for_dedup(text).encode("utf-8")).hexdigest()
+
+
+def source_full_text(source: Source) -> str:
+    """Reconstruct a source's full text from stored pages (fallback to chunks)."""
+    if source.pages:
+        return "\n".join(page.text for page in source.pages)
+    return " ".join(chunk.text for chunk in source.chunks)
+
+
+def find_duplicate_text_source(
+    store: Store, notebook_id: str, text: str, exclude_id: str | None = None
+) -> Source | None:
+    """Return the first source in the same notebook whose text hashes equal.
+
+    O(notebook): notebooks are small; reconstructs each source from stored
+    pages/chunks and compares sha256 of normalized text. Never raises on
+    corrupt rows — skips them.
+    """
+    target = text_sha256(text)
+    for summary in store.list_sources(notebook_id):
+        if exclude_id is not None and summary.id == exclude_id:
+            continue
+        try:
+            existing = store.get_source(notebook_id, summary.id)
+        except Exception:
+            continue
+        if existing is None:
+            continue
+        if text_sha256(source_full_text(existing)) == target:
+            return existing
+    return None
 
 
 def _title_from(filename: str | None) -> str:

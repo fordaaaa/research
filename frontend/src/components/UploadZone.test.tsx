@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UploadZone from "./UploadZone";
+import { derivePasteTitle } from "./pasteTitle";
 
 afterEach(() => cleanup());
 
@@ -42,5 +43,37 @@ describe("UploadZone accessibility and mobile actions", () => {
     fireEvent.click(screen.getByRole("button", { name: /paste text instead/i }));
     expect(screen.getByLabelText(/paste title/i)).toBeTruthy();
     expect(screen.getByLabelText(/paste body/i)).toBeTruthy();
+  });
+
+  it("derives an untitled paste's title from its first words", async () => {
+    const { onPaste } = renderZone();
+    fireEvent.click(screen.getByRole("button", { name: /paste text instead/i }));
+    fireEvent.change(screen.getByPlaceholderText("Paste your text here…"), {
+      target: { value: "Mitochondria produce energy for the cell through respiration daily" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save source/i }));
+    await waitFor(() =>
+      expect(onPaste).toHaveBeenCalledWith(
+        "Mitochondria produce energy for the cell…",
+        "Mitochondria produce energy for the cell through respiration daily",
+      ),
+    );
+  });
+
+  it("keeps an explicit paste title untouched", async () => {
+    const { onPaste } = renderZone();
+    fireEvent.click(screen.getByRole("button", { name: /paste text instead/i }));
+    fireEvent.change(screen.getByPlaceholderText("Title"), { target: { value: "My title" } });
+    fireEvent.change(screen.getByPlaceholderText("Paste your text here…"), { target: { value: "Some body text here" } });
+    fireEvent.click(screen.getByRole("button", { name: /save source/i }));
+    await waitFor(() => expect(onPaste).toHaveBeenCalledWith("My title", "Some body text here"));
+  });
+
+  it("falls back to 'Pasted note' only when there is no text to derive from", () => {
+    expect(derivePasteTitle("")).toBe("Pasted note");
+    expect(derivePasteTitle("   ")).toBe("Pasted note");
+    expect(derivePasteTitle("Mitochondria produce energy for the cell through respiration daily")).toBe(
+      "Mitochondria produce energy for the cell…",
+    );
   });
 });
