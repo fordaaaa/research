@@ -41,7 +41,20 @@ def serve() -> None:
     listener.listen()
     port = listener.getsockname()[1]
     print(f"RESEARCH_READY http://{DESKTOP_HOST}:{port}", flush=True)
-    config = uvicorn.Config(create_app(web_root()), host=DESKTOP_HOST, port=port, log_level="warning")
+    # proxy_headers=False is load-bearing: uvicorn defaults it to True, which
+    # installs ProxyHeadersMiddleware and rewrites scope["client"] from
+    # X-Forwarded-For for trusted (loopback) peers — letting any local process
+    # mint fresh auth rate-limit buckets with a spoofed header. The sidecar is
+    # loopback-only with no reverse proxy, so the header must never be
+    # honored; api/auth.py keys buckets on the TCP peer IP. Pinned explicitly
+    # (not relying on the installed default) for forward-compat.
+    config = uvicorn.Config(
+        create_app(web_root()),
+        host=DESKTOP_HOST,
+        port=port,
+        log_level="warning",
+        proxy_headers=False,
+    )
     uvicorn.Server(config).run(sockets=[listener])
 
 

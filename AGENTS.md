@@ -67,7 +67,7 @@ Backend (run from `backend/`):
 
 ```sh
 uv sync                                   # install deps (creates .venv, python 3.12)
-uv run uvicorn api.main:app --reload      # dev server on :8000
+uv run uvicorn api.main:app --reload --no-proxy-headers  # dev server on :8000
 uv run pytest                             # tests (always green before commit)
 uv add <package>                          # add a dependency
 ```

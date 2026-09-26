@@ -47,7 +47,7 @@ Backend (terminal 1):
 ```sh
 cd backend
 uv sync
-uv run uvicorn api.main:app --reload
+uv run uvicorn api.main:app --reload --no-proxy-headers
 ```
 
 Frontend (terminal 2):

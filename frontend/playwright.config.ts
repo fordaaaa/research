@@ -46,7 +46,7 @@ export default defineConfig({
     ? []
     : [
         {
-          command: `uv run uvicorn api.main:app --host 127.0.0.1 --port ${backendPort}`,
+          command: `uv run uvicorn api.main:app --host 127.0.0.1 --port ${backendPort} --no-proxy-headers`,
           cwd: "../backend",
           env: { RESEARCH_DATA_DIR: dataDir },
           url: `http://127.0.0.1:${backendPort}/api/health`,

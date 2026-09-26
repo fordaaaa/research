@@ -54,7 +54,7 @@ Live state of the project. **Read this first** before doing anything.
 - **Owner direction (latest): hosted multi-user backend first.** Accounts are
   required on every data route; AI keys stay optional and per-user. License is
   MIT (matches fordaaaa/panoply). Google OAuth next, Apple at App Store time.
-- Run it: `cd backend && uv run uvicorn api.main:app --reload` + `cd frontend && npm run dev` → http://localhost:5173 (register a local account — free, instant)
+- Run it: `cd backend && uv run uvicorn api.main:app --reload --no-proxy-headers` + `cd frontend && npm run dev` → http://localhost:5173 (register a local account — free, instant)
 - Tests: `cd backend && uv run pytest` · Frontend check: `cd frontend && npm run build`
 
 ## Native macOS alpha
