@@ -37,8 +37,9 @@ describe("App mobile notes parity", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: /open biology 101/i }));
-    const main = await screen.findByRole("main");
-    fireEvent.click(within(main).getByRole("tab", { name: "Notes" }));
+    // Round 20 item 7: tablists mount per-breakpoint (jsdom = mobile), so the
+    // Notes tab lives in the mounted Library tablist — not in main.
+    fireEvent.click(await screen.findByRole("tab", { name: /^Notes( \(.*\))?$/ }));
 
     await waitFor(() => {
       const aside = document.querySelector("aside") as HTMLElement | null;

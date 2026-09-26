@@ -2,7 +2,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-vi.mock("../api", () => ({ getAISettings: vi.fn().mockRejectedValue(new Error("offline")) }));
+vi.mock("../api", () => ({
+  getToken: () => window.localStorage.getItem("research_token"),
+  getAISettings: vi.fn().mockRejectedValue(new Error("offline")),
+}));
 
 import SettingsDialog from "./SettingsDialog";
 

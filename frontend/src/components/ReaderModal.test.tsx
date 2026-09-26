@@ -172,4 +172,10 @@ describe("ReaderModal mobile paging", () => {
     expect(close.className).toMatch(/min-h-11/);
     expect(close.className).toMatch(/min-w-11/);
   });
+
+  it("shows the offline folio loader while a source opens", () => {
+    vi.mocked(api.getSource).mockImplementationOnce(() => new Promise<SourceDetail>(() => {}));
+    render(<ReaderModal sourceId="source-9" onClose={vi.fn()} />);
+    expect(screen.getByRole("status").textContent ?? "").toContain("Opening source…");
+  });
 });

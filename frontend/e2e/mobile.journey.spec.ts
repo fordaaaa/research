@@ -126,10 +126,10 @@ test.describe("mobile core journey", () => {
     await page.getByRole("button", { name: "Close reader" }).click();
     await expect(reader).toBeHidden();
 
-    // --- Learn section (Study view) via the mobile bottom nav ---
+    // --- Study section (Study view) via the mobile bottom nav ---
     await page
       .getByRole("navigation", { name: "Notebook sections" })
-      .getByRole("button", { name: "Learn" })
+      .getByRole("button", { name: "Study" })
       .click();
     await expect(
       page.getByRole("tab", { name: "Flashcards", selected: true }),

@@ -1,0 +1,125 @@
+/* Offline boot splash — painted before React hydrates (web, macOS WKWebView,
+ * future Windows WebView2). No CDN, no JS, no external assets. Mirrors the
+ * folio motif: paper card, ruled lines, seafoam highlight sweep, beacon. */
+.folio-boot {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 20px;
+  background: #f6f5f0;
+  color: #24282e;
+  font-family: system-ui, -apple-system, sans-serif;
+  text-align: center;
+}
+.folio-boot-card {
+  position: relative;
+  width: 200px;
+  height: 175px;
+  background: #fff;
+  border: 1.8px solid #e6e0d4;
+  border-radius: 14px;
+  box-shadow: 0 8px 12px rgba(27, 36, 44, 0.08), 0 2px 4px rgba(27, 36, 44, 0.04);
+  overflow: hidden;
+  animation: folio-boot-settle 3.2s cubic-bezier(0.2, 0.8, 0.25, 1) infinite;
+}
+.folio-boot-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-style: solid;
+  border-width: 0 30px 30px 0;
+  border-color: transparent #eae5da transparent transparent;
+}
+.folio-boot-lines {
+  position: absolute;
+  top: 60px;
+  left: 22px;
+  right: 22px;
+  height: 60px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #cbd4dc 0 3px,
+    transparent 3px 21px
+  );
+  border-radius: 2px;
+  opacity: 0.9;
+}
+.folio-boot-highlight {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 52px;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2f4ee;
+  overflow: hidden;
+}
+.folio-boot-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: #25a08d;
+  transform-origin: left center;
+  animation: folio-boot-sweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.folio-boot-beacon {
+  position: absolute;
+  right: 12px;
+  bottom: 48px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #25a08d;
+  border: 2px solid #fff;
+  outline: 2px solid #25a08d;
+  animation: folio-boot-beacon 3.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+.folio-boot-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.folio-boot-sub {
+  font-size: 12px;
+  color: #6b7882;
+  margin: 0;
+  animation: folio-boot-sub 3.2s ease-in-out infinite;
+}
+@keyframes folio-boot-settle {
+  0% { transform: scale(0.92) rotate(-1.5deg); opacity: 0.6; }
+  18% { transform: scale(1) rotate(0deg); opacity: 1; }
+  85% { transform: scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: scale(0.92) rotate(-1.5deg); opacity: 0.6; }
+}
+@keyframes folio-boot-sweep {
+  0%, 30% { transform: scaleX(0); opacity: 0; }
+  36% { opacity: 1; }
+  56%, 82% { transform: scaleX(1); opacity: 1; }
+  92%, 100% { transform: scaleX(0); opacity: 0; }
+}
+@keyframes folio-boot-beacon {
+  0%, 48% { transform: translateY(-8px) scale(0); opacity: 0; }
+  58% { transform: translateY(1px) scale(1.2); opacity: 1; }
+  66%, 84% { transform: translateY(0) scale(1); opacity: 1; }
+  94%, 100% { transform: translateY(-4px) scale(0); opacity: 0; }
+}
+@keyframes folio-boot-sub {
+  0%, 26% { opacity: 0.95; }
+  28%, 32% { opacity: 0.3; }
+  35%, 88% { opacity: 0.95; }
+  92%, 100% { opacity: 0.3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .folio-boot-card,
+  .folio-boot-highlight::after,
+  .folio-boot-beacon,
+  .folio-boot-sub {
+    animation: none !important;
+  }
+}

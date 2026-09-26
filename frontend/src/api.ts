@@ -121,6 +121,24 @@ export interface AuthResult {
   token: string;
 }
 
+/**
+ * Round 21 item 8: duplicate-register arrives as a 200-generic with no
+ * session (`{registered: false, detail, token: none}`). The UI reads
+ * `registered`/`detail` only — never treats this as authed.
+ */
+export interface RegisterDuplicate {
+  registered: false;
+  detail: string;
+}
+
+export function isRegisterDuplicate(value: unknown): value is RegisterDuplicate {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { registered?: unknown }).registered === false
+  );
+}
+
 const TOKEN_KEY = "research_token";
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
@@ -134,15 +152,101 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
   return fetch(path, { ...init, headers });
 }
 
+/**
+ * Humanizes a Retry-After wait for display: waits of a minute or more round
+ * to minutes ("5 minutes"), shorter waits stay in seconds ("45 seconds"),
+ * and an absent wait reads "shortly".
+ */
+export function humanizeRetryWait(wait: number | null | undefined): string {
+  if (wait === null || wait === undefined) return "shortly";
+  if (wait >= 60) {
+    const minutes = Math.round(wait / 60);
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+  return `${wait} second${wait === 1 ? "" : "s"}`;
+}
+
+/** Rate-limit signal: carries the parsed Retry-After wait, if the server sent one. */
+export class RateLimitError extends Error {
+  retryAfterSeconds: number | null;
+  status = 429 as const;
+
+  constructor(retryAfterSeconds: number | null, message?: string) {
+    super(
+      message ??
+        (retryAfterSeconds !== null
+          ? `Too many attempts — try again in ${humanizeRetryWait(retryAfterSeconds)}`
+          : "Too many attempts — try again shortly"),
+    );
+    this.name = "RateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** Parses a Retry-After header (delta-seconds or HTTP-date) into seconds. */
+export function parseRetryAfter(res: Response): number | null {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const timestamp = Date.parse(trimmed);
+  if (!Number.isNaN(timestamp)) return Math.max(0, Math.round((timestamp - Date.now()) / 1000));
+  return null;
+}
+
+/**
+ * Round 18 item 7 (422 audit): extracts a human-readable message from an
+ * error body. FastAPI validation failures carry `detail` as an array of
+ * `{loc, msg, type}` objects — rendering those raw leaks pydantic `loc`
+ * voice (or "[object Object]" via Error coercion). String details pass
+ * through; arrays join their `msg` fields; anything else falls back.
+ */
+export function detailMessage(body: unknown, fallback: string): string {
+  if (typeof body === "string") return body || fallback;
+  if (body && typeof body === "object") {
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string") return detail || fallback;
+    if (Array.isArray(detail)) {
+      const msgs = detail
+        .map((item) =>
+          item && typeof item === "object" ? (item as { msg?: unknown }).msg : null,
+        )
+        .filter((msg): msg is string => typeof msg === "string" && msg.length > 0);
+      if (msgs.length > 0) return msgs.join("; ");
+      return fallback;
+    }
+    if (detail && typeof detail === "object") {
+      const msg = (detail as { msg?: unknown }).msg;
+      if (typeof msg === "string" && msg) return msg;
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+/**
+ * Round 18 item 7 (422 audit): search failures render a friendly line, never
+ * a raw validation payload. Anything carrying pydantic `loc` voice (or the
+ * "[object Object]" of a coerced detail array) collapses to the friendly
+ * fallback; honest messages ("login required", rate-limit waits) pass
+ * through untouched.
+ */
+export function friendlySearchError(err: unknown, fallback = "Search failed — try again"): string {
+  const message = err instanceof Error ? err.message : fallback;
+  if (!message || /\[object Object\]|\bloc\b/i.test(message)) return fallback;
+  return message;
+}
+
 async function j<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     clearToken();
     window.dispatchEvent(new Event("research:unauthorized"));
     throw new Error("login required");
   }
+  if (res.status === 429) throw new RateLimitError(parseRetryAfter(res));
   if (!res.ok) {
-    const body = await res.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+    const body = await res.json().catch(() => null) as unknown;
+    throw new Error(detailMessage(body, `${res.status} ${res.statusText}`));
   }
   return res.json() as Promise<T>;
 }
@@ -154,9 +258,10 @@ async function jVoid(res: Response): Promise<void> {
     window.dispatchEvent(new Event("research:unauthorized"));
     throw new Error("login required");
   }
+  if (res.status === 429) throw new RateLimitError(parseRetryAfter(res));
   if (!res.ok) {
-    const body = await res.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+    const body = await res.json().catch(() => null) as unknown;
+    throw new Error(detailMessage(body, `${res.status} ${res.statusText}`));
   }
 }
 
@@ -165,7 +270,7 @@ export const register = (email: string, password: string) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
-  }).then(j<AuthResult>);
+  }).then(j<AuthResult | RegisterDuplicate>);
 
 export const login = (email: string, password: string) =>
   apiFetch(`${BASE}/auth/login`, {
@@ -185,6 +290,20 @@ export const logout = () =>
   });
 
 export const me = () => apiFetch(`${BASE}/auth/me`).then(j<User>);
+
+export interface UserProgress {
+  add_source: boolean;
+  search: boolean;
+  export: boolean;
+  review: boolean;
+}
+
+/**
+ * Round 20 item 2: per-user persisted checklist flags. Old servers without
+ * this route reject (404/405/HTML) — callers catch and fall back to local.
+ */
+export const getProgress = () =>
+  apiFetch(`${BASE}/me/progress`).then(j<UserProgress>);
 
 export interface GoogleStatus {
   enabled: boolean;
@@ -255,9 +374,10 @@ export async function fetchDownload(path: string, fallbackFilename: string): Pro
     window.dispatchEvent(new Event("research:unauthorized"));
     throw new Error("login required");
   }
+  if (res.status === 429) throw new RateLimitError(parseRetryAfter(res));
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+    const body = (await res.json().catch(() => null)) as unknown;
+    throw new Error(detailMessage(body, `${res.status} ${res.statusText}`));
   }
   const blob = await res.blob();
   const filename = filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackFilename);
@@ -301,19 +421,81 @@ export const uploadFiles = (notebookId: string, files: File[]) => {
   }).then(j<{ sources: SourceSummary[]; errors: UploadError[] }>);
 };
 
-export const addPaste = (notebookId: string, title: string, text: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/sources/text`, {
+/** Additive duplicate hint the backend may return on paste/URL add. */
+export interface DuplicateRef {
+  id: string;
+  title: string;
+}
+
+export interface AddSourceResult {
+  /**
+   * New contract: HTTP 200 + saved:false means NOTHING was persisted
+   * (warn-before-save). 201 + saved:true means saved. Old backends omit
+   * the field and always save (warn-after-save); treat those as saved.
+   */
+  saved?: boolean;
+  duplicate_of?: DuplicateRef | null;
+}
+
+function isDuplicateRef(value: unknown): value is DuplicateRef {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.id === "string" && typeof candidate.title === "string";
+}
+
+function pickDuplicateOf(payload: unknown): DuplicateRef | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const duplicate = (payload as Record<string, unknown>).duplicate_of;
+  return isDuplicateRef(duplicate) ? duplicate : null;
+}
+
+export interface AddPasteOptions {
+  /** Confirm saving even though the exact text already exists. */
+  force?: boolean;
+}
+
+export const addPaste = async (
+  notebookId: string,
+  title: string,
+  text: string,
+  opts?: AddPasteOptions,
+): Promise<AddSourceResult> => {
+  const res = await apiFetch(`${BASE}/notebooks/${notebookId}/sources/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, text }),
-  }).then(jVoid);
+    body: JSON.stringify(opts?.force ? { title, text, force: true } : { title, text }),
+  });
+  if (res.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event("research:unauthorized"));
+    throw new Error("login required");
+  }
+  if (res.status === 429) throw new RateLimitError(parseRetryAfter(res));
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as unknown;
+    throw new Error(detailMessage(body, `${res.status} ${res.statusText}`));
+  }
+  // Old backends return an empty body: treat as a normal save with no hint.
+  const payload = await res.json().catch(() => null) as unknown;
+  const duplicate = pickDuplicateOf(payload);
+  // New contract carries saved:false on HTTP 200 (nothing persisted).
+  // Fall back to the status code when the field is absent: 201 means the
+  // legacy backend already saved (warn-after-save path).
+  const rawSaved =
+    typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>).saved
+      : undefined;
+  const saved = typeof rawSaved === "boolean" ? rawSaved : res.status !== 200;
+  if (saved && !duplicate) return { saved };
+  return { saved, ...(duplicate ? { duplicate_of: duplicate } : {}) };
+};
 
-export const addUrl = (notebookId: string, url: string) =>
+export const addUrl = (notebookId: string, url: string, opts?: AddPasteOptions) =>
   apiFetch(`${BASE}/notebooks/${notebookId}/sources/url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-  }).then(j<SourceSummary>);
+    body: JSON.stringify(opts?.force ? { url, force: true } : { url }),
+  }).then(j<SourceSummary & AddSourceResult>);
 
 export interface SourceDetail extends SourceSummary {
   pages: { number: number; text: string }[];
@@ -368,8 +550,8 @@ export const deleteNote = (notebookId: string, noteId: string) =>
 export const createDemo = () =>
   apiFetch(`${BASE}/demo`, { method: "POST" }).then(j<Notebook>);
 
-export const search = (notebookId: string, q: string) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`).then(
+export const search = (notebookId: string, q: string, signal?: AbortSignal) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`, { signal }).then(
     j<SearchHit[]>
   );
 
@@ -474,8 +656,12 @@ export const sendChatMessage = (notebookId: string, sessionId: string, message: 
     body: JSON.stringify({ message }),
   }).then(j<ChatMessage>);
 
-export const getHostedAIStatus = () =>
-  apiFetch(`${BASE}/ai/hosted/status`).then(j<{ enabled: boolean; allowance_remaining: number | null }>);
+export const getHostedAIStatus = () => {
+  // Logged-out boot has no bearer token: skip the fetch (mirrors the api.me
+  // gate) instead of firing an authed request that 401s as console noise.
+  if (!getToken()) return Promise.resolve({ enabled: false, allowance_remaining: null });
+  return apiFetch(`${BASE}/ai/hosted/status`).then(j<{ enabled: boolean; allowance_remaining: number | null }>);
+};
 
 export const sendHostedChatMessage = (notebookId: string, sessionId: string, message: string) =>
   apiFetch(`${BASE}/ai/hosted/notebooks/${notebookId}/chat/sessions/${sessionId}/messages`, {

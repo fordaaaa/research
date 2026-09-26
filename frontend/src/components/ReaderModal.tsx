@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import * as api from "../api";
 import type { Note, SourceDetail } from "../api";
-import Spinner from "./Spinner";
+import FolioLoader from "./FolioLoader";
+import { stripMarkdownForDisplay, stripTitleEcho } from "./pasteTitle";
 import { useMountTransition } from "../useMountTransition";
 import { usePrefersReducedMotion } from "../useMountTransition";
 
@@ -11,9 +12,16 @@ interface Props {
   onClose: () => void;
   onEvidenceSaved?: (note: Note) => void;
   onViewNotes?: () => void;
+  /**
+   * Round 20 item 1: the opener, captured synchronously in the click handler
+   * (e.currentTarget) BEFORE setOpen. null = opener-less open, restore to
+   * #main-content. undefined (omitted) = legacy mount-time capture + Read
+   * button re-query fallback.
+   */
+  trigger?: HTMLElement | null;
 }
 
-export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onViewNotes }: Props) {
+export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onViewNotes, trigger }: Props) {
   const [source, setSource] = useState<SourceDetail | null>(null);
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +30,8 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
   const [savedSeqs, setSavedSeqs] = useState<number[]>([]);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const savedTriggerRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -54,15 +64,137 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
     return () => { active = false; };
   }, [sourceId]);
 
+  // Mirror FirstRunTour: inert the landmarks behind the dialog while open
+  // so background links stay untabbable. Declared BEFORE the focus
+  // capture/restore effect so that on close the inert attribute is removed
+  // BEFORE focus is restored — otherwise the trigger is still inert and the
+  // restore is lost to BODY.
   useEffect(() => {
     if (sourceId === null) return;
-    closeRef.current?.focus();
+    const root = dialogRef.current;
+    const background = Array.from(
+      document.querySelectorAll("header, main, nav, aside"),
+    ).filter((element) => !root?.contains(element) && !element.contains(root));
+    background.forEach((element) => element.setAttribute("inert", ""));
+    return () => {
+      background.forEach((element) => element.removeAttribute("inert"));
+    };
   }, [sourceId]);
 
+  // Round 19 item 3: the opener element often unmounts during the read
+  // (list refresh), so the saved node alone strands focus on the H2 fallback
+  // and never the Read button. Record the source id + display title at open;
+  // on close, re-query button[aria-label="Read {title}"] (or data-source-id)
+  // and focus it when present — H2, then #main-content, only on no match.
+  const openedSourceRef = useRef<{ id: string; title: string | null }>({ id: "", title: null });
   useEffect(() => {
+    if (sourceId === null) return;
+    openedSourceRef.current = { id: sourceId, title: null };
+  }, [sourceId]);
+  useEffect(() => {
+    if (source) {
+      openedSourceRef.current.title = stripMarkdownForDisplay(source.title) || source.title;
+    }
+  }, [source]);
+
+  function focusReadButtonForOpenedSource(): boolean {
+    const { id, title } = openedSourceRef.current;
+    if (id) {
+      const byId = document.querySelector(`button[data-source-id="${CSS.escape(id)}"]`);
+      if (byId instanceof HTMLElement) {
+        byId.focus();
+        return true;
+      }
+    }
+    if (title) {
+      const wanted = `Read ${title}`;
+      const match = Array.from(document.querySelectorAll('button[aria-label^="Read "]')).find(
+        (button) => button.getAttribute("aria-label") === wanted,
+      );
+      if (match instanceof HTMLElement) {
+        match.focus();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // The opener is set synchronously with the open state, so the
+  // effect-closure `trigger` value below is exact (no render-time ref sync).
+  const triggerProvided = trigger !== undefined;
+  useEffect(() => {
+    if (sourceId === null || !mounted) return;
+    if (!triggerProvided && savedTriggerRef.current === null) {
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      // An opener-less open (activeElement is BODY) leaves the ref null so
+      // dismiss falls back to a heading instead of a dead node.
+      savedTriggerRef.current = active && active !== document.body ? active : null;
+    }
+    // Initial focus goes to the close button: actionable, visibly focused,
+    // and unambiguous for screen-reader users (the dialog keeps its
+    // aria-labelledby heading for context).
+    closeRef.current?.focus();
+    return () => {
+      // Explicit trigger path (round 20 item 1): restore to the passed
+      // trigger if connected, else #main-content. Legacy path (undefined):
+      // keep the Read-button re-query + Sources H2 fallbacks.
+      if (triggerProvided) {
+        const explicit = trigger ?? null;
+        if (explicit && explicit.isConnected && document.contains(explicit)) {
+          explicit.focus();
+        } else {
+          document.getElementById("main-content")?.focus?.();
+        }
+        savedTriggerRef.current = null;
+        return;
+      }
+      const saved = savedTriggerRef.current;
+      // Mirror FirstRunTour/SettingsDialog: the opener may have unmounted
+      // during the read (list refresh), so only reuse a trigger still
+      // connected to the DOM. Otherwise fall back to the Sources H2, then
+      // #main-content, so focus never strands on BODY on any close path
+      // (Esc, ×, scrim).
+      if (saved && saved.isConnected && document.contains(saved)) {
+        saved.focus();
+      } else if (!focusReadButtonForOpenedSource()) {
+        const sourcesHeading = Array.from(document.querySelectorAll("h2")).find(
+          (heading) => heading.textContent?.trim() === "Sources",
+        );
+        if (sourcesHeading instanceof HTMLElement) sourcesHeading.focus();
+        else document.getElementById("main-content")?.focus?.();
+      }
+      savedTriggerRef.current = null;
+    };
+    // Opener fixed synchronously with the open state: closure values exact.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId, mounted]);
+
+  useEffect(() => {
+    // Capture-phase on window (like FirstRunTour/SettingsDialog on
+    // document): fires for events targeted at window, document, or any
+    // node below, and dismisses even if an inner control stops propagation.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onCloseRef.current();
+        return;
+      }
+      // Mirror FirstRunTour's trap: cycle Tab within the dialog so focus
+      // never escapes to the scrimmed background behind aria-modal.
+      if (e.key === "Tab") {
+        const buttons = dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])");
+        if (!buttons?.length) return;
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (!dialogRef.current?.contains(document.activeElement)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
         return;
       }
       const count = pagesLengthRef.current;
@@ -70,8 +202,8 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
       if (e.key === "ArrowLeft") setPage((p) => Math.max(0, p - 1));
       if (e.key === "ArrowRight") setPage((p) => Math.min(count - 1, p + 1));
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [sourceId]);
 
   if (!mounted) return null;
@@ -118,11 +250,11 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={source?.title ?? "Source reader"} className={`fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4 ${open ? "animate-page-in" : "animate-fade-out pointer-events-none"}`}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="reader-title" aria-label={source ? stripMarkdownForDisplay(source.title) || source.title : "Source reader"} className={`fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4 ${open ? "animate-page-in" : "animate-fade-out pointer-events-none"}`}>
       <div className={`flex h-[min(100dvh,42rem)] max-h-[100dvh] w-full max-w-2xl flex-col rounded-t-2xl border border-neutral-700 bg-neutral-900 shadow-2xl sm:h-auto sm:max-h-[85vh] sm:rounded-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
         <div className="flex items-start justify-between gap-4 border-b border-neutral-800 p-5">
           <div className="min-w-0">
-            <h2 className="truncate font-semibold">{source?.title ?? "Loading…"}</h2>
+            <h2 id="reader-title" title={source ? stripMarkdownForDisplay(source.title) || source.title : undefined} className="truncate font-semibold">{source ? stripMarkdownForDisplay(source.title) || source.title : "Loading…"}</h2>
             {source && (
               <>
                 <p className="mt-0.5 text-xs text-neutral-500">
@@ -147,9 +279,7 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
         >
           {error && <p className="text-sm text-red-400">{error}</p>}
           {!error && !source && (
-            <div className="flex items-center gap-2 text-sm text-neutral-500">
-              <Spinner /> Opening source…
-            </div>
+            <FolioLoader compact title={sourceId ? "Opening source…" : "Loading…"} stages={["Laying folio flat…", "Linking excerpts…", "Settling citation marker…"]} />
           )}
           {page === 0 && source?.important_passages && source.important_passages.length > 0 && (
             <section className="mb-5 rounded-2xl border border-emerald-900 bg-emerald-950/50 p-4" aria-labelledby="important-passages-title">
@@ -186,7 +316,7 @@ export default function ReaderModal({ sourceId, onClose, onEvidenceSaved, onView
           )}
           {current && (
             <p className={`whitespace-pre-wrap text-sm leading-relaxed text-neutral-200 ${reducedMotion ? "" : "animate-phase-in"}`} key={page}>
-              {current.text}
+              {source ? stripTitleEcho(source.title, stripMarkdownForDisplay(current.text) || current.text) : stripMarkdownForDisplay(current.text) || current.text}
             </p>
           )}
         </div>

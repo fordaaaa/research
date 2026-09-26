@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { AIProvider } from "../api";
 import type { Appearance, FontName, ThemeName } from "../appearance";
 import Spinner from "./Spinner";
+import { isSoundEnabled, playSuccess, previewChime, setSoundEnabled } from "../sound";
 import { useMountTransition } from "../useMountTransition";
 
 interface Props {
@@ -11,6 +12,14 @@ interface Props {
   onChanged: (configured: boolean) => void;
   appearance: Appearance;
   onAppearanceChange: (appearance: Appearance) => void;
+  /** Round 18: App-level announcer — the persistent live region lives in App. */
+  onAppearanceAnnounce?: (message: string) => void;
+  /**
+   * Round 20 item 1: the opener, captured synchronously in the click handler
+   * (e.currentTarget) BEFORE setOpen. null = auto-opened, restore to
+   * #main-content. undefined (omitted) = legacy mount-time capture fallback.
+   */
+  trigger?: HTMLElement | null;
 }
 
 const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: string; helper: string }> = {
@@ -39,18 +48,67 @@ const FONTS: { value: FontName; label: string }[] = [
   { value: "maple", label: "Maple Mono" },
 ];
 
-export default function SettingsDialog({ open, onClose, onChanged, appearance, onAppearanceChange }: Props) {
+export default function SettingsDialog({ open, onClose, onChanged, appearance, onAppearanceChange, onAppearanceAnnounce, trigger }: Props) {
   const [configured, setConfigured] = useState(false);
   const [provider, setProvider] = useState<AIProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(PROVIDERS.gemini.model);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
+  const [appearanceAnnouncement, setAppearanceAnnouncement] = useState<string | null>(null);
+  // Sound audit: the chime toggle and Preview previously gave keyboard users
+  // zero screen-reader feedback (a silent checkbox flip; a silent playback).
+  // This polite region announces both. Repeat text clears-then-resets (same
+  // pattern as the appearance announcer) so repeats re-announce.
+  const [soundAnnouncement, setSoundAnnouncement] = useState<string | null>(null);
+  const soundAnnounceSeq = useRef(0);
+  function announceSound(message: string) {
+    soundAnnounceSeq.current += 1;
+    const seq = soundAnnounceSeq.current;
+    setSoundAnnouncement(null);
+    window.setTimeout(() => {
+      if (soundAnnounceSeq.current !== seq) return;
+      setSoundAnnouncement(message);
+    }, 0);
+  }
+
+  // Round 19 item 1: the dialog-local region is the standalone fallback
+  // when onAppearanceAnnounce is unwired. Repeat selections carry identical
+  // text (useState bails, no DOM mutation, AT hears nothing), so force a
+  // clear-then-re-set in a later task; the seq drops a stale repeat behind
+  // a newer announcement. Initial load never announces (no call on mount).
+  const localAnnounceRef = useRef<string | null>(null);
+  const localAnnounceSeq = useRef(0);
+  function chooseAppearance(next: Appearance, announcement: string) {
+    onAppearanceChange(next);
+    // Same path announces in the persistent App-level region (when wired)
+    // and the dialog-local region (standalone/tests fallback).
+    onAppearanceAnnounce?.(announcement);
+    localAnnounceSeq.current += 1;
+    const seq = localAnnounceSeq.current;
+    if (localAnnounceRef.current === announcement) {
+      localAnnounceRef.current = null;
+      setAppearanceAnnouncement(null);
+      window.setTimeout(() => {
+        if (localAnnounceSeq.current !== seq) return;
+        localAnnounceRef.current = announcement;
+        setAppearanceAnnouncement(announcement);
+      }, 0);
+    } else {
+      localAnnounceRef.current = announcement;
+      setAppearanceAnnouncement(announcement);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setApiKey("");
+    setSoundOn(isSoundEnabled());
+    // No session → the authed settings request could only 401. Skip it
+    // instead of adding failed-request noise on boot/pre-auth.
+    if (!api.getToken()) return;
     api.getAISettings().then((settings) => {
       setConfigured(settings.configured);
       if (settings.provider) setProvider(settings.provider);
@@ -59,28 +117,102 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
   }, [open]);
 
   const mounted = useMountTransition(open, 150);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // Captured when the dialog opens so every dismiss path (Escape, ×)
+  // restores to the element that opened settings.
+  const savedTriggerRef = useRef<HTMLElement | null>(null);
+
+  // Mirror FirstRunTour: capture the trigger once per open, move initial
+  // focus into the dialog (close button), and restore on close/unmount
+  // with a connected-check + #main-content fallback so focus never
+  // strands on BODY. An explicit `trigger` prop (even null) wins over
+  // mount-time activeElement, which is too late for async opens. The opener
+  // is set synchronously with the open state, so the effect-closure value
+  // is exact.
+  useEffect(() => {
+    if (!open) return;
+    if (trigger === undefined && savedTriggerRef.current === null) {
+      const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      savedTriggerRef.current = active && active !== document.body ? active : null;
+    }
+    closeRef.current?.focus();
+    return () => {
+      const explicit = trigger !== undefined ? (trigger ?? null) : savedTriggerRef.current;
+      if (explicit && explicit.isConnected && document.contains(explicit)) {
+        explicit.focus();
+      } else {
+        document.getElementById("main-content")?.focus?.();
+      }
+      savedTriggerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mounted]);
+
+  useEffect(() => {
+    // Mirror FirstRunTour: capture-phase Escape dismisses even if an inner
+    // control stops propagation. The reader modal honors Escape the same way.
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+        ),
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!root.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, onClose]);
+
   if (!mounted) return null;
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 ${open ? "animate-page-in" : "animate-fade-out pointer-events-none"}`}>
-      <div role="dialog" aria-modal="true" aria-label="Settings" className={`max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Settings" className={`max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-900 p-5 shadow-2xl ${open ? "animate-pop-in" : "animate-pop-out"}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-display text-xl font-semibold">Settings</h2>
             <p className="mt-1 text-xs leading-relaxed text-neutral-500">Make your study space comfortable for you.</p>
           </div>
-          <button className="text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close settings">×</button>
+          <button ref={closeRef} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-xl leading-none text-neutral-500 hover:text-neutral-100" onClick={onClose} aria-label="Close settings">×</button>
         </div>
         <section className="mt-6 space-y-4 border-b border-neutral-800 pb-6" aria-label="Appearance">
           <div>
             <h3 className="text-sm font-semibold">Appearance</h3>
             <p className="mt-1 text-xs text-neutral-500">Saved on this device. Your notes and account are unchanged.</p>
           </div>
+          <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">{appearanceAnnouncement}</p>
           <div>
             <p className="mb-2 text-xs font-medium text-neutral-300">Theme</p>
             <div className="grid grid-cols-3 gap-2">
               {THEMES.map((theme) => (
-                <button key={theme.value} type="button" aria-pressed={appearance.theme === theme.value} onClick={() => onAppearanceChange({ ...appearance, theme: theme.value })} className={`min-h-11 rounded-xl border p-2 text-left text-xs font-medium transition-colors ${appearance.theme === theme.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
+                <button key={theme.value} type="button" aria-pressed={appearance.theme === theme.value} onClick={() => {
+                  // Round 24 item 2: clicking the active theme is a no-op —
+                  // re-firing "Night theme on" is noise. Announce only on an
+                  // actual change.
+                  if (appearance.theme === theme.value) return;
+                  chooseAppearance({ ...appearance, theme: theme.value }, `${theme.label} theme on`);
+                }} className={`min-h-11 rounded-xl border p-2 text-left text-xs font-medium transition-colors ${appearance.theme === theme.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`}>
                   <span className={`mb-2 block h-7 rounded-md border ${theme.swatch}`} aria-hidden="true" />{theme.label}
                 </button>
               ))}
@@ -90,10 +222,50 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
             <p className="mb-2 text-xs font-medium text-neutral-300">Text style</p>
             <div className="grid grid-cols-2 gap-2">
               {FONTS.map((font) => (
-                <button key={font.value} type="button" aria-pressed={appearance.font === font.value} onClick={() => onAppearanceChange({ ...appearance, font: font.value })} className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${appearance.font === font.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`} style={{ fontFamily: font.value === "maple" ? '"Maple Mono", monospace' : '"Atkinson Hyperlegible Next", sans-serif' }}>{font.label}</button>
+                <button key={font.value} type="button" aria-pressed={appearance.font === font.value} onClick={() => {
+                  // Round 24 item 2: same guard for fonts — no announce,
+                  // no state write, when nothing changed.
+                  if (appearance.font === font.value) return;
+                  chooseAppearance({ ...appearance, font: font.value }, `${font.label} font on`);
+                }} className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm transition-colors ${appearance.font === font.value ? "border-aqua bg-seafoam text-neutral-100" : "border-neutral-800 text-neutral-500 hover:border-neutral-600"}`} style={{ fontFamily: font.value === "maple" ? '"Maple Mono", monospace' : '"Atkinson Hyperlegible Next", sans-serif' }}>{font.label}</button>
               ))}
             </div>
           </div>
+        </section>
+        <section className="mt-6 space-y-4 border-b border-neutral-800 pb-6" aria-label="Sound">
+          <div>
+            <h3 className="text-sm font-semibold">Sound</h3>
+            <p className="mt-1 text-xs text-neutral-500">Off by default. Short offline chimes for boot and completed exports — no audio during AI thinking.</p>
+          </div>
+          <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-neutral-800 px-3 py-2 text-sm">
+            <span className="text-neutral-300">Interface chimes</span>
+            <input
+              type="checkbox"
+              checked={soundOn}
+              onChange={(event) => {
+                const next = event.target.checked;
+                setSoundOn(next);
+                setSoundEnabled(next);
+                if (next) playSuccess();
+                announceSound(next ? "Interface chimes on" : "Interface chimes off");
+              }}
+              aria-label="Interface chimes"
+            />
+          </label>
+          <p role="status" aria-label="Sound announcement" aria-live="polite" aria-atomic="true" className="sr-only">
+            {soundAnnouncement}
+          </p>
+          <button
+            type="button"
+            aria-label="Preview chime"
+            onClick={() => {
+              previewChime();
+              announceSound("Playing chime preview");
+            }}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-aqua underline underline-offset-2 hover:text-wave"
+          >
+            <span aria-hidden="true">▶</span> Preview
+          </button>
         </section>
         <div className="mt-6">
           <h3 className="text-sm font-semibold">Optional AI</h3>
@@ -150,7 +322,7 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
           <p className="text-xs leading-relaxed text-neutral-500">{PROVIDERS[provider].helper}</p>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex items-center gap-2 pt-1">
-            <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
+            <button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50" disabled={busy || !apiKey.trim()} type="submit">
               {busy && <Spinner size={13} />}
               {busy ? "Saving" : configured ? "Replace key" : "Enable AI"}
             </button>

@@ -83,6 +83,11 @@ describe("NotebookPicker account messaging", () => {
     expect(del.className).toMatch(/min-h-11/);
 
     fireEvent.click(del);
+    // First tap only arms the inline confirm — nothing destructive fires.
+    expect(onDelete).not.toHaveBeenCalled();
+    const confirm = screen.getByRole("button", { name: /confirm delete biology/i });
+    expect(confirm.textContent).toMatch(/confirm/i);
+    fireEvent.click(confirm);
     expect(onDelete).toHaveBeenCalledWith("a1b2c3d4e5f6");
     fireEvent.click(open);
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ name: "Biology" }));

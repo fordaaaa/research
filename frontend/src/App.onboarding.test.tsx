@@ -30,7 +30,6 @@ it("continues the tour after a new user creates a notebook", async () => {
   apiMocks.createNotebook.mockResolvedValue({ id: "notebook-1", name: "History", created_at: "2026-01-01T00:00:00Z" });
 
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Create account" }));
   fireEvent.change(screen.getByPlaceholderText("Email address"), { target: { value: "learner@example.test" } });
   fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: "password123" } });
   fireEvent.click(document.querySelector('button[type="submit"]')!);
@@ -39,12 +38,21 @@ it("continues the tour after a new user creates a notebook", async () => {
   expect(screen.getByRole("dialog", { name: /start with a notebook/i })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(screen.getByRole("dialog", { name: /try the demo/i })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /explore a notebook/i }));
-  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  // Round 25 item 5: the finale text lands first, the tour unmounts on the
+  // next tick.
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(screen.getByRole("status", { name: "Tour announcement" }).textContent).toMatch(/tour finished/i);
   expect(screen.getByText(/tour continues inside a notebook/i)).toBeTruthy();
 
   fireEvent.change(screen.getByPlaceholderText(/new notebook name/i), { target: { value: "History" } });
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  // Round 24 item 4: no workspace auto-open — the consent banner offers the
+  // rest. Resume opens the workspace tour on demand.
+  expect(await screen.findByRole("region", { name: /continue the tour/i })).toBeTruthy();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(window.localStorage.getItem("notaeo:onboarding:learner")).toBe("waiting");
+  fireEvent.click(screen.getByRole("button", { name: /resume tour/i }));
   expect(await screen.findByRole("dialog", { name: /bring your sources in/i })).toBeTruthy();
   expect(window.localStorage.getItem("notaeo:onboarding:learner")).toBe("workspace");
 });
@@ -59,7 +67,6 @@ it("moves to the workspace tour when the highlighted create control is used earl
   apiMocks.createNotebook.mockResolvedValue({ id: "notebook-2", name: "Biology", created_at: "2026-01-01T00:00:00Z" });
 
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Create account" }));
   fireEvent.change(screen.getByPlaceholderText("Email address"), { target: { value: "early@example.test" } });
   fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: "password123" } });
   fireEvent.click(document.querySelector('button[type="submit"]')!);
@@ -68,6 +75,10 @@ it("moves to the workspace tour when the highlighted create control is used earl
   fireEvent.change(screen.getByPlaceholderText(/new notebook name/i), { target: { value: "Biology" } });
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
+  // Round 24 item 4: consent banner instead of a deferred auto-open.
+  expect(await screen.findByRole("region", { name: /continue the tour/i })).toBeTruthy();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /resume tour/i }));
   expect(await screen.findByRole("dialog", { name: /bring your sources in/i })).toBeTruthy();
   expect(window.localStorage.getItem("notaeo:onboarding:early-user")).toBe("workspace");
 });
@@ -75,6 +86,7 @@ it("moves to the workspace tour when the highlighted create control is used earl
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   window.localStorage.clear();
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
 });
@@ -87,7 +99,6 @@ it("starts a spotlight tour after registration and does not show an AI off badge
   apiMocks.getHostedAIStatus.mockRejectedValue(new Error("local app"));
 
   render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Create account" }));
   fireEvent.change(screen.getByPlaceholderText("Email address"), { target: { value: "new@example.test" } });
   fireEvent.change(screen.getByPlaceholderText(/Password/), { target: { value: "password123" } });
   fireEvent.click(document.querySelector('button[type="submit"]')!);
@@ -109,13 +120,27 @@ it("does not interrupt a returning user and lets them replay the tour", async ()
   apiMocks.getHostedAIStatus.mockRejectedValue(new Error("local app"));
 
   render(<App />);
-  await screen.findByText("returning@example.test");
+  // Header shows the account email (desktop text + avatar sr-only name).
+  await screen.findByRole("button", { name: /returning@example\.test/i });
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Take a tour" }));
   expect(screen.getByRole("dialog", { name: /looks like you're new here/i })).toBeTruthy();
 });
 
 it("offers persistent desktop workspace navigation after opening a notebook", async () => {
+  // Round 25 item 6: the workspace rail only mounts at xl — stub an xl
+  // viewport (mobile jsdom default would leave it unmounted).
+  vi.stubGlobal(
+    "matchMedia",
+    (query: string) => ({
+      matches: /min-width/.test(query),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+      onchange: null,
+    }),
+  );
   window.localStorage.setItem("research_token", "returning-token");
   apiMocks.me.mockResolvedValue({ id: "returning-user", email: "returning@example.test" });
   apiMocks.listNotebooks.mockResolvedValue([{ id: "book", name: "Biology", created_at: "2026-01-01T00:00:00Z" }]);
