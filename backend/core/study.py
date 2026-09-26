@@ -22,6 +22,24 @@ _STOPWORDS = frozenset(
         "about", "after", "before", "between", "during", "through", "under",
         "over", "again", "once", "here", "out", "off", "own", "same", "too",
         "very", "just", "like", "because", "while", "both", "few", "many",
+        # Pangram/filler floor: deterministic junk-word guard so sentences
+        # like "the quick brown fox jumps over the lazy dog" yield no key
+        # terms. Compared against stemmed tokens, so stemmed forms included.
+        "quick", "brown", "fox", "jump", "jumps", "lazy", "dog",
+        # General high-frequency function-word floor (stemmed forms where the
+        # light stemmer strips a suffix, e.g. "using" -> "us").
+        "all", "above", "against", "along", "among", "around", "below",
+        "beside", "beyond", "cannot", "cant", "down", "else", "even", "ever",
+        "every", "everything", "everyone", "further", "hers", "herself",
+        "himself", "however", "inside", "instead", "itself", "least", "less",
+        "maybe", "meanwhile", "moreover", "most", "myself",
+        "neither", "never", "nobody", "noth", "now", "nowhere", "often",
+        "only", "ours", "ourselves", "per", "perhaps", "please", "quite",
+        "rather", "regard", "several", "shall", "since", "sincere",
+        "still", "take", "taken", "toward", "towards", "until", "upon",
+        "us", "use", "using", "whether", "within", "without", "yours",
+        "yourself", "yourselves", "zero", "one", "two", "three", "said",
+        "says", "make", "made", "much", "must", "need", "get",
     }
 )
 

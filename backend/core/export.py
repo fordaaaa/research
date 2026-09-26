@@ -16,8 +16,25 @@ from core.store import Store
 
 
 def slugify(name: str) -> str:
+    """Slug for export filenames: lowercase, [^a-z0-9]+ → -, cap ~40 chars."""
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "untitled"
+    slug = slug[:40].strip("-")
+    return slug or "source"
+
+
+def _unique_name(used: set[str], base: str) -> str:
+    """Return a collision-free filename; append -2, -3, ... on clashes."""
+    if base not in used:
+        used.add(base)
+        return base
+    stem = base.removesuffix(".md")
+    i = 2
+    while True:
+        candidate = f"{stem}-{i}.md"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        i += 1
 
 
 def _yaml(value: str | list[str]) -> str:
@@ -35,10 +52,11 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         index = ["---", f"title: {_yaml(notebook.name)}", "kind: notebook", "---", ""]
-        source_filenames = {
-            summary.id: f"{summary.id}-{slugify(summary.title)}.md"
-            for summary in summaries
-        }
+        used: set[str] = {"index.md"}
+        source_filenames: dict[str, str] = {}
+        for summary in summaries:
+            base = f"{slugify(summary.title)}-{summary.id[:8]}.md"
+            source_filenames[summary.id] = _unique_name(used, base)
         if summaries:
             index.append("## Sources")
             for s in summaries:
@@ -47,11 +65,15 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
         else:
             index.append("_No sources yet._")
         notes = store.list_notes(notebook_id)
+        note_filenames: dict[str, str] = {}
+        for note in notes:
+            base = f"notes/{slugify(note.title)}-{note.id[:8]}.md"
+            note_filenames[note.id] = _unique_name(used, base)
         index.append("")
         if notes:
             index.append("## Notes")
             for note in notes:
-                stem = f"notes/{note.id}-{slugify(note.title)}"
+                stem = note_filenames[note.id].removesuffix(".md")
                 index.append(f"- [[{stem}]] — rev {note.rev}")
         else:
             index.append("## Notes")
@@ -71,7 +93,7 @@ def export_notebook(store: Store, user_id: str, notebook_id: str) -> tuple[bytes
             if not full_note:
                 continue
             zf.writestr(
-                f"notes/{note.id}-{slugify(note.title)}.md",
+                note_filenames[note.id],
                 _render_note(full_note, source_filenames),
             )
 

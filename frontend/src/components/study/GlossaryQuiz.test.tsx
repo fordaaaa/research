@@ -148,7 +148,7 @@ describe("StudyPanel glossary + quiz slice", () => {
 
     const item = screen.getByText("Mitosis").closest("li")!;
     fireEvent.click(within(item).getByRole("button", { name: /open source/i }));
-    expect(onOpenSource).toHaveBeenCalledWith("src00000001");
+    expect(onOpenSource).toHaveBeenCalledWith("src00000001", expect.anything());
 
     fireEvent.click(within(item).getByRole("button", { name: /copy/i }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
@@ -240,7 +240,7 @@ describe("StudyPanel glossary + quiz slice", () => {
     expect(screen.getByText(/Mitosis divides the nucleus/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /open source/i }));
-    expect(onOpenSource).toHaveBeenCalledWith("src00000001");
+    expect(onOpenSource).toHaveBeenCalledWith("src00000001", expect.anything());
   });
 
   it("shows quiz error and empty states", async () => {

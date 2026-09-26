@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as api from "../../api";
 import type { GlossaryEntry } from "../../api";
 import Spinner from "../Spinner";
-import { Button, EmptyState } from "../ui";
+import { Button, EmptyState, Skeleton } from "../ui";
 import { inputCls } from "../ui";
 
 interface Props {
   notebookId: string;
-  onOpenSource?: (sourceId: string) => void;
+  onOpenSource?: (sourceId: string, trigger?: HTMLElement | null) => void;
 }
 
 function pagesLabel(pages: number[]): string {
@@ -119,8 +119,9 @@ export default function GlossarySection({ notebookId, onOpenSource }: Props) {
         Built locally and deterministically from your sources. No AI, no key needed.
       </p>
       {entries === null && !error && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-neutral-500">
-          <Spinner /> Loading glossary…
+        <div className="mt-3 space-y-2">
+          <Skeleton lines={3} />
+          <p className="text-sm text-neutral-500">Loading glossary…</p>
         </div>
       )}
       {error && (
@@ -197,7 +198,7 @@ export default function GlossarySection({ notebookId, onOpenSource }: Props) {
                         {copied === entry.term ? "Copied" : "Copy"}
                       </Button>
                       {onOpenSource && (
-                        <Button variant="ghost" onClick={() => onOpenSource(entry.source_id)}>
+                        <Button variant="ghost" onClick={(e) => onOpenSource(entry.source_id, e.currentTarget)}>
                           Open source
                         </Button>
                       )}

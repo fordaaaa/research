@@ -120,7 +120,9 @@ def register(app: FastAPI) -> None:
         notebook_or_404(store, user.id, notebook_id)
         card = _get_card(store, notebook_id, card_id)
         study_core.schedule_review(card, body.rating, utcnow())
-        return store.save_card(card)
+        saved = store.save_card(card)
+        store.mark_progress(user.id, "review")
+        return saved
 
     @app.get(
         "/api/notebooks/{notebook_id}/cards/suggestions",
@@ -184,6 +186,7 @@ def register(app: FastAPI) -> None:
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
         notebook = notebook_or_404(store, user.id, notebook_id)
+        store.mark_progress(user.id, "export")
         lines = ["Front\tBack\tTags"]
         for card in store.list_cards(notebook_id):
             front = card.front.replace("\t", " ").replace("\n", " ")
@@ -232,6 +235,7 @@ def register(app: FastAPI) -> None:
         notebook_id = safe_id(notebook_id, "notebook_id")
         store = get_store(app)
         notebook = notebook_or_404(store, user.id, notebook_id)
+        store.mark_progress(user.id, "export")
         tree = study_core.build_mindmap(notebook.name, _study_sources(store, notebook_id))
         filename = "".join(c if c.isalnum() else "-" for c in notebook.name).strip("-") or "mindmap"
         return PlainTextResponse(

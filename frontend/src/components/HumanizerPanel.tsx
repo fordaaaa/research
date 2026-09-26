@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { HumanizeAnalysis, HumanizeFix, HumanizeFixOperation, HumanizeRewrite } from "../api";
 import Spinner from "./Spinner";
+import ThinkingDots from "./ThinkingDots";
 import { Badge, Button, Card, SectionHeader } from "./ui";
 import { inputCls } from "./ui";
 
@@ -134,7 +135,7 @@ export default function HumanizerPanel({ aiConfigured }: Props) {
           disabled={busy !== null || !text.trim() || !aiConfigured}
           title={aiConfigured ? "Rewrite with your configured AI provider" : "Set up AI in Settings to enable rewriting"}
         >
-          {busy === "rewrite" && <Spinner size={13} />}
+          {busy === "rewrite" && <ThinkingDots state="composing" theme="dark" />}
           {busy === "rewrite" ? "Rewriting" : "Rewrite with AI"}
         </Button>
         {!aiConfigured && <span className="text-xs text-neutral-600">rewriting needs an AI key — checking never does</span>}

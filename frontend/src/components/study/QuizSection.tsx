@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as api from "../../api";
-import Spinner from "../Spinner";
-import { Button, EmptyState } from "../ui";
+import { Button, EmptyState, Skeleton } from "../ui";
+import { playSuccess } from "../../sound";
 
 interface Props {
   notebookId: string;
-  onOpenSource?: (sourceId: string) => void;
+  onOpenSource?: (sourceId: string, trigger?: HTMLElement | null) => void;
 }
 
 function pagesLabel(pages: number[]): string {
@@ -86,6 +86,15 @@ export default function QuizSection({ notebookId, onOpenSource }: Props) {
   const total = prompts?.length ?? 0;
   const current = prompts && index < prompts.length ? prompts[index] : null;
   const finished = prompts !== null && prompts.length > 0 && index >= prompts.length;
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (finished && !celebrated.current) {
+      celebrated.current = true;
+      playSuccess();
+    } else if (!finished) {
+      celebrated.current = false;
+    }
+  }, [finished]);
 
   return (
     <section aria-label="Quiz">
@@ -94,8 +103,9 @@ export default function QuizSection({ notebookId, onOpenSource }: Props) {
         this session and are never sent back.
       </p>
       {prompts === null && !error && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-neutral-500">
-          <Spinner /> Loading quiz…
+        <div className="mt-3 space-y-2">
+          <Skeleton lines={3} />
+          <p className="text-sm text-neutral-500">Loading quiz…</p>
         </div>
       )}
       {error && (
@@ -171,7 +181,7 @@ export default function QuizSection({ notebookId, onOpenSource }: Props) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button onClick={() => setRevealed(true)}>Show answer</Button>
                   {onOpenSource && (
-                    <Button variant="ghost" onClick={() => onOpenSource(current.source_id)}>
+                    <Button variant="ghost" onClick={(e) => onOpenSource(current.source_id, e.currentTarget)}>
                       Open source
                     </Button>
                   )}
@@ -183,7 +193,7 @@ export default function QuizSection({ notebookId, onOpenSource }: Props) {
                     Mark missed
                   </Button>
                   {onOpenSource && (
-                    <Button variant="ghost" onClick={() => onOpenSource(current.source_id)}>
+                    <Button variant="ghost" onClick={(e) => onOpenSource(current.source_id, e.currentTarget)}>
                       Open source
                     </Button>
                   )}

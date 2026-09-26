@@ -2,9 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
 import type { CardSuggestion, Flashcard, MindmapNode } from "../api";
 import Spinner from "./Spinner";
-import ThinkingDots from "./ThinkingDots";
-import { Button, Card, EmptyState, SectionHeader, Tabs } from "./ui";
+import { Button, Card, EmptyState, SectionHeader, Skeleton, Tabs } from "./ui";
 import { inputCls } from "./ui";
+import { playSuccess } from "../sound";
 import ReviewSession from "./study/ReviewSession";
 import GlossarySection from "./study/GlossarySection";
 import QuizSection from "./study/QuizSection";
@@ -13,10 +13,19 @@ import { formatCardTags, parseCardTags } from "./study/cardTags";
 interface Props {
   notebookId: string;
   onSourcesChanged: () => void;
-  onOpenSource?: (sourceId: string) => void;
+  onOpenSource?: (sourceId: string, trigger?: HTMLElement | null) => void;
+  onReviewed?: () => void;
 }
 
 type Section = "cards" | "glossary" | "quiz" | "guide" | "map";
+
+const SECTION_LABELS: Record<Section, string> = {
+  cards: "Flashcards",
+  glossary: "Glossary",
+  quiz: "Quiz",
+  guide: "Study guide",
+  map: "Mind map",
+};
 
 function shuffled<T>(items: T[]): T[] {
   const copy = [...items];
@@ -27,7 +36,7 @@ function shuffled<T>(items: T[]): T[] {
   return copy;
 }
 
-export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource }: Props) {
+export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource, onReviewed }: Props) {
   const [section, setSection] = useState<Section>("cards");
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [dueCards, setDueCards] = useState<Flashcard[]>([]);
@@ -54,6 +63,8 @@ export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource 
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<Set<string>>(new Set());
   const [savingDraft, setSavingDraft] = useState<string | null>(null);
+  const [sectionAnnouncement, setSectionAnnouncement] = useState<string | null>(null);
+  const sectionHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const notebookIdRef = useRef(notebookId);
   useLayoutEffect(() => {
     notebookIdRef.current = notebookId;
@@ -204,6 +215,7 @@ export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource 
   const handleGraded = (updated: Flashcard) => {
     setCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     setDueCards((prev) => prev.filter((c) => c.id !== updated.id));
+    onReviewed?.();
   };
 
   const startDueReview = async () => {
@@ -222,6 +234,7 @@ export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource 
     setExportError(null);
     try {
       await api.downloadCards(notebookId);
+      playSuccess();
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "export failed");
     } finally {
@@ -231,6 +244,17 @@ export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource 
 
   return (
     <div className="space-y-5 animate-pop-in">
+      <h2
+        ref={sectionHeadingRef}
+        tabIndex={-1}
+        aria-label={`Study section: ${SECTION_LABELS[section]}`}
+        className="text-sm font-semibold outline-none"
+      >
+        {SECTION_LABELS[section]}
+      </h2>
+      <p role="status" aria-label="Study section announcement" className="sr-only">
+        {sectionAnnouncement ?? `Showing ${SECTION_LABELS[section]}`}
+      </p>
       <Tabs
         options={[
           { value: "cards", label: "Flashcards" },
@@ -240,7 +264,11 @@ export default function StudyPanel({ notebookId, onSourcesChanged, onOpenSource 
           { value: "map", label: "Mind map" },
         ]}
         value={section}
-        onChange={setSection}
+        onChange={(next) => {
+          setSection(next);
+          setSectionAnnouncement(`Showing ${SECTION_LABELS[next]}`);
+          sectionHeadingRef.current?.focus();
+        }}
       />
       {section === "cards" && (
         <>
@@ -542,7 +570,7 @@ function GuideSection({ notebookId, onSourcesChanged }: { notebookId: string; on
       {!markdown ? (
         <div className="mt-3">
           <Button onClick={generate} disabled={busy}>
-            {busy && <ThinkingDots state="composing" theme="dark" />}
+            {busy && <Spinner />}
             {busy ? "Building" : "Build guide"}
           </Button>
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
@@ -600,6 +628,7 @@ function MindmapSection({ notebookId }: { notebookId: string }) {
     setExportError(null);
     try {
       await api.downloadMindmap(notebookId);
+      playSuccess();
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "export failed");
     } finally {
@@ -615,7 +644,7 @@ function MindmapSection({ notebookId }: { notebookId: string }) {
         right={
           tree ? (
             <button
-              className="text-xs text-neutral-400 underline hover:text-neutral-100 disabled:opacity-50"
+              className="inline-flex min-h-6 items-center text-xs text-neutral-400 underline hover:text-neutral-100 disabled:opacity-50"
               onClick={handleExportMindmap}
               disabled={exportBusy}
             >
@@ -632,8 +661,9 @@ function MindmapSection({ notebookId }: { notebookId: string }) {
           </p>
         )}
         {!error && !tree && (
-          <div className="flex items-center gap-2 text-sm text-neutral-500">
-            <Spinner /> Growing branches…
+          <div className="space-y-2">
+            <Skeleton lines={4} />
+            <p className="text-sm text-neutral-500">Growing branches…</p>
           </div>
         )}
         {tree && (

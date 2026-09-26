@@ -5,6 +5,7 @@ import type { Flashcard, ReviewRating } from "../../api";
 import { usePrefersReducedMotion } from "../../useMountTransition";
 import { decideSwipe } from "./reviewGesture";
 import { Button, EmptyState } from "../ui";
+import { playSuccess } from "../../sound";
 
 const RATING_ORDER: { value: ReviewRating; label: string; shortcut: string }[] = [
   { value: "again", label: "Again", shortcut: "1" },
@@ -40,6 +41,13 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
 
   const finished = index >= queue.length;
   const current = !finished ? queue[index] : null;
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (finished && queue.length > 0 && !celebrated.current) {
+      celebrated.current = true;
+      playSuccess();
+    }
+  }, [finished, queue.length]);
 
   const grade = useCallback(
     async (rating: ReviewRating) => {

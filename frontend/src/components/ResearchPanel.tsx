@@ -142,20 +142,28 @@ export default function ResearchPanel({ notebookId, aiConfigured, onSourcesChang
       <div key={phase === "adding" ? "results" : phase} className="animate-phase-in">
       {phase === "topic" && (
         <form
-          className="mt-3 flex gap-2"
+          className="mt-3 flex items-start gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             runPlan();
           }}
         >
-          <input
-            className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-neutral-500"
-            placeholder="e.g. transformer models, the Krebs cycle…"
-            value={topic}
-            onChange={(event) => setTopic(event.target.value)}
-          />
+          <div className="min-w-0 flex-1">
+            <input
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+              placeholder="e.g. transformer models, the Krebs cycle…"
+              value={topic}
+              aria-describedby={topic.trim() ? undefined : "research-topic-helper"}
+              onChange={(event) => setTopic(event.target.value)}
+            />
+            {topic.trim().length < 3 && (
+              <p id="research-topic-helper" className="mt-1 text-xs text-neutral-500">
+                Type at least 3 characters to plan
+              </p>
+            )}
+          </div>
           <button
-            className="inline-flex items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition active:scale-[0.98] disabled:opacity-50"
             disabled={busy || topic.trim().length < 3}
             type="submit"
           >

@@ -62,18 +62,18 @@ def test_export_includes_ordered_note_files_and_resolvable_citations(client):
         index = zf.read("index.md").decode()
         note_names = [name for name in names if name.startswith("notes/")]
         assert note_names == [
-            f"notes/{second['id']}-alpha-note.md",
-            f"notes/{first['id']}-zeta-note.md",
+            f"notes/alpha-note-{second['id'][:8]}.md",
+            f"notes/zeta-note-{first['id'][:8]}.md",
         ]
         assert "## Notes" in index
-        assert f"[[notes/{second['id']}-alpha-note]]" in index
-        assert f"[[notes/{first['id']}-zeta-note]]" in index
+        assert f"[[notes/alpha-note-{second['id'][:8]}]]" in index
+        assert f"[[notes/zeta-note-{first['id'][:8]}]]" in index
         note = zf.read(note_names[1]).decode()
         assert "kind: note" in note
         assert "rev: 1" in note
         assert 'tags: ["study"]' in note
         assert "## Citations" in note
-        assert f"[[{src['id']}-primary-source]]" in note
+        assert f"[[primary-source-{src['id'][:8]}]]" in note
         assert "A source passage." not in note
 
 
@@ -95,7 +95,7 @@ def test_export_note_deleted_source_is_explicit_tombstone(client):
 
     response = client.get(f"/api/notebooks/{nb['id']}/export")
     with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
-        body = zf.read(f"notes/{note['id']}-a-note.md").decode()
+        body = zf.read(f"notes/a-note-{note['id'][:8]}.md").decode()
     assert "[deleted source]" in body
     assert src["id"] in body
 
