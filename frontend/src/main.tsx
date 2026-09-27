@@ -11,8 +11,10 @@ import "@fontsource/maple-mono/latin-700.css";
 import "./index.css";
 import App from "./App.tsx";
 import { applyAppearance, readAppearance } from "./appearance";
+import { armTapSounds } from "./sound";
 
 applyAppearance(readAppearance());
+armTapSounds();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

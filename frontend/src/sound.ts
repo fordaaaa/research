@@ -111,6 +111,50 @@ export function playSuccess(): void {
   tone(ctx, 523.25, ctx.currentTime, 0.16, "triangle");
 }
 
+/** Soft tick for every button press. Deliberately quiet (0.035 gain) and
+ * short (0.06s) so high-traffic controls stay pleasant, not naggy. */
+export function playTap(): void {
+  const ctx = context();
+  if (!ctx) return;
+  try {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(660, now + 0.05);
+    gain.gain.value = 0.035;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.06);
+  } catch {
+    // A partial WebAudio implementation must never break a click.
+  }
+}
+
+const TAP_SELECTOR =
+  "button:not(:disabled), a[href], [role='button']:not([aria-disabled='true']),"
+  + " input[type='submit']:not(:disabled), input[type='button']:not(:disabled), summary";
+
+let tapArmed = false;
+
+/** True when a click target should tick (exported for tests). */
+export function isTapTarget(target: EventTarget | null): boolean {
+  if (typeof Element === "undefined" || !(target instanceof Element)) return false;
+  return target.closest(TAP_SELECTOR) !== null;
+}
+
+/** One delegated click listener so EVERY button ticks without touching
+ * individual call sites. Idempotent; call once at startup. */
+export function armTapSounds(): void {
+  if (tapArmed || typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+  tapArmed = true;
+  document.addEventListener("click", (event) => {
+    if (isTapTarget(event.target)) playTap();
+  });
+}
+
 /**
  * One-shot preview of the success chime. Bypasses the muted gate on purpose:
  * the Settings preview (and the "Turn on chimes?" nudge) must be audible so

@@ -135,6 +135,23 @@
     outline: 2px solid var(--color-aqua);
     outline-offset: 2px;
   }
+
+  /* Universal press physics: every button-like control eases and dips on
+   * press (pairs with the tap tick in sound.ts). Component-level
+   * `active:` utilities win where present; the global
+   * prefers-reduced-motion collapse below still applies. */
+  button:not(:disabled),
+  a[href],
+  [role="button"]:not([aria-disabled="true"]) {
+    transition: transform 120ms ease-out, filter 120ms ease-out;
+  }
+
+  button:not(:disabled):active,
+  a[href]:active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.96);
+    filter: brightness(1.07);
+  }
 }
 
 @layer utilities {
