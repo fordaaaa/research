@@ -498,6 +498,7 @@ export default function App() {
     setMobileSection("library");
     setMobileLibraryPane("sources");
     revealSourcesPane();
+    playBoot();
     void loadSourcesBaseline(nb.id).finally(() => {
       window.setTimeout(() => setOpeningNotebook(false), 300);
     });

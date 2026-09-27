@@ -12,8 +12,12 @@ afterEach(() => {
 });
 
 describe("sound staging", () => {
-  it("stays muted by default (no autoplay)", () => {
-    expect(isSoundEnabled()).toBe(false);
+  it("stays on by default (owner decision; Settings mutes)", () => {
+    expect(isSoundEnabled()).toBe(true);
+  });
+
+  it("stays on when storage is unavailable", () => {
+    expect(isSoundEnabled()).toBe(true);
   });
 
   it("persists the user toggle", () => {

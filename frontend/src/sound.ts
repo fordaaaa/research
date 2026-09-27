@@ -1,8 +1,10 @@
 /**
  * Staged sound design — offline WebAudio synth, no assets, no network.
  *
- * Rules: muted by default (no autoplay — browsers block it before a user
- * gesture anyway), persisted per-device toggle (`notaeo:sound`), and every
+ * Rules: ON by default (owner decision; Settings mutes per device via
+ * `notaeo:sound`), one shared lazily-created AudioContext (browsers and
+ * WKWebView start contexts suspended until a user gesture, so every play
+ * resumes first and a one-time gesture listener unlocks audio), and every
  * `play*` is a no-op when muted or when `AudioContext` is unavailable
  * (SSR/tests, old WebViews). Boot + success chimes only for this pass;
  * AI thinking keeps the visual thinking orbs, no looped audio.
@@ -12,9 +14,9 @@ const STORAGE_KEY = "notaeo:sound";
 
 export function isSoundEnabled(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === "on";
+    return localStorage.getItem(STORAGE_KEY) !== "off";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -47,7 +49,25 @@ function tone(
   osc.stop(startAt + duration);
 }
 
+let shared: AudioContext | null = null;
+let unlockArmed = false;
+
+function armUnlockListener(): void {
+  if (unlockArmed || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+  unlockArmed = true;
+  const unlock = () => {
+    if (shared && shared.state === "suspended") {
+      shared.resume().catch(() => {
+        // Still locked — the next gesture or play() retries.
+      });
+    }
+  };
+  window.addEventListener("pointerdown", unlock);
+  window.addEventListener("keydown", unlock);
+}
+
 function openContext(): AudioContext | null {
+  if (shared) return shared;
   const Ctor =
     typeof window !== "undefined"
       ? window.AudioContext ??
@@ -55,15 +75,24 @@ function openContext(): AudioContext | null {
       : undefined;
   if (!Ctor) return null;
   try {
-    return new Ctor();
+    shared = new Ctor();
   } catch {
     return null;
   }
+  armUnlockListener();
+  return shared;
 }
 
 function context(): AudioContext | null {
   if (!isSoundEnabled()) return null;
-  return openContext();
+  const ctx = openContext();
+  if (!ctx) return null;
+  if (ctx.state === "suspended") {
+    ctx.resume().catch(() => {
+      // Locked until a gesture lands; the unlock listener retries then.
+    });
+  }
+  return ctx;
 }
 
 /** Short two-note lift for boot / notebook open (after a user gesture). */

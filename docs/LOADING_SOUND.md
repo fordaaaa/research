@@ -28,15 +28,16 @@ same offline assets. Thinking orbs stay the AI-only indicator.
 ## Sound staging (this pass: boot + success chimes)
 
 - `src/sound.ts`: offline WebAudio synth (two-note boot lift, single soft
-  confirm), no assets, no network. **Muted by default** — browsers block
-  pre-gesture autoplay anyway. Toggle in Settings persists per-device
+  confirm), no assets, no network. **On by default** (owner decision) with a
+  shared lazily-created context that resumes on first gesture (browsers and
+  WKWebView start contexts suspended). Toggle in Settings persists per-device
   (`notaeo:sound`); every `play*` no-ops when muted or without
   `AudioContext`.
 - Wired: login/notebook-open boot chime (post-gesture), notebook export
   success chime, Settings preview on enable. No looped audio during AI
   thinking — orbs cover that visually.
 - macOS shell: no autoplay; native `NSSound` hook reserved (same two chimes,
-  same default-off + Settings mirroring) — not wired yet.
+  same default-on + Settings mirroring) — not wired yet.
 - Mobile (`research-mobile`, separate repo): stage with `expo-audio` synth
   tones mirroring these frequencies, default-off + settings toggle; keep the
   existing `ThinkingDots` spinner fallback for Skia-less runtimes.

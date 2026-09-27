@@ -235,7 +235,7 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
         <section className="mt-6 space-y-4 border-b border-neutral-800 pb-6" aria-label="Sound">
           <div>
             <h3 className="text-sm font-semibold">Sound</h3>
-            <p className="mt-1 text-xs text-neutral-500">Off by default. Short offline chimes for boot and completed exports — no audio during AI thinking.</p>
+            <p className="mt-1 text-xs text-neutral-500">On by default. Short offline chimes for boot and completed exports — no audio during AI thinking.</p>
           </div>
           <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-neutral-800 px-3 py-2 text-sm">
             <span className="text-neutral-300">Interface chimes</span>
