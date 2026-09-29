@@ -7,7 +7,9 @@ Live state of the project. **Read this first** before doing anything.
 > current work. Windows is deferred; mobile lives in `research-mobile`.
 > Owner direction: hosted backend (`research-server`) with thin clients, App
 > Store later ($99 program budgeted then, not now). Login order: email (done)
-> → Google → Apple last.
+> → Google (implemented, client-ID config pending) → Apple last.
+> Owner vision (2026-09-29): Notion for students — academic tailoring plus a
+> near-addictive sound/motion feel; see Next milestones.
 > Shipped:
 > `5e40a21 fix: authenticate notebook exports` (notebook .zip via Bearer
 > fetch, server filename preserved, token kept out of the URL) and
@@ -48,12 +50,60 @@ Live state of the project. **Read this first** before doing anything.
   build clean, lint warnings only, mobile browser E2E `6 passed`, Xcode unit
   tests pass, and `sh scripts/build_macos_app.sh` builds/signs the arm64 app.
 
+## Notaeo, sounds, and auth hardening (2026-09-24 → 2026-09-27)
+
+- **Notaeo rebrand + workspace remake** (`d6da355`, `a95ee63`, `dcdb327`,
+  `4e7db2e`): the product name is Notaeo; workspace UI, sign-in, and student
+  themes/typography redesigned. Source-to-essay workflow documented
+  (`e604113`). macOS polish + first-run tour: `eb2d695`, `05e1a8d`.
+- **Notes module** (`api/notes.py`): notebook markdown notes CRUD with
+  validated source/chunk citations and optimistic concurrency — the seed of
+  the Notion-style editor direction.
+- **Cited passages + ingest/search upgrades**: the reader lifts cited
+  passages (`core/keypassages.py`, `9ab49ed`); XHTML article ingest
+  (`core/article.py`, `35a2b1d`); search ranks closer terms higher
+  (`dd624a1`) and falls back to grouped prefix matches for single-token
+  queries (`a3aa3a4`).
+- **Onboarding progress**: `user_progress` table + `GET /api/me/progress`
+  (`mark_progress` fires from add-source/search/export/review flows);
+  `FolioLoader.tsx` staged boot animation; 4-item `Checklist.tsx` fed by
+  server-or-local flags and playing `playSuccess` on completion.
+  `GET /api/runtime` (`core/local_runtime.py`) advertises privacy-boundary
+  facts.
+- **Sound + press physics, default on** (`0510da2`, `25212d2`, `66cc326`):
+  `src/sound.ts` synthesizes everything offline over one shared
+  lazily-unlocked AudioContext — boot lift, success confirm, quiet tap tick,
+  and a settings preview that deliberately bypasses the mute gate.
+  `armTapSounds()` is one delegated document-level listener wired in
+  `main.tsx`; `index.css` adds universal `:active` press physics
+  (`scale(0.96)` + brightness) with `prefers-reduced-motion` collapse. One
+  toggle in SettingsDialog (`notaeo:sound`); design doc
+  `frontend/docs/LOADING_SOUND.md`.
+- **Auth hardening** (`c42af08`): three-layer login rate limiting (verify-first
+  per-key 10/5min, per-IP 60/5min, per-email 50/5min), 20/hour/IP register
+  throttle, `purge_expired_sessions()`, uniform-404 cross-user oracle
+  (sweep-tested), XFF ignored unless `RESEARCH_TRUST_XFF=1`.
+- **Google OAuth implemented** (postdates the last test-count citation):
+  `core/google_auth.py` id_token verification, `POST /api/auth/google` +
+  status route, frontend wiring in `api.ts`. Configuration with a real client
+  ID still pending.
+- **Duplicate-source warning** (`8e9d02f`): ingest precheck returns
+  `DuplicateRef`; add paths accept `force` to proceed. Duplicate register
+  answers `200 {registered: false}` (anti-enumeration), not 409.
+- Confirm deletes + dialog focus traps (`a162c84`), study-builder cleanup
+  (`bf7f53a`).
+- Hosted note: `research-server`'s backend snapshot was synced through this
+  range (2026-09-29); the private overlay needed a `/api/ai/hosted/status`
+  route-precedence fix and its tests adopted the new duplicate-register
+  contract.
+
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
 - **Owner direction (latest): hosted multi-user backend first.** Accounts are
   required on every data route; AI keys stay optional and per-user. License is
-  MIT (matches fordaaaa/panoply). Google OAuth next, Apple at App Store time.
+  MIT (matches fordaaaa/panoply). Google OAuth implemented (client-ID config
+  pending); Apple at App Store time.
 - Run it: `cd backend && uv run uvicorn api.main:app --reload --no-proxy-headers` + `cd frontend && npm run dev` → http://localhost:5173 (register a local account — free, instant)
 - Tests: `cd backend && uv run pytest` · Frontend check: `cd frontend && npm run build`
 
@@ -90,7 +140,7 @@ Live state of the project. **Read this first** before doing anything.
 
 ## Locked owner decisions
 
-1. **Accounts required, AI optional** — login (email done, Google next, Apple at App Store time) gates every data route; AI keys stay optional and per-user. Self-hosting stays $0.
+1. **Accounts required, AI optional** — login (email + Google done, Apple at App Store time) gates every data route; AI keys stay optional and per-user. Self-hosting stays $0.
 2. **No local LLMs** (no Ollama) — optional remote AI is not a product dependency.
 3. **No-AI mode is first-class** — ingest/search/web discovery/reader/exports work with no provider configured.
 4. **Python backend (FastAPI + uv) + React frontend** — two languages accepted for best PDF/DOCX ecosystem.
@@ -118,8 +168,8 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `api/main.py` — FastAPI factory; lifespan sets `app.state.store`; global exception handler returns generic 500 (no stack leak); can mount built web assets for the desktop sidecar.
 - `desktop.py` — ephemeral loopback Uvicorn entrypoint for the native app.
 - `api/deps.py` — `safe_id()` (regex `^[a-f0-9]{12}$`), `get_store(app)`, `notebook_or_404(store, user_id, ...)` (ownership-checked), `get_current_user()` (Bearer → 401).
-- `api/auth.py` — `POST /api/auth/register|login` (pbkdf2, 30-day sessions), `POST /api/auth/logout`, `GET /api/auth/me`. Google OAuth next, Apple last.
-- `api/notebooks.py` — `POST/GET /api/notebooks`, `DELETE /api/notebooks/{id}`, `GET /api/notebooks/{id}/export` (Obsidian-style markdown zip).
+- `api/auth.py` — `POST /api/auth/register|login` (pbkdf2, 30-day sessions; register answers duplicates `200 {registered: false}` — anti-enumeration), `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/google` + `GET /api/auth/google/status` (id_token verification via `core/google_auth.py`, 503 unconfigured), `GET /api/me/progress` (onboarding flags). Login is rate-limited in three layers (verify-first per-key 10/5min, per-IP 60/5min, per-email 50/5min) plus a 20/hour/IP register throttle; XFF is ignored unless `RESEARCH_TRUST_XFF=1`.
+- `api/notebooks.py` — `POST/GET /api/notebooks`, `GET /api/notebooks/{id}` (detail), `DELETE /api/notebooks/{id}`, `GET /api/notebooks/{id}/export` (Obsidian-style markdown zip).
 - `api/sources.py` — upload (multipart, ≤50 MB streamed cap, ≤20 files, per-file errors), paste (`/sources/text`), URL (`/sources/url`), list, get, chunks (offset/limit), `PATCH /api/sources/{id}` (rename + tags), delete.
 - `api/outlines.py` — persistent deep-research outlines per notebook: CRUD, `POST /outlines/draft` (heuristic angles + optional AI items/fields), `POST /outlines/{id}/deep` (per-item web pass, never ingests), `POST /outlines/{id}/report` (outline-structured digest or AI report saved as a source).
 - `api/humanize.py` — `POST /api/humanize/analyze` (keyless pattern flags, no notebook needed), `POST /api/humanize/rewrite` (optional AI rewrite with voice sample; 503 without a key).
@@ -127,10 +177,12 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `api/demo.py` — `POST /api/demo` builds a "Cell biology demo" notebook (3 original study sources + outline + memory) so new users can try everything with one click.
 - `api/study.py` — keyless study tools: flashcard CRUD, persisted review scheduling and due queues, source-grounded card suggestions, glossary, quiz, Anki-ready TSV export, one-page study guide (`GET/POST /guide`, saveable as a source), and mind map tree + markdown export (`/mindmap`).
 - `api/search.py` — `GET /api/notebooks/{id}/search?q=&kind=&source=&tag=&limit=&offset=`; delegates to `store.search(...)`.
+- `api/ai.py` — optional BYOK chat: provider settings (`GET/PUT/DELETE /api/settings/ai`), chat session CRUD + messages, `POST .../chat`; `GET /api/ai/hosted/status` honestly answers `{enabled: false}` locally (the private hosted server overrides this route).
+- `api/notes.py` — notebook markdown notes CRUD with validated source/chunk citations and optimistic concurrency.
 - `core/models.py` — pydantic: `Page`, `Chunk`, `Source` (`tags`, `meta`), `SourceSummary`, `Notebook`, `SearchHit`, `NotebookCreate`, `PasteCreate`, `SourceUpdate`, `UrlCreate`. `SourceKind` includes `"url"`.
 - `core/parsers.py` — magic-byte + ext + content-type detection; PDF→pages via PyMuPDF, DOCX via python-docx (single page), txt/md utf-8. Unknown → 415 (`IngestError`).
 - `core/chunker.py` — normalize → sentence split → greedy ~1200-char chunks, ~150 overlap, **never spans pages**.
-- `core/search.py` — query parsing + relevance (see ⚠️ Uncommitted section — read working tree, not commit).
+- `core/search.py` — query parsing + relevance: keyword AND, phrase, filters; closer-term ranking and grouped prefix fallback for single-token queries.
 - `core/deepresearch.py` — outline draft/parse helpers, per-item query builder, outline-structured report digest + prompt.
 - `core/humanize.py` — 13 deterministic AI-writing pattern checks + rewrite prompt builder (all keyless; rewrite itself needs a provider).
 - `core/skills.py` — trigger matching (substring, cap 3) + prompt-section builders for skills and memory.
@@ -138,14 +190,18 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - `core/websearch.py` — keyless DDGS public-web discovery.
 - `core/gemini.py` / `core/openrouter.py` — provider REST clients; errors carry `status` + `retry_after`.
 - `core/providers.py` — dispatch `generate(provider, key, model, prompt) -> (answer, model)`; retry on 429/5xx, skip to backup models on 404/400, abort on 401/403; `FALLBACK_MODELS`/`DEFAULT_MODELS` constants live here.
-- `core/store.py` — SQLite store (`app.db`, WAL): users (pbkdf2), sessions (hashed tokens, 30d), per-user notebooks/sources/outlines/cards/skills/memory/AI-settings; `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
+- `core/store.py` — SQLite store (`app.db`, WAL): users (pbkdf2), sessions (hashed tokens, 30d, `purge_expired_sessions()`), per-user notebooks/sources/outlines/cards/notes/skills/memory/chat sessions/AI settings/`user_progress` (`mark_progress`/`get_progress`); `RESEARCH_DATA_DIR` override; `search()` (keyword AND, phrase, filters).
 - `core/ingest.py` — `ingest_bytes` (files), `ingest_text` (paste), `ingest_url` (calls `fetcher`).
 - `core/fetcher.py` — httpx GET + trafilatura article extraction; `FetchError` → mapped to HTTP status.
+- `core/article.py` — XHTML article extraction for ingest.
+- `core/keypassages.py` — deterministic passage ranking behind reader cited passages.
+- `core/local_runtime.py` — privacy-boundary facts served by `GET /api/runtime` (desktop/server mode, loopback-only, explicit egress list).
+- `core/google_auth.py` — Google id_token verification for OAuth sign-in; 503 when unconfigured.
 - `core/export.py` — notebook → `index.md` + per-source `.md` with YAML frontmatter, zipped.
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive mobile navigation. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell.
+`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive mobile navigation. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell. Sound is one offline WebAudio module (`src/sound.ts`, default on, single `notaeo:sound` toggle in SettingsDialog): boot lift, success confirm, a quiet universal tap tick via one delegated listener (`armTapSounds()` in `main.tsx`), and a settings preview that bypasses the mute gate; `index.css` pairs it with universal `:active` press physics that collapse under `prefers-reduced-motion`. `FolioLoader.tsx` stages the boot animation; `Checklist.tsx` renders the 4-item onboarding list fed by `GET /api/me/progress` merged with sticky local flags.
 
 ## Testing
 
@@ -156,7 +212,8 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 - **M3** — icon, native export/download handoff, and automated Xcode tests shipped. Distribution status is documented in `docs/MACOS_DISTRIBUTION.md`; streamed chat and public distribution work remain, with paid notarization optional for local builds.
 - **M7 — SHIPPED (multi-user):** SQLite store, email auth (pbkdf2 + 30d sessions), per-user everything, login UI, JSON→SQLite migration script, private `research-server` self-host repo.
-- **Next: Google OAuth**, then Apple at App Store time ($99 program).
+- **Next: verify Google OAuth end-to-end** (real client ID + web button flow), then Apple at App Store time ($99 program).
+- **Owner vision (2026-09-29) — Notion for students:** grow the notes module into a block editor (slash commands, drag handles, inline `@source` citations linked to chunks), add academic citation exports (APA/MLA/BibTeX) from notebook sources, and make the app near-addictive with tasteful streaks/due badges/review celebrations built on the existing sound + press-physics language.
 - **M5 — SHIPPED (student-ready v2 in working tree):** scheduled flashcards with grounded drafts, mobile review, glossary, quiz, Anki TSV export, keyless one-page study guides, keyless mind maps, in-app source reader, one-click demo notebook, and notebook zip export.
 - **M4 polish** — possible follow-ups: persist research plans per notebook, cap bulk-add selections, retry failed adds.
 
