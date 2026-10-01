@@ -137,6 +137,8 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     outlines.register(app)
     dashboard.register(app)
     classes.register(app)
+    review.register(app)
+    classroom.register(app)
     if web_dir is not None:
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
     return app
