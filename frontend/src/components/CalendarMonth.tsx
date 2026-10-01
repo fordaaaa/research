@@ -185,17 +185,17 @@ export default function CalendarMonth({
           )}
         </div>
 
-        <ul className="mt-3 space-y-2">
+        <ul key={selectedDay} className="mt-3 space-y-2 animate-phase-in">
           {(selected?.assignments ?? []).map((assignment) => (
-            <li key={assignment.id} className="flex items-center gap-2 text-sm">
+            <li key={assignment.id} className="flex items-center gap-2 text-sm transition-colors duration-200">
               <input
                 type="checkbox"
                 checked={assignment.done}
                 onChange={() => onToggleAssignment(assignment)}
                 aria-label={`Mark ${assignment.title} ${assignment.done ? "not done" : "done"}`}
-                className="h-4 w-4 accent-aqua"
+                className="h-4 w-4 accent-aqua transition-transform duration-200 checked:scale-110"
               />
-              <span className={`flex-1 ${assignment.done ? "text-neutral-500 line-through" : ""}`}>
+              <span className={`flex-1 transition-[color,opacity] duration-200 ${assignment.done ? "text-neutral-500 line-through opacity-70" : ""}`}>
                 {assignment.title}
                 {assignment.class_name && (
                   <span className="ml-2 text-xs text-neutral-500">{assignment.class_name}</span>

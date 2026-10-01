@@ -6,8 +6,8 @@
  * WKWebView start contexts suspended until a user gesture, so every play
  * resumes first and a one-time gesture listener unlocks audio), and every
  * `play*` is a no-op when muted or when `AudioContext` is unavailable
- * (SSR/tests, old WebViews). Boot + success chimes only for this pass;
- * AI thinking keeps the visual thinking orbs, no looped audio.
+ * (SSR/tests, old WebViews). Boot, tap, save, and study-completion cues stay
+ * short; AI thinking keeps the visual thinking orbs, with no looped audio.
  */
 
 const STORAGE_KEY = "notaeo:sound";
@@ -41,8 +41,24 @@ function tone(
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = type;
-  osc.frequency.value = frequency;
-  gain.gain.value = gainValue;
+  if (typeof osc.frequency.setValueAtTime === "function") {
+    osc.frequency.setValueAtTime(frequency, startAt);
+  } else {
+    osc.frequency.value = frequency;
+  }
+  const param = gain.gain;
+  if (
+    typeof param.setValueAtTime === "function" &&
+    typeof param.exponentialRampToValueAtTime === "function"
+  ) {
+    const attack = Math.min(0.012, duration / 4);
+    param.setValueAtTime(0.0001, startAt);
+    param.exponentialRampToValueAtTime(gainValue, startAt + attack);
+    param.setValueAtTime(gainValue, startAt + duration * 0.55);
+    param.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  } else {
+    param.value = gainValue;
+  }
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start(startAt);
@@ -104,11 +120,23 @@ export function playBoot(): void {
   tone(ctx, 587.33, now + 0.14, 0.24, "sine", 0.06);
 }
 
-/** Single soft confirm for completed exports / saves. */
-export function playSuccess(): void {
+function successCue(ctx: AudioContext, now: number, kind: "subtle" | "celebration"): void {
+  if (kind === "celebration") {
+    tone(ctx, 392, now, 0.2, "sine", 0.04);
+    tone(ctx, 493.88, now + 0.075, 0.22, "sine", 0.04);
+    tone(ctx, 587.33, now + 0.15, 0.24, "triangle", 0.038);
+    tone(ctx, 783.99, now + 0.225, 0.34, "sine", 0.032);
+    return;
+  }
+  tone(ctx, 523.25, now, 0.16, "triangle", 0.055);
+  tone(ctx, 659.25, now + 0.075, 0.22, "sine", 0.045);
+}
+
+/** Soft completion cue; study sessions get a slightly longer rising phrase. */
+export function playSuccess(kind: "subtle" | "celebration" = "subtle"): void {
   const ctx = context();
   if (!ctx) return;
-  tone(ctx, 523.25, ctx.currentTime, 0.16, "triangle");
+  successCue(ctx, ctx.currentTime, kind);
 }
 
 /** Soft tick for every button press. Deliberately quiet (0.035 gain) and
@@ -123,7 +151,16 @@ export function playTap(): void {
     osc.type = "sine";
     osc.frequency.setValueAtTime(880, now);
     osc.frequency.exponentialRampToValueAtTime(660, now + 0.05);
-    gain.gain.value = 0.035;
+    if (
+      typeof gain.gain.setValueAtTime === "function" &&
+      typeof gain.gain.exponentialRampToValueAtTime === "function"
+    ) {
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.035, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+    } else {
+      gain.gain.value = 0.035;
+    }
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
@@ -163,5 +200,5 @@ export function armTapSounds(): void {
 export function previewChime(): void {
   const ctx = openContext();
   if (!ctx) return;
-  tone(ctx, 523.25, ctx.currentTime, 0.16, "triangle");
+  successCue(ctx, ctx.currentTime, "subtle");
 }

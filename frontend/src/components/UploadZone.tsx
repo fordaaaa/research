@@ -25,7 +25,9 @@ interface Props {
 
 export default function UploadZone({ onUpload, onPaste, existingTitles = [], expandSignal = 0 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<UploadError[]>([]);
   const [showPaste, setShowPaste] = useState(false);
   const [title, setTitle] = useState("");
@@ -154,21 +156,41 @@ export default function UploadZone({ onUpload, onPaste, existingTitles = [], exp
         data-testid="dropzone"
         aria-label="Upload files"
         disabled={busy}
-        className="group flex min-h-12 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-wave/40 bg-neutral-900/60 p-5 text-center transition-all hover:border-aqua hover:bg-seafoam/60 disabled:cursor-wait disabled:opacity-70"
+        className={`group flex min-h-12 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-wave/40 bg-neutral-900/60 p-5 text-center transition-all hover:border-aqua hover:bg-seafoam/60 disabled:cursor-wait disabled:opacity-70 ${dragging ? "fx-drop-ready border-aqua bg-seafoam/60 shadow-[inset_0_0_0_1px_var(--color-aqua)]" : ""}`}
         onClick={() => !busy && inputRef.current?.click()}
-        onDragOver={(e) => e.preventDefault()}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          dragDepthRef.current += 1;
+          if (!busy) setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+          if (dragDepthRef.current === 0) setDragging(false);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!busy) setDragging(true);
+        }}
         onDrop={(e) => {
           e.preventDefault();
+          dragDepthRef.current = 0;
+          setDragging(false);
           if (!busy) handleFiles(e.dataTransfer.files);
         }}
       >
         <p className="flex items-center justify-center gap-2 text-sm font-medium">
+          {!busy && (
+            <span aria-hidden="true" className={`text-aqua transition-transform duration-200 ${dragging ? "-translate-y-1 scale-110" : ""}`}>
+              ↑
+            </span>
+          )}
           {busy ? (
             <>
               <Spinner /> Uploading
             </>
           ) : (
-            "Drop files or click to upload"
+            dragging ? "Release to add sources" : "Drop files or click to upload"
           )}
         </p>
         <p className="mt-1 text-xs text-neutral-500">PDF · DOCX · TXT · MD — up to 50 MB each</p>

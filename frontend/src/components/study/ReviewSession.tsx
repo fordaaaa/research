@@ -49,7 +49,7 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
   useEffect(() => {
     if (finished && queue.length > 0 && !celebrated.current) {
       celebrated.current = true;
-      playSuccess();
+      playSuccess("celebration");
     }
   }, [finished, queue.length]);
 
@@ -166,7 +166,7 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
 
   if (finished || !current) {
     return (
-      <div className="mt-3 rounded-xl border border-neutral-800 p-4 text-center" data-testid="review-session">
+      <div className="fx-celebrate relative mt-3 overflow-hidden rounded-xl border border-neutral-800 p-4 text-center" data-testid="review-session">
         <p className="text-sm font-medium">Review complete: {gradedCount} graded</p>
         <p className="mt-1 text-xs text-neutral-500">
           Grades are saved — reviewed cards return when they are due again.
@@ -204,7 +204,8 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
         <div
           data-testid="review-swipe-surface"
           data-motion={reducedMotion ? "reduced" : "full"}
-          className={`mt-2 min-h-36 w-full rounded-xl border border-neutral-700 bg-neutral-950 p-5 text-center select-none ${
+          key={current.id}
+          className={`animate-review-enter mt-2 min-h-36 w-full rounded-xl border border-neutral-700 bg-neutral-950 p-5 text-center select-none ${
             reducedMotion ? "" : "transition-transform duration-150 ease-out active:scale-[0.99]"
           }`}
           style={{
