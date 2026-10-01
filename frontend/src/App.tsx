@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import type { Note, Notebook, SourceSummary, User } from "./api";
 import AuthPanel from "./components/AuthPanel";
-import NotebookPicker from "./components/NotebookPicker";
+import HomeDashboard from "./components/HomeDashboard";
+import ReviewSession from "./components/study/ReviewSession";
 import UploadZone from "./components/UploadZone";
 import { uniqueSourceTitle } from "./components/pasteTitle";
 import SourceList from "./components/SourceList";
@@ -19,7 +20,7 @@ import type { TourStep } from "./components/FirstRunTour";
 import StudyPanel from "./components/StudyPanel";
 import ReaderModal from "./components/ReaderModal";
 import NotesPanel from "./components/NotesPanel";
-import { Badge, BottomNav, Card, Tabs } from "./components/ui";
+import { Badge, BottomNav, Button, Card, Tabs } from "./components/ui";
 import {
   defaultViewForSection,
   mobileSectionForView,
@@ -201,6 +202,14 @@ export default function App() {
     setTourAnnouncement("Tour finished");
   }, []);
   const [openingNotebook, setOpeningNotebook] = useState(false);
+  // Cross-notebook review (dashboard "Start review"): the queue outlives any
+  // single notebook, so it lives at App level. dashboardTick asks the
+  // dashboard to refetch after each session (due counts + streak move).
+  const [crossReview, setCrossReview] = useState<{
+    queue: api.QueuedCard[];
+    names: Record<string, string>;
+  } | null>(null);
+  const [dashboardTick, setDashboardTick] = useState(0);
   const [appearance, setAppearance] = useState<Appearance>(readAppearance);
   // Round 18: the appearance live region lives here (not inside the dialog)
   // so the announcement survives the dialog closing.
@@ -755,15 +764,18 @@ export default function App() {
       ) : !user ? (
         <AuthPanel onAuthed={handleAuthed} />
       ) : !notebook ? (
-        <NotebookPicker
+        <HomeDashboard
           notebooks={notebooks}
+          userId={user.id}
+          userName={user.email.split("@")[0]}
+          refreshToken={dashboardTick}
           tourPending={tourStage === "waiting"}
           tourActive={tourStage !== "none"}
-          userId={user.id}
           sourcesCount={mergedHasAddedSource ? 1 : 0}
           hasSearched={mergedHasSearched}
           hasExportedOrReviewed={mergedHasExportedOrReviewed}
           onOpen={openNotebook}
+          onStartReview={(queue, names) => setCrossReview({ queue, names })}
           onCreate={async (name) => {
             const nb = await api.createNotebook(name);
             await refreshNotebooks();
@@ -1091,6 +1103,41 @@ export default function App() {
           onBack={() => setTourIndex((index) => Math.max(0, index - 1))}
           onSkip={finishTour}
         />
+      )}
+      {crossReview && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-neutral-950/80 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review across notebooks"
+        >
+          <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold">Review across notebooks</h2>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setCrossReview(null);
+                  setDashboardTick((tick) => tick + 1);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+            <ReviewSession
+              notebookId=""
+              initialQueue={crossReview.queue.map((item) => item.card)}
+              notebookNames={crossReview.names}
+              gradeCard={async (cardId, rating) =>
+                (await api.reviewUserCard(cardId, rating)).card
+              }
+              onExit={() => {
+                setCrossReview(null);
+                setDashboardTick((tick) => tick + 1);
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

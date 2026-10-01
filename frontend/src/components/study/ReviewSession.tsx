@@ -19,6 +19,10 @@ interface Props {
   initialQueue: Flashcard[];
   onExit: () => void;
   onGraded?: (card: Flashcard) => void;
+  /** Cross-notebook mode: grades via the user-level endpoint instead of this notebook's. */
+  gradeCard?: (cardId: string, rating: ReviewRating) => Promise<Flashcard>;
+  /** Card id -> notebook name, shown as a chip in cross-notebook mode. */
+  notebookNames?: Record<string, string>;
 }
 
 function intervalLabel(days: number): string {
@@ -28,7 +32,7 @@ function intervalLabel(days: number): string {
   return `${rounded}d`;
 }
 
-export default function ReviewSession({ notebookId, initialQueue, onExit, onGraded }: Props) {
+export default function ReviewSession({ notebookId, initialQueue, onExit, onGraded, gradeCard, notebookNames }: Props) {
   const [queue, setQueue] = useState<Flashcard[]>(initialQueue);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -56,7 +60,9 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
       setGrading(rating);
       setError(null);
       try {
-        const updated = await api.reviewCard(notebookId, target.id, rating);
+        const updated = gradeCard
+          ? await gradeCard(target.id, rating)
+          : await api.reviewCard(notebookId, target.id, rating);
         onGraded?.(updated);
         setQueue((q) => q.map((c) => (c.id === updated.id ? updated : c)));
         setGradedCount((n) => n + 1);
@@ -69,7 +75,7 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
         setGrading(null);
       }
     },
-    [notebookId, queue, index, grading, onGraded]
+    [gradeCard, notebookId, queue, index, grading, onGraded]
   );
 
   useEffect(() => {
@@ -180,7 +186,12 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
   return (
     <div className="mt-3" data-testid="review-session">
       <div className="flex items-center justify-between text-xs text-neutral-500">
-        <span aria-live="polite">
+        <span aria-live="polite" className="flex items-center gap-2">
+          {notebookNames?.[current.id] && (
+            <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[11px] text-neutral-300">
+              {notebookNames[current.id]}
+            </span>
+          )}
           Card {index + 1} of {queue.length}
         </span>
         <span>

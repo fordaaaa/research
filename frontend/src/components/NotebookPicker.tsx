@@ -7,6 +7,8 @@ import Checklist from "./Checklist";
 import type { ChecklistAction } from "./Checklist";
 
 interface Props {
+  /** "library" embeds the picker inside the dashboard: no hero, no footer, no main landmark. */
+  variant?: "full" | "library";
   notebooks: Notebook[];
   tourPending?: boolean;
   /**
@@ -31,7 +33,8 @@ const WORKFLOWS = [
   { title: "Study", text: "Flashcards with practice mode, one-page guides, mind maps, Anki export, and Obsidian export. Free for local use." },
 ];
 
-export default function NotebookPicker({ notebooks, tourPending = false, tourActive = false, userId, sourcesCount = 0, hasSearched = false, hasExportedOrReviewed = false, onOpen, onCreate, onDelete }: Props) {
+export default function NotebookPicker({ variant = "full", notebooks, tourPending = false, tourActive = false, userId, sourcesCount = 0, hasSearched = false, hasExportedOrReviewed = false, onOpen, onCreate, onDelete }: Props) {
+  const isLibrary = variant === "library";
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
@@ -183,10 +186,16 @@ export default function NotebookPicker({ notebooks, tourPending = false, tourAct
     }
   }, [notebooks]);
 
+  const Tag = (isLibrary ? "section" : "main") as "section" | "main";
   return (
-    <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none animate-page-in">
+    <Tag
+      id={isLibrary ? undefined : "main-content"}
+      tabIndex={-1}
+      aria-label={isLibrary ? "Notebook library" : undefined}
+      className="flex-1 overflow-y-auto outline-none animate-page-in"
+    >
       <div className="mx-auto w-full max-w-6xl space-y-8 px-5 py-8 sm:px-10 sm:py-12">
-        <section aria-label="Your study library" className="relative overflow-hidden rounded-[2rem] bg-brand-deep px-5 py-7 text-mark shadow-[0_25px_70px_rgba(6,48,62,0.14)] sm:px-12 sm:py-12">
+        {!isLibrary && (<section aria-label="Your study library" className="relative overflow-hidden rounded-[2rem] bg-brand-deep px-5 py-7 text-mark shadow-[0_25px_70px_rgba(6,48,62,0.14)] sm:px-12 sm:py-12">
           <div className="pointer-events-none absolute -right-20 -top-32 h-96 w-96 rounded-full border border-mark/15" aria-hidden="true" />
           <div className="pointer-events-none absolute -right-8 -top-16 h-80 w-80 rounded-full border border-mark/20" aria-hidden="true" />
           <div className="pointer-events-none absolute right-8 top-8 h-52 w-52 rounded-full bg-aqua/30 blur-3xl" aria-hidden="true" />
@@ -195,7 +204,7 @@ export default function NotebookPicker({ notebooks, tourPending = false, tourAct
             <h1 className="mt-4 font-display text-4xl leading-tight sm:text-5xl">Your books, notes, and questions.</h1>
             <p className="mt-4 max-w-xl text-sm leading-7 text-mark/80">Make a notebook for each class or assignment. Collect sources, search them, take notes, and build study material. A free account is required; core tools need no AI key and have no paywall for local use.</p>
           </div>
-        </section>
+        </section>)}
 
         {tourPending && <p className="rounded-xl border border-aqua/30 bg-seafoam p-3 text-sm text-neutral-300">Your tour continues inside a notebook. Create one or open the demo to see the rest.</p>}
         {announcement && (
@@ -385,15 +394,15 @@ export default function NotebookPicker({ notebooks, tourPending = false, tourAct
           )}
         </section>
 
-        <section className="grid gap-3 border-t border-neutral-800 pt-7 pb-8 sm:grid-cols-3">
+        {!isLibrary && (<section className="grid gap-3 border-t border-neutral-800 pt-7 pb-8 sm:grid-cols-3">
           {WORKFLOWS.map((w) => (
             <div key={w.title} className="border-l-2 border-aqua/40 pl-4">
               <p className="font-display text-lg font-semibold">{w.title}</p>
               <p className="mt-1 text-xs leading-relaxed text-neutral-500">{w.text}</p>
             </div>
           ))}
-        </section>
+        </section>)}
       </div>
-    </main>
+    </Tag>
   );
 }

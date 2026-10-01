@@ -979,3 +979,186 @@ export async function fetchMindmapExport(notebookId: string): Promise<Downloaded
 export async function downloadMindmap(notebookId: string): Promise<DownloadedFile> {
   return downloadFile(`${BASE}/notebooks/${notebookId}/mindmap/export`, `notebook-${notebookId}-mindmap.md`);
 }
+
+// ---------- dashboard, calendar, classes, classroom ----------
+
+export interface ActivityDay {
+  day: string;
+  reviews: number;
+  sources: number;
+  notes: number;
+}
+
+export interface Streak {
+  current: number;
+  longest: number;
+  reviewed_today: boolean;
+}
+
+export interface DueByNotebook {
+  notebook_id: string;
+  notebook_name: string;
+  due: number;
+}
+
+export interface CalendarCardDue {
+  notebook_id: string;
+  notebook_name: string;
+  count: number;
+}
+
+export type ClassSource = "manual" | "google_classroom";
+
+export interface StudyClass {
+  id: string;
+  name: string;
+  color: string;
+  source: ClassSource;
+  external_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Assignment {
+  id: string;
+  class_id: string | null;
+  class_name: string | null;
+  title: string;
+  details: string;
+  due_at: string | null;
+  done: boolean;
+  notebook_id: string | null;
+  source: ClassSource;
+  external_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarDay {
+  day: string;
+  assignments: Assignment[];
+  card_due: CalendarCardDue[];
+}
+
+export interface RecentNote {
+  id: string;
+  notebook_id: string;
+  notebook_name: string;
+  title: string;
+  updated_at: string;
+}
+
+export interface RecentSource {
+  id: string;
+  notebook_id: string;
+  notebook_name: string;
+  title: string;
+  created_at: string;
+}
+
+export interface DashboardSummary {
+  due_total: number;
+  due_by_notebook: DueByNotebook[];
+  streak: Streak;
+  calendar: CalendarDay[];
+  recent_notes: RecentNote[];
+  recent_sources: RecentSource[];
+  classes: StudyClass[];
+}
+
+export interface QueuedCard {
+  card: Flashcard;
+  notebook_id: string;
+  notebook_name: string;
+}
+
+export interface ClassroomStatus {
+  enabled: boolean;
+  connected: boolean;
+  last_sync_at: string | null;
+  reason: string | null;
+}
+
+export interface ClassroomSyncResult {
+  classes_synced: number;
+  assignments_synced: number;
+  assignments_skipped: number;
+}
+
+export interface NewAssignment {
+  title: string;
+  details?: string;
+  class_id?: string | null;
+  due_at?: string | null;
+  notebook_id?: string | null;
+}
+
+export const getDashboard = () =>
+  apiFetch(`${BASE}/me/dashboard`).then(j<DashboardSummary>);
+
+export const listClasses = () => apiFetch(`${BASE}/classes`).then(j<StudyClass[]>);
+
+export const createClass = (name: string, color: string) =>
+  apiFetch(`${BASE}/classes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, color }),
+  }).then(j<StudyClass>);
+
+export const updateClass = (id: string, fields: { name?: string; color?: string }) =>
+  apiFetch(`${BASE}/classes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  }).then(j<StudyClass>);
+
+export const deleteClass = (id: string) =>
+  apiFetch(`${BASE}/classes/${id}`, { method: "DELETE" }).then(jVoid);
+
+export const listAssignments = () =>
+  apiFetch(`${BASE}/assignments`).then(j<Assignment[]>);
+
+export const createAssignment = (body: NewAssignment) =>
+  apiFetch(`${BASE}/assignments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(j<Assignment>);
+
+export const updateAssignment = (
+  id: string,
+  fields: { title?: string; done?: boolean; due_at?: string | null; class_id?: string | null; notebook_id?: string | null }
+) =>
+  apiFetch(`${BASE}/assignments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  }).then(j<Assignment>);
+
+export const deleteAssignment = (id: string) =>
+  apiFetch(`${BASE}/assignments/${id}`, { method: "DELETE" }).then(jVoid);
+
+export const getCalendar = (days = 35) =>
+  apiFetch(`${BASE}/me/calendar?days=${days}`).then(j<CalendarDay[]>);
+
+export const getUserReviewQueue = (limit = 50) =>
+  apiFetch(`${BASE}/me/review-queue?limit=${limit}`).then(j<QueuedCard[]>);
+
+export const reviewUserCard = (cardId: string, rating: ReviewRating) =>
+  apiFetch(`${BASE}/me/cards/${cardId}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  }).then(j<QueuedCard>);
+
+export const getClassroomStatus = () =>
+  apiFetch(`${BASE}/classroom/status`).then(j<ClassroomStatus>);
+
+export const getClassroomAuthorizeUrl = () =>
+  apiFetch(`${BASE}/classroom/authorize`).then(j<{ authorize_url: string }>);
+
+export const syncClassroom = () =>
+  apiFetch(`${BASE}/classroom/sync`, { method: "POST" }).then(j<ClassroomSyncResult>);
+
+export const disconnectClassroom = () =>
+  apiFetch(`${BASE}/classroom/connection`, { method: "DELETE" }).then(jVoid);
