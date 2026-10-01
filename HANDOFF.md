@@ -97,6 +97,31 @@ Live state of the project. **Read this first** before doing anything.
   route-precedence fix and its tests adopted the new duplicate-register
   contract.
 
+## Dashboard + calendar + Classroom batch (2026-09-30)
+
+- **Home dashboard** replaces the file-picker-first home: greeting + due-card
+  count + study streak (new `user_activity_days` table fed by review/source/
+  note routes; math in `core/dashboard.py`), a 35-day month calendar
+  (`CalendarMonth.tsx`, no deps) with class-colored assignment dots + card-due
+  dots, classes/assignments CRUD (`api/classes.py`, user-scoped, notebook-
+  linkable), recent notes/sources, and the notebook library as a section
+  (`NotebookPicker variant="library"`: no hero/footer/main landmark).
+- **Cross-notebook review**: `GET /api/me/review-queue` + `POST
+  /api/me/cards/{id}/review` grade across every notebook; ReviewSession takes
+  optional `gradeCard`/`notebookNames`; App hosts the queue in a dialog and
+  bumps the dashboard on exit.
+- **Google Classroom** (`api/classroom.py` + `core/classroom.py`): consent
+  URL as JSON (browser hops can't carry the bearer), stateless HMAC state
+  (`digest.user_id`), token exchange/refresh into a new `google_tokens` table,
+  idempotent coursework sync into classes/assignments (`source=
+  'google_classroom'`, keyed by external_id). Activates with
+  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `RESEARCH_PUBLIC_BASE_URL`
+  and test-user access to the two classroom.readonly scopes.
+- Verification: backend `295 passed`; frontend `500 passed` (218 files);
+  `npm run build` clean. Note: the full frontend suite flakes ~1 random
+  timer/announcement App test per run under local parallel load (passes in
+  isolation; clean tree passed once) — worth watching in CI.
+
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
