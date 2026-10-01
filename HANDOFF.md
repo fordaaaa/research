@@ -125,6 +125,17 @@ Live state of the project. **Read this first** before doing anything.
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
+- **FX polish (2026-10-01):** WebAudio tones now fade in and out smoothly;
+  saves/exports use a short rising pair, and finished review sessions use a
+  quieter four-note rise. Review cards animate into place, the completion
+  panel gets a brief glow, the upload dropzone responds while dragging, and
+  calendar day changes and assignment checks get short transitions. The
+  existing reduced-motion rule collapses these effects. This uses the current
+  CSS/WebAudio stack with no added dependency.
+- **Code organization (2026-10-01):** `frontend/src/api.ts` remains the stable
+  import barrel over domain modules in `frontend/src/api/`, with contracts
+  grouped under `frontend/src/api/types/`. Backend tests are grouped under
+  `backend/tests/` by feature; the shared `conftest.py` stays at the root.
 - **Owner direction (latest): hosted multi-user backend first.** Accounts are
   required on every data route; AI keys stay optional and per-user. License is
   MIT (matches fordaaaa/panoply). Google OAuth implemented (client-ID config
@@ -226,11 +237,11 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` (only fetch layer; bearer token from localStorage, `research:unauthorized` event on 401) · `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive mobile navigation. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell. Sound is one offline WebAudio module (`src/sound.ts`, default on, single `notaeo:sound` toggle in SettingsDialog): boot lift, success confirm, a quiet universal tap tick via one delegated listener (`armTapSounds()` in `main.tsx`), and a settings preview that bypasses the mute gate; `index.css` pairs it with universal `:active` press physics that collapse under `prefers-reduced-motion`. `FolioLoader.tsx` stages the boot animation; `Checklist.tsx` renders the 4-item onboarding list fed by `GET /api/me/progress` merged with sticky local flags.
+`src/api.ts` is the compatibility barrel for domain modules in `src/api/`; `src/api/client.ts` owns token handling, shared response parsing, and downloads, with contracts grouped under `src/api/types/`. `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive mobile navigation. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell. Sound is one offline WebAudio module (`src/sound.ts`, default on, single `notaeo:sound` toggle in SettingsDialog): boot lift, success confirm, a quiet universal tap tick via one delegated listener (`armTapSounds()` in `main.tsx`), and a settings preview that bypasses the mute gate; `index.css` pairs it with universal `:active` press physics that collapse under `prefers-reduced-motion`. `FolioLoader.tsx` stages the boot animation; `Checklist.tsx` renders the 4-item onboarding list fed by `GET /api/me/progress` merged with sticky local flags.
 
 ## Testing
 
-- `backend/tests/` — `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes an **authed** `client` fixture (registers one user, sends its bearer token). See `test_auth.py` for register/login/logout/isolation coverage.
+- `backend/tests/` — feature folders keep API, auth, AI, core, ingest, search, study, export, and platform tests together. Root `conftest.py` sets `RESEARCH_DATA_DIR` to a temp dir per test and exposes an **authed** `client` fixture (registers one user, sends its bearer token). See `auth/test_auth.py` for register/login/logout/isolation coverage.
 - Build checks: `cd backend && uv run pytest`; `cd frontend && npm test && npm run build && npm run lint`; `cd frontend && npm run e2e` for isolated iPhone/WebKit + Pixel/Chromium journeys; then `sh scripts/build_macos_app.sh` for the arm64 app bundle and sidecar smoke test. Remote E2E setup is documented in `frontend/e2e/README.md`.
 
 ## Next milestones

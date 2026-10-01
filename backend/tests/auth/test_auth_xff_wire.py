@@ -24,7 +24,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 READY_RE = re.compile(r"RESEARCH_READY\s+(http://127\.0\.0\.1:\d+)")
 _STARTUP_TIMEOUT_SECONDS = 60.0
 _HEALTH_TIMEOUT_SECONDS = 30.0
