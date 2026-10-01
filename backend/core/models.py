@@ -549,3 +549,149 @@ class QuizQuestion(BaseModel):
     source_title: str
     pages: list[int] = Field(default_factory=list)
     chunk_seq: int = Field(default=0, ge=0)
+
+
+# ---------- classes, assignments, dashboard, classroom ----------
+
+ClassSource = Literal["manual", "google_classroom"]
+
+
+class StudyClass(BaseModel):
+    id: str
+    name: str = Field(min_length=1, max_length=120)
+    color: str = Field(default="", max_length=20)
+    source: ClassSource = "manual"
+    external_id: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class StudyClassCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    color: str = Field(default="", max_length=20)
+
+    @model_validator(mode="after")
+    def _name_not_blank(self) -> "StudyClassCreate":
+        if not self.name.strip():
+            raise ValueError("name must not be blank")
+        return self
+
+
+class StudyClassUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    color: str | None = Field(default=None, max_length=20)
+
+
+class Assignment(BaseModel):
+    id: str
+    class_id: str | None = None
+    class_name: str | None = None
+    title: str
+    details: str = ""
+    due_at: datetime | None = None
+    done: bool = False
+    notebook_id: str | None = None
+    source: ClassSource = "manual"
+    external_id: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssignmentCreate(BaseModel):
+    class_id: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    details: str = Field(default="", max_length=4_000)
+    due_at: datetime | None = None
+    notebook_id: str | None = None
+
+    @model_validator(mode="after")
+    def _title_not_blank(self) -> "AssignmentCreate":
+        if not self.title.strip():
+            raise ValueError("title must not be blank")
+        return self
+
+
+class AssignmentUpdate(BaseModel):
+    class_id: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    details: str | None = Field(default=None, max_length=4_000)
+    due_at: datetime | None = None
+    done: bool | None = None
+    notebook_id: str | None = None
+
+
+class ActivityDay(BaseModel):
+    day: str
+    reviews: int = 0
+    sources: int = 0
+    notes: int = 0
+
+
+class Streak(BaseModel):
+    current: int
+    longest: int
+    reviewed_today: bool
+
+
+class DueByNotebook(BaseModel):
+    notebook_id: str
+    notebook_name: str
+    due: int
+
+
+class CalendarCardDue(BaseModel):
+    notebook_id: str
+    notebook_name: str
+    count: int
+
+
+class CalendarDay(BaseModel):
+    day: str
+    assignments: list[Assignment] = Field(default_factory=list)
+    card_due: list[CalendarCardDue] = Field(default_factory=list)
+
+
+class RecentNote(BaseModel):
+    id: str
+    notebook_id: str
+    notebook_name: str
+    title: str
+    updated_at: datetime
+
+
+class RecentSource(BaseModel):
+    id: str
+    notebook_id: str
+    notebook_name: str
+    title: str
+    created_at: datetime
+
+
+class DashboardSummary(BaseModel):
+    due_total: int
+    due_by_notebook: list[DueByNotebook] = Field(default_factory=list)
+    streak: Streak
+    calendar: list[CalendarDay] = Field(default_factory=list)
+    recent_notes: list[RecentNote] = Field(default_factory=list)
+    recent_sources: list[RecentSource] = Field(default_factory=list)
+    classes: list[StudyClass] = Field(default_factory=list)
+
+
+class QueuedCard(BaseModel):
+    """A due card annotated with its notebook for cross-notebook review."""
+    card: Flashcard
+    notebook_id: str
+    notebook_name: str
+
+
+class ClassroomStatus(BaseModel):
+    enabled: bool
+    connected: bool
+    last_sync_at: datetime | None = None
+    reason: str | None = None
+
+
+class ClassroomSyncResult(BaseModel):
+    classes_synced: int
+    assignments_synced: int
+    assignments_skipped: int

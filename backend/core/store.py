@@ -19,10 +19,14 @@ from typing import Any
 from core.models import (
     AISettings,
     AISettingsUpdate,
+    ActivityDay,
+    Assignment,
+    CalendarCardDue,
     ChatMessage,
     ChatSession,
     Chunk,
     Citation,
+    DueByNotebook,
     Flashcard,
     Note,
     NoteCitation,
@@ -30,11 +34,15 @@ from core.models import (
     Notebook,
     OutlineField,
     OutlineItem,
+    QueuedCard,
+    RecentNote,
+    RecentSource,
     ResearchOutline,
     SearchHit,
     Skill,
     Source,
     SourceSummary,
+    StudyClass,
     User,
     utcnow,
 )
@@ -186,6 +194,49 @@ CREATE TABLE IF NOT EXISTS user_progress (
     key TEXT NOT NULL,
     done_at TEXT NOT NULL,
     PRIMARY KEY(user_id, key)
+);
+CREATE TABLE IF NOT EXISTS classes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'google_classroom')),
+    external_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_classes_user ON classes(user_id);
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    class_id TEXT REFERENCES classes(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    due_at TEXT NOT NULL DEFAULT '',
+    done INTEGER NOT NULL DEFAULT 0,
+    notebook_id TEXT REFERENCES notebooks(id) ON DELETE SET NULL,
+    source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'google_classroom')),
+    external_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assignments_user_due ON assignments(user_id, due_at);
+CREATE TABLE IF NOT EXISTS user_activity_days (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    reviews INTEGER NOT NULL DEFAULT 0,
+    sources INTEGER NOT NULL DEFAULT 0,
+    notes INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(user_id, day)
+);
+CREATE TABLE IF NOT EXISTS google_tokens (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL DEFAULT '',
+    expires_at TEXT NOT NULL DEFAULT '',
+    scopes TEXT NOT NULL DEFAULT '',
+    last_sync_at TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
 );
 """
 
@@ -413,6 +464,420 @@ class Store:
                 return {k: False for k in self.PROGRESS_KEYS}
         done = {r["key"] for r in rows}
         return {k: (k in done) for k in self.PROGRESS_KEYS}
+
+    # ---------- classes & assignments ----------
+
+    def create_class(self, user_id: str, name: str, color: str = "") -> StudyClass:
+        now = utcnow()
+        klass = StudyClass(
+            id=new_id(), name=name, color=color, source="manual",
+            created_at=now, updated_at=now,
+        )
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO classes (id, user_id, name, color, source, external_id,"
+                " created_at, updated_at) VALUES (?, ?, ?, ?, 'manual', '', ?, ?)",
+                (klass.id, user_id, klass.name, klass.color,
+                 klass.created_at.isoformat(), klass.updated_at.isoformat()),
+            )
+        return klass
+
+    def list_classes(self, user_id: str) -> list[StudyClass]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM classes WHERE user_id = ? ORDER BY name COLLATE NOCASE",
+                (user_id,),
+            ).fetchall()
+        return [_class_from_row(r) for r in rows]
+
+    def update_class(
+        self, user_id: str, class_id: str, name: str | None, color: str | None
+    ) -> StudyClass | None:
+        fields: list[str] = []
+        values: list[Any] = []
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if color is not None:
+            fields.append("color = ?")
+            values.append(color)
+        if not fields:
+            return self.get_class(user_id, class_id)
+        fields.append("updated_at = ?")
+        values.append(utcnow().isoformat())
+        values.extend([user_id, class_id])
+        with self._connect() as con:
+            con.execute(
+                f"UPDATE classes SET {', '.join(fields)}"
+                " WHERE user_id = ? AND id = ?",
+                values,
+            )
+        return self.get_class(user_id, class_id)
+
+    def get_class(self, user_id: str, class_id: str) -> StudyClass | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM classes WHERE user_id = ? AND id = ?",
+                (user_id, class_id),
+            ).fetchone()
+        return _class_from_row(row) if row else None
+
+    def delete_class(self, user_id: str, class_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM classes WHERE user_id = ? AND id = ?", (user_id, class_id)
+            )
+        return cur.rowcount > 0
+
+    def create_assignment(
+        self,
+        user_id: str,
+        title: str,
+        due_at: datetime | None,
+        class_id: str | None = None,
+        details: str = "",
+        notebook_id: str | None = None,
+        source: str = "manual",
+        external_id: str = "",
+    ) -> Assignment:
+        now = utcnow()
+        assignment = Assignment(
+            id=new_id(), class_id=class_id, title=title, details=details,
+            due_at=due_at, done=False, notebook_id=notebook_id,
+            source=source, external_id=external_id,  # type: ignore[arg-type]
+            created_at=now, updated_at=now,
+        )
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO assignments (id, user_id, class_id, title, details, due_at,"
+                " done, notebook_id, source, external_id, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
+                (
+                    assignment.id, user_id, class_id, assignment.title, details,
+                    due_at.isoformat() if due_at else "", notebook_id, source,
+                    external_id, now.isoformat(), now.isoformat(),
+                ),
+            )
+        return self.get_assignment(user_id, assignment.id)  # type: ignore[return-value]
+
+    def list_assignments(
+        self, user_id: str, since: datetime | None = None, until: datetime | None = None
+    ) -> list[Assignment]:
+        query = (
+            "SELECT a.*, c.name AS class_name FROM assignments a"
+            " LEFT JOIN classes c ON a.class_id = c.id WHERE a.user_id = ?"
+        )
+        values: list[Any] = [user_id]
+        if since is not None:
+            query += " AND a.due_at != '' AND a.due_at >= ?"
+            values.append(since.isoformat())
+        if until is not None:
+            query += " AND a.due_at != '' AND a.due_at <= ?"
+            values.append(until.isoformat())
+        query += " ORDER BY CASE WHEN a.due_at = '' THEN 1 ELSE 0 END, a.due_at, a.created_at"
+        with self._connect() as con:
+            rows = con.execute(query, values).fetchall()
+        return [_assignment_from_row(r) for r in rows]
+
+    def get_assignment(self, user_id: str, assignment_id: str) -> Assignment | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT a.*, c.name AS class_name FROM assignments a"
+                " LEFT JOIN classes c ON a.class_id = c.id"
+                " WHERE a.user_id = ? AND a.id = ?",
+                (user_id, assignment_id),
+            ).fetchone()
+        return _assignment_from_row(row) if row else None
+
+    def update_assignment(
+        self, user_id: str, assignment_id: str, fields: dict[str, Any]
+    ) -> Assignment | None:
+        assignments = self.list_assignments(user_id)
+        existing = next((a for a in assignments if a.id == assignment_id), None)
+        if existing is None:
+            return None
+        columns: dict[str, str] = {}
+        if "class_id" in fields:
+            columns["class_id"] = fields["class_id"]
+        if "title" in fields and fields["title"] is not None:
+            columns["title"] = fields["title"]
+        if "details" in fields and fields["details"] is not None:
+            columns["details"] = fields["details"]
+        if "due_at" in fields:
+            due = fields["due_at"]
+            columns["due_at"] = due.isoformat() if due else ""
+        if "done" in fields and fields["done"] is not None:
+            columns["done"] = 1 if fields["done"] else 0
+        if "notebook_id" in fields:
+            columns["notebook_id"] = fields["notebook_id"]
+        if not columns:
+            return existing
+        columns["updated_at"] = utcnow().isoformat()
+        sets = ", ".join(f"{name} = ?" for name in columns)
+        values = list(columns.values()) + [user_id, assignment_id]
+        with self._connect() as con:
+            con.execute(
+                f"UPDATE assignments SET {sets} WHERE user_id = ? AND id = ?", values
+            )
+        return self.get_assignment(user_id, assignment_id)
+
+    def delete_assignment(self, user_id: str, assignment_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM assignments WHERE user_id = ? AND id = ?",
+                (user_id, assignment_id),
+            )
+        return cur.rowcount > 0
+
+    def upsert_classroom_class(self, user_id: str, external_id: str, name: str) -> StudyClass:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM classes WHERE user_id = ? AND source = 'google_classroom'"
+                " AND external_id = ?",
+                (user_id, external_id),
+            ).fetchone()
+            now = utcnow().isoformat()
+            if row:
+                con.execute(
+                    "UPDATE classes SET name = ?, updated_at = ? WHERE id = ?",
+                    (name, now, row["id"]),
+                )
+                return self.get_class(user_id, row["id"])  # type: ignore[return-value]
+            klass = StudyClass(
+                id=new_id(), name=name, source="google_classroom", external_id=external_id,
+                created_at=utcnow(), updated_at=utcnow(),
+            )
+            con.execute(
+                "INSERT INTO classes (id, user_id, name, color, source, external_id,"
+                " created_at, updated_at) VALUES (?, ?, ?, '', 'google_classroom', ?, ?, ?)",
+                (klass.id, user_id, name, external_id, now, now),
+            )
+            return klass
+
+    def upsert_classroom_assignment(
+        self, user_id: str, class_id: str, external_id: str,
+        title: str, due_at: datetime | None, details: str,
+    ) -> tuple[Assignment, bool]:
+        """Insert or refresh a synced assignment; returns (assignment, created)."""
+        assignment_id = new_id()
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT id FROM assignments WHERE user_id = ?"
+                " AND source = 'google_classroom' AND external_id = ?",
+                (user_id, external_id),
+            ).fetchone()
+            now = utcnow().isoformat()
+            if row:
+                assignment_id = row["id"]
+                con.execute(
+                    "UPDATE assignments SET class_id = ?, title = ?, due_at = ?,"
+                    " details = ?, updated_at = ? WHERE id = ?",
+                    (class_id, title, due_at.isoformat() if due_at else "", details,
+                     now, assignment_id),
+                )
+                created = False
+            else:
+                con.execute(
+                    "INSERT INTO assignments (id, user_id, class_id, title, details,"
+                    " due_at, done, notebook_id, source, external_id, created_at, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 'google_classroom', ?, ?, ?)",
+                    (assignment_id, user_id, class_id, title, details,
+                     due_at.isoformat() if due_at else "", external_id, now, now),
+                )
+                created = True
+        return self.get_assignment(user_id, assignment_id), created  # type: ignore[return-value]
+
+    def set_classroom_sync(self, user_id: str, moment: datetime) -> None:
+        with self._connect() as con:
+            con.execute(
+                "UPDATE google_tokens SET last_sync_at = ?, updated_at = ? WHERE user_id = ?",
+                (moment.isoformat(), utcnow().isoformat(), user_id),
+            )
+
+    # ---------- activity / streak ----------
+
+    _ACTIVITY_COLUMNS = {"reviews", "sources", "notes"}
+
+    def record_activity(self, user_id: str, kind: str) -> None:
+        """Increment today's counter; kind is reviews|sources|notes (whitelist)."""
+        if kind not in self._ACTIVITY_COLUMNS:
+            raise ValueError(f"unknown activity kind {kind!r}")
+        day = utcnow().date().isoformat()
+        with self._connect() as con:
+            con.execute(
+                f"INSERT INTO user_activity_days (user_id, day, {kind}) VALUES (?, ?, 1)"
+                f" ON CONFLICT(user_id, day) DO UPDATE SET {kind} = {kind} + 1",
+                (user_id, day),
+            )
+
+    def list_activity_days(self, user_id: str, since_day: str) -> list[ActivityDay]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT * FROM user_activity_days WHERE user_id = ? AND day >= ?"
+                " ORDER BY day",
+                (user_id, since_day),
+            ).fetchall()
+        return [
+            ActivityDay(
+                day=r["day"], reviews=r["reviews"], sources=r["sources"], notes=r["notes"]
+            )
+            for r in rows
+        ]
+
+    # ---------- google tokens ----------
+
+    def save_google_tokens(
+        self, user_id: str, access_token: str, refresh_token: str,
+        expires_at: datetime, scopes: list[str],
+    ) -> None:
+        with self._connect() as con:
+            con.execute(
+                "INSERT INTO google_tokens (user_id, access_token, refresh_token,"
+                " expires_at, scopes, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET access_token = excluded.access_token,"
+                " refresh_token = CASE WHEN excluded.refresh_token = ''"
+                " THEN google_tokens.refresh_token ELSE excluded.refresh_token END,"
+                " expires_at = excluded.expires_at, scopes = excluded.scopes,"
+                " updated_at = excluded.updated_at",
+                (
+                    user_id, access_token, refresh_token, expires_at.isoformat(),
+                    " ".join(scopes), utcnow().isoformat(),
+                ),
+            )
+
+    def get_google_tokens(self, user_id: str) -> dict[str, Any] | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT * FROM google_tokens WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "access_token": row["access_token"],
+            "refresh_token": row["refresh_token"],
+            "expires_at": row["expires_at"],
+            "scopes": row["scopes"],
+            "last_sync_at": row["last_sync_at"],
+        }
+
+    def delete_google_tokens(self, user_id: str) -> bool:
+        with self._connect() as con:
+            cur = con.execute(
+                "DELETE FROM google_tokens WHERE user_id = ?", (user_id,)
+            )
+        return cur.rowcount > 0
+
+    # ---------- dashboard ----------
+
+    def due_counts_by_notebook(self, user_id: str, moment: datetime) -> list[DueByNotebook]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT n.id AS notebook_id, n.name AS notebook_name, COUNT(*) AS due"
+                " FROM cards c JOIN notebooks n ON c.notebook_id = n.id"
+                " WHERE n.user_id = ? AND (c.due_at = '' OR c.due_at <= ?)"
+                " GROUP BY n.id, n.name ORDER BY due DESC",
+                (user_id, moment.isoformat()),
+            ).fetchall()
+        return [
+            DueByNotebook(notebook_id=r["notebook_id"], notebook_name=r["notebook_name"],
+                          due=r["due"])
+            for r in rows
+        ]
+
+    def due_by_day(
+        self, user_id: str, today: str, horizon_days: int
+    ) -> list[tuple[str, CalendarCardDue]]:
+        """Per-(day, notebook) due counts; anything overdue folds into today."""
+        upper = (
+            datetime.fromisoformat(today + "T00:00:00+00:00")
+            + timedelta(days=horizon_days)
+        )
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT substr(c.due_at, 1, 10) AS day, c.notebook_id, n.name AS notebook_name,"
+                " COUNT(*) AS count FROM cards c JOIN notebooks n ON c.notebook_id = n.id"
+                " WHERE n.user_id = ? AND c.due_at != '' AND c.due_at <= ?"
+                " GROUP BY day, c.notebook_id, n.name",
+                (user_id, upper.isoformat()),
+            ).fetchall()
+        folded: dict[tuple[str, str], tuple[str, CalendarCardDue]] = {}
+        for r in rows:
+            day = r["day"] if r["day"] >= today else today
+            key = (day, r["notebook_id"])
+            entry = folded.get(key)
+            if entry is None:
+                entry = (
+                    day,
+                    CalendarCardDue(
+                        notebook_id=r["notebook_id"], notebook_name=r["notebook_name"],
+                        count=0,
+                    ),
+                )
+                folded[key] = entry
+            entry[1].count += r["count"]
+        return sorted(folded.values(), key=lambda e: (e[0], e[1].notebook_id))
+
+    def recent_notes(self, user_id: str, limit: int = 5) -> list[RecentNote]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT t.id, t.notebook_id, t.title, t.updated_at, n.name AS notebook_name"
+                " FROM notes t JOIN notebooks n ON t.notebook_id = n.id"
+                " WHERE n.user_id = ? ORDER BY t.updated_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [
+            RecentNote(
+                id=r["id"], notebook_id=r["notebook_id"], notebook_name=r["notebook_name"],
+                title=r["title"], updated_at=datetime.fromisoformat(r["updated_at"]),
+            )
+            for r in rows
+        ]
+
+    def recent_sources(self, user_id: str, limit: int = 5) -> list[RecentSource]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT s.id, s.notebook_id, s.title, s.created_at, n.name AS notebook_name"
+                " FROM sources s JOIN notebooks n ON s.notebook_id = n.id"
+                " WHERE n.user_id = ? ORDER BY s.created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [
+            RecentSource(
+                id=r["id"], notebook_id=r["notebook_id"], notebook_name=r["notebook_name"],
+                title=r["title"], created_at=datetime.fromisoformat(r["created_at"]),
+            )
+            for r in rows
+        ]
+
+    def list_due_cards_for_user(
+        self, user_id: str, moment: datetime, limit: int = 50
+    ) -> list[QueuedCard]:
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT c.*, n.id AS nb_id, n.name AS nb_name FROM cards c"
+                " JOIN notebooks n ON c.notebook_id = n.id"
+                " WHERE n.user_id = ? AND (c.due_at = '' OR c.due_at <= ?)"
+                " ORDER BY c.due_at, c.created_at LIMIT ?",
+                (user_id, moment.isoformat(), limit),
+            ).fetchall()
+        return [
+            QueuedCard(card=_card_from_row(r), notebook_id=r["nb_id"],
+                       notebook_name=r["nb_name"])
+            for r in rows
+        ]
+
+    def find_card_for_user(self, user_id: str, card_id: str) -> QueuedCard | None:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT c.*, n.id AS nb_id, n.name AS nb_name FROM cards c"
+                " JOIN notebooks n ON c.notebook_id = n.id"
+                " WHERE n.user_id = ? AND c.id = ?",
+                (user_id, card_id),
+            ).fetchone()
+        if not row:
+            return None
+        return QueuedCard(card=_card_from_row(row), notebook_id=row["nb_id"],
+                          notebook_name=row["nb_name"])
 
     # ---------- notebooks ----------
 
@@ -1155,3 +1620,33 @@ def _snippet(original: str, terms: list[str], width: int = 80) -> str:
     prefix = "…" if start > 0 else ""
     suffix = "…" if end < len(original) else ""
     return prefix + original[start:end].strip() + suffix
+
+
+def _class_from_row(row: Any) -> StudyClass:
+    return StudyClass(
+        id=row["id"],
+        name=row["name"],
+        color=row["color"] or "",
+        source=row["source"],
+        external_id=row["external_id"] or "",
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _assignment_from_row(row: Any) -> Assignment:
+    due_raw = row["due_at"] or ""
+    return Assignment(
+        id=row["id"],
+        class_id=row["class_id"] or None,
+        class_name=row["class_name"] if "class_name" in row.keys() else None,
+        title=row["title"],
+        details=row["details"] or "",
+        due_at=datetime.fromisoformat(due_raw) if due_raw else None,
+        done=bool(row["done"]),
+        notebook_id=row["notebook_id"] or None,
+        source=row["source"],
+        external_id=row["external_id"] or "",
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )

@@ -37,7 +37,7 @@ def register(app: FastAPI) -> None:
         citations = list(body.citations)
         _validate_citations(store, notebook_id, citations)
         now = utcnow()
-        return store.create_note(
+        note = store.create_note(
             Note(
                 id=new_id(),
                 notebook_id=notebook_id,
@@ -50,6 +50,8 @@ def register(app: FastAPI) -> None:
                 updated_at=now,
             )
         )
+        store.record_activity(user.id, "notes")
+        return note
 
     @app.get("/api/notebooks/{notebook_id}/notes", response_model=list[NoteSummary])
     def list_notes(notebook_id: str, user: User = Depends(get_current_user)):

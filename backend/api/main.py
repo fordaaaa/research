@@ -18,7 +18,25 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai, auth, demo, humanize, notebooks, notes, outlines, research, search, skills, sources, study, web
+from api import (
+    ai,
+    auth,
+    classroom,
+    classes,
+    dashboard,
+    demo,
+    humanize,
+    notebooks,
+    notes,
+    outlines,
+    research,
+    review,
+    search,
+    skills,
+    sources,
+    study,
+    web,
+)
 from core.local_runtime import describe_runtime
 from core.store import Store
 
@@ -117,6 +135,8 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     study.register(app)
     research.register(app)
     outlines.register(app)
+    dashboard.register(app)
+    classes.register(app)
     if web_dir is not None:
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
     return app

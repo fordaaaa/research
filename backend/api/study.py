@@ -122,6 +122,7 @@ def register(app: FastAPI) -> None:
         study_core.schedule_review(card, body.rating, utcnow())
         saved = store.save_card(card)
         store.mark_progress(user.id, "review")
+        store.record_activity(user.id, "reviews")
         return saved
 
     @app.get(

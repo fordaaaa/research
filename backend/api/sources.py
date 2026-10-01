@@ -52,6 +52,7 @@ def register(app: FastAPI) -> None:
                 errors.append({"file": f.filename, "detail": str(exc)})
         if created:
             get_store(app).mark_progress(user.id, "add_source")
+            get_store(app).record_activity(user.id, "sources")
         return {"sources": created, "errors": errors}
 
     @app.post("/api/notebooks/{notebook_id}/sources/text", status_code=201)
@@ -79,6 +80,7 @@ def register(app: FastAPI) -> None:
                 )
         source = ingest.ingest_text(store, notebook_id, body.title, body.text)
         store.mark_progress(user.id, "add_source")
+        store.record_activity(user.id, "sources")
         return JSONResponse(
             status_code=201,
             content=_summary(source, duplicate_of=None, saved=True),
@@ -115,6 +117,7 @@ def register(app: FastAPI) -> None:
                 )
         source = ingest.ingest_fetched_url(store, notebook_id, body.url, details)
         store.mark_progress(user.id, "add_source")
+        store.record_activity(user.id, "sources")
         return JSONResponse(
             status_code=201,
             content=_summary(source, duplicate_of=None, saved=True),
