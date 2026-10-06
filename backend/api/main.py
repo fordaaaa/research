@@ -23,6 +23,7 @@ from api import (
     auth,
     classroom,
     classes,
+    coach,
     dashboard,
     demo,
     humanize,
@@ -45,9 +46,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 DESKTOP_COOKIE = "research_session"
 DESKTOP_TOKEN_PARAM = "desktop_token"
+DESKTOP_TOKEN_HEADER = "X-Notaeo-Desktop-Token"
 # The packaged shell loads the sidecar root ("/"); "/index.html" covers a
 # direct index request through StaticFiles with the same per-launch token.
 DESKTOP_EXCHANGE_PATHS = frozenset({"/", "/index.html"})
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": (
+        "default-src 'self';"
+        " script-src 'self' https://accounts.google.com;"
+        " frame-src https://accounts.google.com;"
+        " connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com"
+    ),
+}
 
 
 def _token_matches(supplied: str | None, expected: str) -> bool:
@@ -67,8 +79,16 @@ async def lifespan(app: FastAPI):
 
 def create_app(web_dir: Path | None = None) -> FastAPI:
     """Create the API, optionally serving a built frontend at the site root."""
-    app = FastAPI(title="Notaeo", version="0.1.0", lifespan=lifespan)
     desktop_token = os.environ.get("RESEARCH_DESKTOP_TOKEN") or None
+    native_desktop = os.environ.get("RESEARCH_NATIVE_DESKTOP") == "1"
+    if native_desktop and not desktop_token:
+        raise RuntimeError("native desktop requires RESEARCH_DESKTOP_TOKEN")
+    app = FastAPI(
+        title="Notaeo", version="0.1.0", lifespan=lifespan,
+        docs_url=None if desktop_token else "/docs",
+        redoc_url=None if desktop_token else "/redoc",
+        openapi_url=None if desktop_token else "/openapi.json",
+    )
     # Desktop sidecar is same-origin only (WKWebView on a loopback port);
     # development keeps the Vite origin so `npm run dev` can call the API.
     app.add_middleware(
@@ -82,7 +102,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     async def desktop_session(request: Request, call_next):
         if desktop_token:
             supplied = request.query_params.get(DESKTOP_TOKEN_PARAM)
-            if request.url.path in DESKTOP_EXCHANGE_PATHS and _token_matches(supplied, desktop_token):
+            if not native_desktop and request.url.path in DESKTOP_EXCHANGE_PATHS and _token_matches(supplied, desktop_token):
                 response = RedirectResponse(url="/", status_code=303)
                 response.set_cookie(
                     DESKTOP_COOKIE,
@@ -91,20 +111,18 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
                     httponly=True,
                     samesite="strict",
                 )
+                response.headers.update(SECURITY_HEADERS)
                 return response
             if request.url.path.startswith("/api/") and request.url.path != "/api/health":
-                if not _token_matches(request.cookies.get(DESKTOP_COOKIE), desktop_token):
-                    return JSONResponse(status_code=403, content={"detail": "desktop session required"})
+                credential = (
+                    request.headers.get(DESKTOP_TOKEN_HEADER)
+                    if native_desktop else request.cookies.get(DESKTOP_COOKIE)
+                )
+                if not _token_matches(credential, desktop_token):
+                    return JSONResponse(status_code=403, content={"detail": "desktop session required"}, headers=SECURITY_HEADERS)
 
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self';"
-            " script-src 'self' https://accounts.google.com;"
-            " frame-src https://accounts.google.com;"
-            " connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com"
-        )
+        response.headers.update(SECURITY_HEADERS)
         return response
 
     @app.exception_handler(Exception)
@@ -133,6 +151,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
     humanize.register(app)
     skills.register(app)
     study.register(app)
+    coach.register(app)
     research.register(app)
     outlines.register(app)
     dashboard.register(app)

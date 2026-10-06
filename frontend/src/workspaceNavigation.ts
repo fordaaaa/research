@@ -1,4 +1,4 @@
-export type WorkspaceView = "research" | "deep" | "ask" | "search" | "study" | "notes" | "write" | "skills";
+export type WorkspaceView = "research" | "deep" | "ask" | "search" | "study" | "coach" | "notes" | "write" | "skills";
 export type MobileSection = "library" | "discover" | "learn" | "write" | "ai";
 
 export const WORKSPACE_VIEWS: { value: WorkspaceView; label: string }[] = [
@@ -7,6 +7,7 @@ export const WORKSPACE_VIEWS: { value: WorkspaceView; label: string }[] = [
   { value: "ask", label: "Ask" },
   { value: "search", label: "Search" },
   { value: "study", label: "Study" },
+  { value: "coach", label: "Exam coach" },
   { value: "notes", label: "Notes" },
   { value: "write", label: "Humanize" },
   { value: "skills", label: "Skills" },
@@ -14,7 +15,7 @@ export const WORKSPACE_VIEWS: { value: WorkspaceView; label: string }[] = [
 
 const MOBILE_VIEWS: Record<Exclude<MobileSection, "library">, WorkspaceView[]> = {
   discover: ["research", "deep", "search"],
-  learn: ["study"],
+  learn: ["study", "coach"],
   write: ["write", "skills"],
   ai: ["ask"],
 };

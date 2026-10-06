@@ -3,6 +3,7 @@ import * as api from "../api";
 import type { AIProvider } from "../api";
 import type { Appearance, FontName, ThemeName } from "../appearance";
 import Spinner from "./Spinner";
+import MotionPreview from "./MotionPreview";
 import { isSoundEnabled, playSuccess, previewChime, setSoundEnabled } from "../sound";
 import { useMountTransition } from "../useMountTransition";
 
@@ -35,6 +36,12 @@ const PROVIDERS: Record<AIProvider, { name: string; keyLabel: string; model: str
     model: "nvidia/nemotron-3-ultra-550b-a55b:free",
     helper: "Create a key at openrouter.ai and pick any model ending in :free. Free model names change over time.",
   },
+  groq: {
+    name: "Groq",
+    keyLabel: "Groq API key",
+    model: "openai/gpt-oss-20b",
+    helper: "Use your personal API key from console.groq.com. Free-tier limits apply and vary by account.",
+  },
 };
 
 const THEMES: { value: ThemeName; label: string; swatch: string }[] = [
@@ -56,6 +63,7 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(false);
+  const [previewMotion, setPreviewMotion] = useState(false);
   const [appearanceAnnouncement, setAppearanceAnnouncement] = useState<string | null>(null);
   // Sound audit: the chime toggle and Preview previously gave keyboard users
   // zero screen-reader feedback (a silent checkbox flip; a silent playback).
@@ -102,6 +110,7 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
   }
 
   useEffect(() => {
+    if (!open) setPreviewMotion(false);
     if (!open) return;
     setError(null);
     setApiKey("");
@@ -266,6 +275,15 @@ export default function SettingsDialog({ open, onClose, onChanged, appearance, o
           >
             <span aria-hidden="true">▶</span> Preview
           </button>
+        </section>
+        <section className="mt-6 border-b border-neutral-800 pb-6" aria-label="Motion">
+          <h3 className="text-sm font-semibold">Motion</h3>
+          <p className="mt-1 text-xs text-neutral-500">Try loading, flashcards, and AI thinking here.</p>
+          <button type="button" aria-expanded={previewMotion} onClick={() => setPreviewMotion((value) => !value)}
+            className="mt-2 min-h-11 rounded-lg border border-neutral-700 px-3 text-sm hover:bg-neutral-800">
+            {previewMotion ? "Stop preview" : "Try motion"}
+          </button>
+          {open && previewMotion && <MotionPreview />}
         </section>
         <div className="mt-6">
           <h3 className="text-sm font-semibold">Optional AI</h3>

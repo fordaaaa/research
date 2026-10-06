@@ -87,16 +87,15 @@ def _wait_for_health(base_url: str) -> None:
 @pytest.fixture()
 def wire_base_url(tmp_path: Path) -> Iterator[str]:
     """Boot desktop.py as a subprocess; yield its base URL; always tear down."""
-    web = tmp_path / "web"
-    web.mkdir()
-    (web / "index.html").write_text("wire", encoding="utf-8")
     env = dict(os.environ)
     env["RESEARCH_DATA_DIR"] = str(tmp_path / "data")
-    env["RESEARCH_WEB_DIR"] = str(web)
+    env["RESEARCH_NATIVE_DESKTOP"] = "1"
+    env["RESEARCH_DESKTOP_TOKEN"] = "wire-launch-test-token"
+    # Native mode must remain safe even if the parent shell trusts a proxy.
+    env["RESEARCH_TRUST_XFF"] = "1"
     for var in (
-        "RESEARCH_TRUST_XFF",
         "RESEARCH_IGNORE_XFF",
-        "RESEARCH_DESKTOP_TOKEN",
+        "RESEARCH_WEB_DIR",
         "FORWARDED_ALLOW_IPS",
     ):
         env.pop(var, None)
@@ -125,6 +124,8 @@ def wire_base_url(tmp_path: Path) -> Iterator[str]:
 def test_r23_wire_spoofed_xff_shares_peer_ip_bucket(wire_base_url: str) -> None:
     """Rotating XFF from loopback must share one peer-IP register bucket."""
     with httpx.Client(base_url=wire_base_url, timeout=_REQUEST_TIMEOUT_SECONDS) as client:
+        assert client.get("/api/notebooks").status_code == 403
+        client.headers["X-Notaeo-Desktop-Token"] = "wire-launch-test-token"
         for i in range(_REGISTER_LIMIT):
             resp = client.post(
                 "/api/auth/register",

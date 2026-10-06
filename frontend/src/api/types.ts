@@ -11,3 +11,4 @@ export * from "./types/skills";
 export * from "./types/study";
 export * from "./types/dashboard";
 export * from "./types/classroom";
+export * from "./types/coach";

@@ -23,6 +23,7 @@ interface Props {
   hasSearched?: boolean;
   hasExportedOrReviewed?: boolean;
   onOpen: (nb: api.Notebook) => void;
+  onOpenCoach?: (nb: api.Notebook) => void;
   onCreate: (name: string) => Promise<api.Notebook>;
   onDelete: (id: string) => Promise<void>;
   onStartReview: (queue: QueuedCard[], notebookNames: Record<string, string>) => void;
@@ -39,7 +40,7 @@ function greeting(): string {
 export default function HomeDashboard({
   notebooks, userId, userName, refreshToken, tourPending = false, tourActive = false,
   sourcesCount = 0, hasSearched = false, hasExportedOrReviewed = false,
-  onOpen, onCreate, onDelete, onStartReview,
+  onOpen, onOpenCoach, onCreate, onDelete, onStartReview,
 }: Props) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,6 +50,8 @@ export default function HomeDashboard({
   const [classroom, setClassroom] = useState<api.ClassroomStatus | null>(null);
   const [classroomBusy, setClassroomBusy] = useState(false);
   const [classroomNote, setClassroomNote] = useState<string | null>(null);
+  const [coachNotebookId, setCoachNotebookId] = useState("");
+  const coachNotebook = notebooks.find((item) => item.id === coachNotebookId) ?? notebooks[0];
 
   const load = useCallback(async () => {
     try {
@@ -180,6 +183,26 @@ export default function HomeDashboard({
   return (
     <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto outline-none animate-page-in">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-5 py-8 sm:px-10 sm:py-12">
+        {onOpenCoach && (
+          <section aria-label="Exam coach" className="rounded-[2rem] border border-neutral-800 bg-neutral-900 p-5 shadow-[0_8px_35px_rgba(6,48,62,0.05)] sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-wave">Your exam coach</p>
+            <h2 className="mt-2 font-display text-2xl sm:text-3xl">Know what to study next.</h2>
+            <p className="mt-2 max-w-2xl text-sm text-neutral-500">Set an exam goal, practise from your course material, and revisit the topics that need another pass.</p>
+            <div className="mt-5 flex flex-wrap items-end gap-3">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium sm:max-w-sm">
+                Exam course notebook
+                <select aria-label="Exam course notebook" value={coachNotebook?.id ?? ""}
+                  onChange={(event) => setCoachNotebookId(event.target.value)} className={inputCls} disabled={!coachNotebook}>
+                  {!coachNotebook && <option value="">Choose a course notebook</option>}
+                  {notebooks.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+              <Button variant="primary" disabled={!coachNotebook}
+                onClick={() => { if (coachNotebook) onOpenCoach(coachNotebook); }}>Plan exam revision</Button>
+            </div>
+            {!coachNotebook && <p className="mt-3 text-xs text-neutral-500">Create a course notebook below to start.</p>}
+          </section>
+        )}
         <section aria-label="Today" className="relative overflow-hidden rounded-[2rem] bg-brand-deep px-5 py-7 text-mark shadow-[0_25px_70px_rgba(6,48,62,0.14)] sm:px-10">
           <div className="pointer-events-none absolute -right-20 -top-32 h-96 w-96 rounded-full border border-mark/15" aria-hidden="true" />
           <div className="pointer-events-none absolute right-8 top-8 h-52 w-52 rounded-full bg-aqua/30 blur-3xl" aria-hidden="true" />

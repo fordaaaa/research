@@ -14,6 +14,9 @@ dist/
 /backend/build/
 /backend/dist/
 /macos/build/
+/windows/**/bin/
+/windows/**/obj/
+/windows/build/
 *.xcarchive
 
 # app data / secrets

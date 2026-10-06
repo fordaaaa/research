@@ -118,7 +118,7 @@ it("wires the full checklist chain: source → search → grade → 4 of 4", asy
   const input = await screen.findByPlaceholderText(/search your sources/i);
   fireEvent.change(input, { target: { value: "cells" } });
   fireEvent.submit(input.closest("form")!);
-  await waitFor(() => expect(apiMocks.search).toHaveBeenCalledWith("book", "cells"));
+  await waitFor(() => expect(apiMocks.search).toHaveBeenCalledWith("book", "cells", expect.any(AbortSignal)));
   await screen.findByText("cells divide");
 
   // 3. Real grade → hasExportedOrReviewed (the Study view, not the

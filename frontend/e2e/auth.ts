@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { silenceTestAudio } from "./audio.js";
 
 export interface AuthGate {
   isRemote: boolean;
@@ -42,6 +43,7 @@ export async function ensureAuth(
   page: Page,
   gate: AuthGate,
 ): Promise<{ email: string }> {
+  await silenceTestAudio(page);
   const creds =
     gate.email && gate.password
       ? { email: gate.email, password: gate.password }
@@ -52,13 +54,14 @@ export async function ensureAuth(
   await emailField.fill(creds.email);
 
   if (gate.email && gate.password) {
+    await page.getByRole("tab", { name: "Log in", exact: true }).click();
     await page.getByPlaceholder("Password").fill(creds.password);
     await page
       .locator("form")
-      .getByRole("button", { name: "Log in", exact: true })
+      .getByRole("button", { name: "Sign in", exact: true })
       .click();
   } else {
-    await page.getByRole("button", { name: "Create account" }).first().click();
+    await page.getByRole("tab", { name: "Create account", exact: true }).click();
     await page.getByPlaceholder(/Password \(8\+ characters\)/).fill(creds.password);
     await page
       .locator("form")
@@ -68,6 +71,8 @@ export async function ensureAuth(
 
   // Notebook picker proves the session is live.
   await page.getByPlaceholder(/New notebook name/i).waitFor();
+  const skipTour = page.getByRole("button", { name: "Skip tour", exact: true });
+  if (await skipTour.isVisible()) await skipTour.click();
   return { email: creds.email };
 }
 

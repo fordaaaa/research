@@ -9,7 +9,7 @@ import { stripMarkdownForDisplay, stripTitleEcho } from "./pasteTitle";
 export { stripTitleEcho };
 
 interface Props {
-  onSearch: (q: string, signal?: AbortSignal) => Promise<SearchHit[]>;
+  onSearch: (q: string, signal?: AbortSignal, related?: boolean) => Promise<SearchHit[]>;
   onImportUrl: (url: string) => Promise<void>;
   onSearched?: () => void;
   /**
@@ -91,6 +91,7 @@ function groupHitsBySnippet(hits: SearchHit[]): HitGroup[] {
 export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenSource, sourcesVersion }: Props) {
   const [mode, setMode] = useState<"sources" | "web">("sources");
   const [query, setQuery] = useState("");
+  const [related, setRelated] = useState(false);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [webResults, setWebResults] = useState<WebSearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -132,16 +133,35 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
     setHits(null);
     setError(null);
     settledSearch.current = null;
-  }, [sourcesVersion]);
+    if (mode === "sources") {
+      liveSearchSeq.current += 1;
+      liveAbort.current?.abort();
+      if (debounceTimer.current !== null) {
+        window.clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+      setSearching(false);
+    }
+  }, [sourcesVersion, mode]);
 
   // Typing alone searches in "sources" mode only: debounced, with a minimum
   // query length, aborting superseded requests. Web mode stays explicit
   // (button/Enter) because every search costs network.
   useEffect(() => {
-    if (mode !== "sources") return;
+    const invalidate = () => {
+      liveSearchSeq.current += 1;
+      liveAbort.current?.abort();
+      if (debounceTimer.current !== null) {
+        window.clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+    };
+    invalidate();
+    setSearching(false);
+    if (mode !== "sources") return invalidate;
     const trimmed = query.trim();
-    if (trimmed.replace(/\s/g, "").length < AUTO_SEARCH_MIN_CHARS) return;
-    const seq = ++liveSearchSeq.current;
+    if (trimmed.replace(/\s/g, "").length < AUTO_SEARCH_MIN_CHARS) return invalidate;
+    const seq = liveSearchSeq.current;
     const controller = new AbortController();
     liveAbort.current?.abort();
     liveAbort.current = controller;
@@ -157,10 +177,10 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
         setError(null);
         onSearchedRef.current?.();
         try {
-          const results = await onSearchRef.current(trimmed, controller.signal);
+          const results = await (related ? onSearchRef.current(trimmed, controller.signal, true) : onSearchRef.current(trimmed, controller.signal));
           if (!settled && liveSearchSeq.current === seq && !controller.signal.aborted) {
             setHits(results);
-            settledSearch.current = `sources:${trimmed}`;
+            settledSearch.current = `sources:${related ? "related:" : ""}${trimmed}`;
           }
         } catch (err) {
           if (settled || controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError")) return;
@@ -175,13 +195,9 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
     }, AUTO_SEARCH_DELAY_MS);
     return () => {
       settled = true;
-      if (debounceTimer.current !== null) {
-        window.clearTimeout(debounceTimer.current);
-        debounceTimer.current = null;
-      }
-      controller.abort();
+      invalidate();
     };
-  }, [query, mode]);
+  }, [query, mode, related]);
 
   // Mode switches replace the results below: move focus to the panel
   // heading and announce the switch so screen-reader users land on it.
@@ -189,6 +205,7 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
     // A pending auto-search must not fire after leaving sources mode.
     liveSearchSeq.current += 1;
     liveAbort.current?.abort();
+    setSearching(false);
     setMode(next);
     setError(null);
     setAnnouncement(next === "sources" ? "Showing your sources search" : "Showing web search");
@@ -204,27 +221,35 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
       window.clearTimeout(debounceTimer.current);
       debounceTimer.current = null;
     }
-    liveSearchSeq.current += 1;
-    liveAbort.current?.abort();
     // The auto-search may have already settled this exact query — results
     // are on screen, so re-firing would only double the requests.
-    if (settledSearch.current === `${mode}:${trimmed}`) return;
+    const key = `${mode}:${mode === "sources" && related ? "related:" : ""}${trimmed}`;
+    if (settledSearch.current === key) return;
+    const seq = ++liveSearchSeq.current;
+    liveAbort.current?.abort();
+    const controller = new AbortController();
+    liveAbort.current = controller;
     setSearching(true);
     setError(null);
     onSearched?.();
     try {
       if (mode === "sources") {
-        setHits(await onSearch(trimmed));
+        const results = await (related ? onSearch(trimmed, controller.signal, true) : onSearch(trimmed, controller.signal));
+        if (seq !== liveSearchSeq.current || controller.signal.aborted) return;
+        setHits(results);
       } else {
-        setWebResults(await searchWeb(trimmed));
+        const results = await searchWeb(trimmed);
+        if (seq !== liveSearchSeq.current || controller.signal.aborted) return;
+        setWebResults(results);
       }
-      settledSearch.current = `${mode}:${trimmed}`;
+      settledSearch.current = key;
     } catch (err) {
+      if (seq !== liveSearchSeq.current || controller.signal.aborted) return;
       if (mode === "sources") setHits([]);
       else setWebResults([]);
       setError(friendlySearchError(err));
     } finally {
-      setSearching(false);
+      if (seq === liveSearchSeq.current) setSearching(false);
     }
   }
 
@@ -278,6 +303,21 @@ export default function SearchPanel({ onSearch, onImportUrl, onSearched, onOpenS
           Search
         </button>
       </form>
+
+      {mode === "sources" && <div className="space-y-1">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-300">
+          <input type="checkbox" checked={related} onChange={(event) => {
+            liveSearchSeq.current += 1;
+            liveAbort.current?.abort();
+            settledSearch.current = null;
+            setHits(null); setError(null); setSearching(false);
+            setRelated(event.target.checked);
+          }} />Find related passages
+        </label>
+        <p className="text-xs text-neutral-500">{related
+          ? "Related matching can include supported alternate terms and unambiguous spelling corrections. Quoted phrases stay exact."
+          : "Keyword matching requires your search terms. Try related passages for a question or different wording."}</p>
+      </div>}
 
       {error && (
         <p className="text-sm text-red-400 text-center pt-2">{error}</p>

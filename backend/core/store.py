@@ -26,6 +26,12 @@ from core.models import (
     ChatSession,
     Chunk,
     Citation,
+    CoachAttempt,
+    CoachAttemptInput,
+    CoachSession,
+    CoachState,
+    CoachTask,
+    ExamGoal,
     DueByNotebook,
     Flashcard,
     Note,
@@ -241,6 +247,29 @@ CREATE TABLE IF NOT EXISTS google_tokens (
 """
 
 
+_SCHEMA += """
+CREATE TABLE IF NOT EXISTS coach_goals (
+    notebook_id TEXT PRIMARY KEY REFERENCES notebooks(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS coach_sessions (
+    id TEXT PRIMARY KEY,
+    notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('draft', 'active', 'completed')),
+    created_at TEXT NOT NULL,
+    body TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_coach_sessions_owner ON coach_sessions(user_id, notebook_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coach_active ON coach_sessions(user_id, notebook_id) WHERE status = 'active';
+"""
+
+
+class CoachConflict(ValueError):
+    pass
+
+
 class Store:
     def __init__(self, root: Path | None = None) -> None:
         env = os.environ.get("RESEARCH_DATA_DIR")
@@ -292,6 +321,119 @@ class Store:
         con.execute("PRAGMA journal_mode=WAL")
         con.execute("PRAGMA foreign_keys=ON")
         return con
+
+    # ---------- exam coach ----------
+
+    @staticmethod
+    def _coach_owner(con: Any, user_id: str, notebook_id: str) -> None:
+        if not con.execute("SELECT 1 FROM notebooks WHERE id = ? AND user_id = ?", (notebook_id, user_id)).fetchone():
+            raise KeyError("notebook not found")
+
+    def get_coach_state(self, user_id: str, notebook_id: str) -> CoachState:
+        with self._connect() as con:
+            self._coach_owner(con, user_id, notebook_id)
+            goal = con.execute("SELECT body FROM coach_goals WHERE notebook_id = ? AND user_id = ?", (notebook_id, user_id)).fetchone()
+            rows = con.execute("SELECT body FROM coach_sessions WHERE notebook_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 20", (notebook_id, user_id)).fetchall()
+        return CoachState(goal=ExamGoal.model_validate_json(goal["body"]) if goal else None,
+                          sessions=[CoachSession.model_validate_json(row["body"]) for row in rows])
+
+    def save_exam_goal(self, user_id: str, notebook_id: str, goal: ExamGoal) -> ExamGoal:
+        with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            self._coach_owner(con, user_id, notebook_id)
+            con.execute("INSERT INTO coach_goals (notebook_id, user_id, body) VALUES (?, ?, ?) ON CONFLICT(notebook_id) DO UPDATE SET body=excluded.body", (notebook_id, user_id, goal.model_dump_json()))
+        return goal
+
+    def get_coach_missed_tasks(self, user_id: str, notebook_id: str) -> list[CoachTask]:
+        return [task for task, attempt in self.get_coach_topic_reviews(user_id, notebook_id) if attempt.rating == "revise"]
+
+    def get_coach_topic_reviews(self, user_id: str, notebook_id: str) -> list[tuple[CoachTask, CoachAttempt]]:
+        """Latest completed rating per topic across full history, scoped to owner."""
+        reviews: list[tuple[CoachTask, CoachAttempt]] = []
+        seen: set[str] = set()
+        with self._connect() as con:
+            self._coach_owner(con, user_id, notebook_id)
+            rows = con.execute(
+                "SELECT task.value AS task, json_extract(task.value, '$.topic') AS topic,"
+                " attempt.value AS attempt"
+                " FROM coach_sessions AS session, json_each(session.body, '$.tasks') AS task"
+                " JOIN json_each(session.body, '$.attempts') AS attempt"
+                " ON json_extract(task.value, '$.id') = json_extract(attempt.value, '$.task_id')"
+                " WHERE session.user_id = ? AND session.notebook_id = ? AND session.status = 'completed'"
+                " ORDER BY json_extract(attempt.value, '$.created_at') DESC, session.created_at DESC",
+                (user_id, notebook_id),
+            )
+            for row in rows:
+                topic = " ".join(row["topic"].lower().split())
+                if topic in seen:
+                    continue
+                seen.add(topic)
+                reviews.append((CoachTask.model_validate_json(row["task"]), CoachAttempt.model_validate_json(row["attempt"])))
+        return reviews
+
+    def create_coach_session(self, user_id: str, session: CoachSession) -> CoachSession:
+        with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            self._coach_owner(con, user_id, session.notebook_id)
+            if con.execute("SELECT 1 FROM coach_sessions WHERE notebook_id = ? AND user_id = ? AND status = 'active'", (session.notebook_id, user_id)).fetchone():
+                raise CoachConflict("Finish your active session before building another")
+            con.execute("DELETE FROM coach_sessions WHERE notebook_id = ? AND user_id = ? AND status = 'draft'", (session.notebook_id, user_id))
+            con.execute("INSERT INTO coach_sessions (id, notebook_id, user_id, status, created_at, body) VALUES (?, ?, ?, ?, ?, ?)", (session.id, session.notebook_id, user_id, session.status, session.created_at.isoformat(), session.model_dump_json()))
+        return session
+
+    def get_coach_session(self, user_id: str, notebook_id: str, session_id: str) -> CoachSession:
+        with self._connect() as con:
+            self._coach_owner(con, user_id, notebook_id)
+            row = con.execute("SELECT body FROM coach_sessions WHERE id = ? AND notebook_id = ? AND user_id = ?", (session_id, notebook_id, user_id)).fetchone()
+        if not row:
+            raise KeyError("session not found")
+        return CoachSession.model_validate_json(row["body"])
+
+    def update_coach_session(self, user_id: str, notebook_id: str, session_id: str,
+                             operation: str, task_ids: list[str] | None = None,
+                             attempt: CoachAttemptInput | None = None) -> CoachSession:
+        """Read/modify/write under one lock; retrying finish cannot count twice."""
+        with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            self._coach_owner(con, user_id, notebook_id)
+            row = con.execute("SELECT body FROM coach_sessions WHERE id = ? AND notebook_id = ? AND user_id = ?", (session_id, notebook_id, user_id)).fetchone()
+            if not row:
+                raise KeyError("session not found")
+            session = CoachSession.model_validate_json(row["body"])
+            if operation == "start":
+                if session.status != "draft":
+                    raise CoachConflict("This session has already started")
+                available = {task.id: task for task in session.tasks}
+                selected = task_ids or []
+                if not selected or len(set(selected)) != len(selected) or any(tid not in available for tid in selected):
+                    raise ValueError("Choose unique tasks from this session")
+                session.tasks = [available[tid] for tid in selected]
+                if sum(task.minutes for task in session.tasks) > session.goal.daily_minutes:
+                    raise ValueError("Selected tasks exceed your study time")
+                session.status = "active"
+            elif operation == "attempt":
+                if session.status != "active":
+                    raise CoachConflict("Start a session before recording practice; finished sessions are read-only")
+                if attempt is None or attempt.task_id not in {task.id for task in session.tasks}:
+                    raise KeyError("task not found")
+                existing = next((item for item in session.attempts if item.task_id == attempt.task_id), None)
+                if existing and existing.rating == attempt.rating and existing.response == attempt.response:
+                    return session
+                session.attempts = [item for item in session.attempts if item.task_id != attempt.task_id]
+                session.attempts.append(CoachAttempt(**attempt.model_dump(), created_at=utcnow()))
+            elif operation == "finish":
+                if session.status == "completed":
+                    return session
+                if session.status != "active" or {item.task_id for item in session.attempts} != {task.id for task in session.tasks}:
+                    raise CoachConflict("Rate each selected question before finishing")
+                session.status = "completed"
+                session.completed_at = utcnow()
+                con.execute("INSERT INTO user_activity_days (user_id, day, reviews) VALUES (?, ?, 1) ON CONFLICT(user_id, day) DO UPDATE SET reviews = reviews + 1", (user_id, session.completed_at.date().isoformat()))
+                con.execute("INSERT OR IGNORE INTO user_progress (user_id, key, done_at) VALUES (?, 'review', ?)", (user_id, session.completed_at.isoformat()))
+            else:
+                raise ValueError("Unknown session operation")
+            con.execute("UPDATE coach_sessions SET status = ?, body = ? WHERE id = ? AND user_id = ? AND notebook_id = ?", (session.status, session.model_dump_json(), session_id, user_id, notebook_id))
+        return session
 
     # ---------- users & sessions ----------
 
@@ -414,7 +556,7 @@ class Store:
             ).fetchone()
         if not row or not row["api_key"]:
             return AISettings(configured=False)
-        provider = row["provider"] if row["provider"] in ("gemini", "openrouter") else "gemini"
+        provider = row["provider"] if row["provider"] in AI_DEFAULT_MODELS else "gemini"
         model = row["model"] or AI_DEFAULT_MODELS[provider]
         return AISettings(configured=True, provider=provider, model=model)  # type: ignore[arg-type]
 
@@ -1385,7 +1527,7 @@ class Store:
 
     # ---------- search ----------
 
-    def search(
+    def search_with_total(
         self,
         notebook_id: str,
         query: str,
@@ -1395,12 +1537,12 @@ class Store:
         tags: list[str] | None = None,
         limit: int = 10,
         offset: int = 0,
-    ) -> list[SearchHit]:
-        """Keyword search with AND semantics, phrases, and source-level filters."""
+    ) -> tuple[list[SearchHit], int]:
+        """Keyword search computing page + total-after-dedup in one pass."""
         try:
             parsed = parse_query(query)
         except EmptyQuery:
-            return []
+            return ([], 0)
         source_ids_set = set(source_ids) if source_ids else None
         tags_set = set(tags) if tags else None
         sources = [
@@ -1481,7 +1623,30 @@ class Store:
                 continue
             seen.add(key)
             unique.append(h)
-        return unique[offset : offset + limit]
+        return (unique[offset : offset + limit], len(unique))
+
+    def search(
+        self,
+        notebook_id: str,
+        query: str,
+        *,
+        kind: str | None = None,
+        source_ids: list[str] | None = None,
+        tags: list[str] | None = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[SearchHit]:
+        """Keyword search with AND semantics, phrases, and source-level filters."""
+        hits, _ = self.search_with_total(
+            notebook_id,
+            query,
+            kind=kind,
+            source_ids=source_ids,
+            tags=tags,
+            limit=limit,
+            offset=offset,
+        )
+        return hits
 
 
 def _user_from_row(row: Any) -> User:

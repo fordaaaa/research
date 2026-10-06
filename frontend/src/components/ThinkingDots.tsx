@@ -1,17 +1,15 @@
 import { ThinkingOrb } from "thinking-orbs";
 import type { OrbSize, OrbState, OrbTheme } from "thinking-orbs";
+import { useEffect, useState } from "react";
 
 /**
  * App-themed wrapper around the `thinking-orbs` web original
  * (MIT © Jakub Antalik — see THIRD-PARTY-NOTICES.md).
  *
- * Theme: this app is light-first (seafoam page `#edf5f1`, `--color-seafoam`;
- * see `src/index.css`), so the default is `theme="light"` (dark ink
- * dots). Primary buttons need `theme="dark"` (light ink). `auto` is not used:
- * it falls back to the OS
- * `prefers-color-scheme`, which would render light-ink dots on our light
- * background for dark-mode OS users. No new palette is introduced — the
- * library's own monochrome ink is the themed choice.
+ * The default ink follows the app's Paper/Ocean/Night theme, including
+ * changes made while an indicator is mounted. Explicit theme overrides
+ * support contrasting button fills. OS color scheme is independent of the
+ * app's saved appearance.
  *
  * Motion: the library already honors `prefers-reduced-motion` internally
  * (renders a static representative frame, still following the theme), pauses
@@ -45,12 +43,24 @@ interface Props {
   theme?: OrbTheme;
 }
 
-export default function ThinkingDots({ state = "working", size = 20, label, className = "", speed = 1, theme = "light" }: Props) {
+export default function ThinkingDots({ state = "working", size = 20, label, className = "", speed = 1, theme }: Props) {
+  const [surfaceTheme, setSurfaceTheme] = useState<OrbTheme>(() =>
+    typeof document !== "undefined" && document.documentElement.dataset.theme === "night" ? "dark" : "light",
+  );
+  useEffect(() => {
+    if (theme !== undefined) return;
+    const root = document.documentElement;
+    const update = () => setSurfaceTheme(root.dataset.theme === "night" ? "dark" : "light");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, [theme]);
   return (
     <ThinkingOrb
       state={state}
       size={size}
-      theme={theme}
+      theme={theme ?? surfaceTheme}
       speed={speed}
       aria-label={label ?? THINKING_LABELS[state]}
       className={`shrink-0 ${className}`}

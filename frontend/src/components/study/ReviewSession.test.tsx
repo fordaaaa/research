@@ -213,4 +213,75 @@ describe("ReviewSession", () => {
     fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, pointerId: 8 });
     expect(capture).toHaveBeenCalledTimes(1);
   });
+
+  it("never grades a cancelled swipe", async () => {
+    stubMatchMedia(false);
+    apiMocks.reviewCard.mockResolvedValue(cardA);
+    render(<ReviewSession notebookId={NB} initialQueue={[cardA]} onExit={() => undefined} />);
+
+    await reveal();
+    const surface = screen.getByTestId("review-swipe-surface");
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 100 + SWIPE_THRESHOLD + 60, clientY: 100, pointerId: 1 });
+    fireEvent.pointerCancel(surface, { clientX: 100 + SWIPE_THRESHOLD + 60, clientY: 100, pointerId: 1 });
+    expect(apiMocks.reviewCard).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^good$/i })).toBeTruthy();
+  });
+
+  it("clears the drag on lost pointer capture without grading", async () => {
+    stubMatchMedia(false);
+    apiMocks.reviewCard.mockResolvedValue(cardA);
+    render(<ReviewSession notebookId={NB} initialQueue={[cardA]} onExit={() => undefined} />);
+
+    await reveal();
+    const surface = screen.getByTestId("review-swipe-surface");
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 100 + SWIPE_THRESHOLD + 60, clientY: 100, pointerId: 1 });
+    fireEvent.lostPointerCapture(surface, { pointerId: 1 });
+    expect(apiMocks.reviewCard).not.toHaveBeenCalled();
+    expect(surface.style.transform).toBe("");
+  });
+
+  it("keeps the enter animation off the swipe surface so swipe transforms win", async () => {
+    stubMatchMedia(false);
+    apiMocks.reviewCard.mockResolvedValue(cardA);
+    const { container } = render(<ReviewSession notebookId={NB} initialQueue={[cardA]} onExit={() => undefined} />);
+
+    const surface = screen.getByTestId("review-swipe-surface");
+    expect(surface.className).not.toMatch(/animate-review-enter/);
+    expect(surface.getAttribute("data-motion")).toBe("full");
+    const wrapper = surface.parentElement;
+    expect(wrapper?.className).toMatch(/animate-review-enter/);
+    expect(container.textContent).toContain("What splits in anaphase?");
+  });
+
+  it("disables the flip control while a grade is saving", async () => {
+    stubMatchMedia(false);
+    let resolveGrade!: (value: Flashcard) => void;
+    apiMocks.reviewCard.mockImplementation(
+      () =>
+        new Promise<Flashcard>((resolve) => {
+          resolveGrade = resolve;
+        }),
+    );
+    render(<ReviewSession notebookId={NB} initialQueue={[cardA]} onExit={() => undefined} />);
+
+    await reveal();
+    fireEvent.click(screen.getByRole("button", { name: /^good$/i }));
+    const flip = await screen.findByRole("button", { name: /hide answer/i });
+    expect(flip.hasAttribute("disabled")).toBe(true);
+    resolveGrade({ ...cardA, review_count: 1 });
+  });
+
+  it("renders only the visible card face in the DOM", async () => {
+    stubMatchMedia(false);
+    apiMocks.reviewCard.mockResolvedValue(cardA);
+    render(<ReviewSession notebookId={NB} initialQueue={[cardA]} onExit={() => undefined} />);
+
+    expect(screen.getByText("What splits in anaphase?")).toBeTruthy();
+    expect(screen.queryByText("Sister chromatids.")).toBeNull();
+    await reveal();
+    expect(screen.getByText("Sister chromatids.")).toBeTruthy();
+    expect(screen.queryByText("What splits in anaphase?")).toBeNull();
+  });
 });

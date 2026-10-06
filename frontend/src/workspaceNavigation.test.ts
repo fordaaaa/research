@@ -8,7 +8,7 @@ import {
 describe("mobile workspace navigation", () => {
   it("keeps discovery, learning, and optional AI tools in distinct sections", () => {
     expect(viewsForMobileSection("discover")).toEqual(["research", "deep", "search"]);
-    expect(viewsForMobileSection("learn")).toEqual(["study"]);
+    expect(viewsForMobileSection("learn")).toEqual(["study", "coach"]);
     expect(viewsForMobileSection("write")).toEqual(["write", "skills"]);
     expect(viewsForMobileSection("ai")).toEqual(["ask"]);
   });
@@ -18,6 +18,7 @@ describe("mobile workspace navigation", () => {
     expect(mobileSectionForView("deep")).toBe("discover");
     expect(mobileSectionForView("search")).toBe("discover");
     expect(mobileSectionForView("study")).toBe("learn");
+    expect(mobileSectionForView("coach")).toBe("learn");
     expect(mobileSectionForView("notes")).toBe("library");
     expect(mobileSectionForView("ask")).toBe("ai");
     expect(mobileSectionForView("write")).toBe("write");

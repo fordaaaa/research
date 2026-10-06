@@ -36,7 +36,7 @@ function tone(
   startAt: number,
   duration: number,
   type: OscillatorType = "sine",
-  gainValue = 0.08,
+  gainValue = 0.018,
 ): void {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -54,7 +54,6 @@ function tone(
     const attack = Math.min(0.012, duration / 4);
     param.setValueAtTime(0.0001, startAt);
     param.exponentialRampToValueAtTime(gainValue, startAt + attack);
-    param.setValueAtTime(gainValue, startAt + duration * 0.55);
     param.exponentialRampToValueAtTime(0.0001, startAt + duration);
   } else {
     param.value = gainValue;
@@ -116,31 +115,28 @@ export function playBoot(): void {
   const ctx = context();
   if (!ctx) return;
   const now = ctx.currentTime;
-  tone(ctx, 392, now, 0.18, "sine");
-  tone(ctx, 587.33, now + 0.14, 0.24, "sine", 0.06);
+  tone(ctx, 261.63, now, 0.12, "sine", 0.012);
+  tone(ctx, 329.63, now + 0.06, 0.14, "sine", 0.01);
 }
 
 function successCue(ctx: AudioContext, now: number, kind: "subtle" | "celebration"): void {
   if (kind === "celebration") {
-    tone(ctx, 392, now, 0.2, "sine", 0.04);
-    tone(ctx, 493.88, now + 0.075, 0.22, "sine", 0.04);
-    tone(ctx, 587.33, now + 0.15, 0.24, "triangle", 0.038);
-    tone(ctx, 783.99, now + 0.225, 0.34, "sine", 0.032);
+    tone(ctx, 293.66, now, 0.14, "sine", 0.018);
+    tone(ctx, 349.23, now + 0.06, 0.16, "sine", 0.012);
     return;
   }
-  tone(ctx, 523.25, now, 0.16, "triangle", 0.055);
-  tone(ctx, 659.25, now + 0.075, 0.22, "sine", 0.045);
+  tone(ctx, 261.63, now, 0.14, "sine", 0.012);
+  tone(ctx, 329.63, now + 0.07, 0.16, "sine", 0.008);
 }
 
-/** Soft completion cue; study sessions get a slightly longer rising phrase. */
+/** Cozy two-note completion chime, with a soft attack and short fade. */
 export function playSuccess(kind: "subtle" | "celebration" = "subtle"): void {
   const ctx = context();
   if (!ctx) return;
   successCue(ctx, ctx.currentTime, kind);
 }
 
-/** Soft tick for every button press. Deliberately quiet (0.035 gain) and
- * short (0.06s) so high-traffic controls stay pleasant, not naggy. */
+/** Quiet low tap for button presses, with a short decay and no held note. */
 export function playTap(): void {
   const ctx = context();
   if (!ctx) return;
@@ -149,22 +145,22 @@ export function playTap(): void {
     const gain = ctx.createGain();
     const now = ctx.currentTime;
     osc.type = "sine";
-    osc.frequency.setValueAtTime(880, now);
-    osc.frequency.exponentialRampToValueAtTime(660, now + 0.05);
+    osc.frequency.setValueAtTime(340, now);
+    osc.frequency.exponentialRampToValueAtTime(240, now + 0.04);
     if (
       typeof gain.gain.setValueAtTime === "function" &&
       typeof gain.gain.exponentialRampToValueAtTime === "function"
     ) {
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.035, now + 0.006);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.009, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
     } else {
-      gain.gain.value = 0.035;
+      gain.gain.value = 0.009;
     }
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
-    osc.stop(now + 0.06);
+    osc.stop(now + 0.045);
   } catch {
     // A partial WebAudio implementation must never break a click.
   }

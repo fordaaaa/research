@@ -34,6 +34,13 @@ discovery, and exports must work with zero AI and zero provider keys.
 No-AI mode is first-class; accounts are required (see non-negotiables).
 Keyless research is the main product goal.
 
+**Platform direction (owner update, 2026-10-05):** prioritize installed macOS
+and Windows apps using native controls throughout (SwiftUI and WinForms).
+The standalone browser product is paused. `frontend/` is retained as legacy
+source and is excluded from native desktop packaging. Mobile lives in
+`research-mobile` and is paused while desktop work is the priority. See
+`docs/PRODUCT.md` for the current platform boundary.
+
 Non-negotiables:
 
 - **Hosted multi-user direction** — the product is one hosted backend
@@ -120,17 +127,21 @@ frontend/
 └── src/                # React 19 + TS + Tailwind 4 (api.ts is the only fetch layer)
 macos/
 ├── Research.xcodeproj  # native macOS app project
-└── Research/           # SwiftUI shell, sidecar process manager, WKWebView
+└── Research/           # SwiftUI interface and API sidecar process manager
+windows/               # native WinForms interface and API sidecar manager
 scripts/
-└── build_macos_app.sh  # frontend + PyInstaller sidecar + Xcode app build
+└── build_macos_app.sh  # PyInstaller API sidecar + Xcode native app build
 ```
 
-Request flow: UI → Vite proxy (`/api/*`) → FastAPI (`api/<resource>.py`) → `core/` → SQLite (`app.db`).
+Native request flow: SwiftUI/WinForms → loopback API (`/api/*`) → `core/` → SQLite.
+Legacy preview flow: React → Vite proxy (`/api/*`) → the same FastAPI routes.
 **All API routes must live under `/api`** — the dev proxy depends on it.
 
-The packaged app serves the built frontend from a loopback FastAPI sidecar rather
-than Vite. Its Swift shell sets `RESEARCH_DATA_DIR` to Application Support and
-passes a per-launch session token; do not write user data inside the `.app`.
+Native clients call the loopback FastAPI API directly. Set
+`RESEARCH_NATIVE_DESKTOP=1` and send the per-launch `RESEARCH_DESKTOP_TOKEN`
+as `X-Notaeo-Desktop-Token`; account Bearer authentication still applies.
+macOS uses Application Support and Windows uses AppData for
+`RESEARCH_DATA_DIR`. Never write user data inside an app bundle.
 
 ### No-AI design
 

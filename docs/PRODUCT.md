@@ -13,24 +13,41 @@ paid service.
 
 ## Student workflow to build next
 
-The product promise is **turn sources into understanding and defensible work**,
-not just provide a chat box. A student should be able to import a book or
-article, find a useful passage, save a fact or quotation with its source and
-page, organize that evidence into an outline, write an essay draft with
-citations, and export it. Search, reading, capture, drafting, and export must
-remain useful without AI; optional AI may help explain, suggest, or revise
-without silently inventing evidence.
+Owner selection, 2026-10-02: **AI exam coach — turn course material into
+explanations, practice, and a revision plan.** This supersedes the earlier
+evidence-capture → essay-workspace → planning milestone order. The immediate
+need is: "My exam is coming up; what do I need to understand and revise next?"
 
-Prioritize the missing links in this order:
+AI can lead the experience and positioning. Source links and recorded practice
+must make its suggestions assessable. Reading, basic planning, scheduled
+review, and exports remain useful without a provider key or during outages;
+accounts, ownership, and the hosted boundary below remain required. The first
+exam-coach loop is implemented in the current working tree: save a notebook
+exam goal and time budget, choose/reorder a source-linked revision session,
+record written answers and self-ratings, then revisit missed topics in the
+next session. AI practice and explanations are optional and fall back to
+basic practice when unavailable or when their source evidence is invalid.
+AI inference quality and student usefulness still require evaluation.
 
-1. **Evidence capture:** reader selection → saved note with source/page or
-   chunk citation, plus copyable citation details.
-2. **Essay workspace:** outline, draft, evidence picker, word count, and
-   bibliography/export in one flow. AI suggestions remain opt-in.
-3. **Student planning:** opt-in due dates, study reminders, and calendar export
-   after the source-to-essay loop works. External calendar connections and
-   notifications need explicit consent and platform-specific design; they
-   should not become a requirement for local study.
+Build on the first loop in this order:
+
+1. **Useful explanations:** select evidence for the question, link answers to
+   source pages, and evaluate unsupported/absent answers before expanding AI
+   surfaces.
+2. **One revision session:** the implemented notebook goal, source material,
+   and flashcard session accepts question selection/order within the saved
+   time budget. Upcoming assignment/calendar integration and broader exam
+   coverage remain future work.
+3. **Practice and follow-up:** record attempts, revisit missed topics, and
+   suggest the next session for an understandable reason. Written attempts
+   and self-ratings now persist; AI grading and readiness estimates remain
+   future work. Do not fabricate mastery percentages.
+
+Evidence capture and cited essay writing remain useful later workflows. Class
+management and calendars support exam preparation. External connections and
+notifications require explicit consent and should not become a requirement
+for local study. Proposed copy, demo, and acceptance criteria:
+[Notaeo exam-coach draft](NOTAEO_DIRECTION_DRAFT.md).
 
 ## Public vs. private boundary
 
@@ -53,10 +70,11 @@ Prioritize the missing links in this order:
   ownership and cross-user access is always 404. Email + password today
   (pbkdf2 hashes, hashed bearer tokens, 30-day sessions); Google OAuth next,
   Apple at App Store time.
-- **AI is optional.** Three modes, in priority order:
+- **AI is optional to configure; the exam-coach experience can lead with AI.**
+  Three supported modes:
   1. **No-AI (first-class)** — discovery, ingest, search, reader, study
      tools, and exports work with no provider configured.
-  2. **BYOK** — the user supplies their own key (Gemini or OpenRouter),
+  2. **BYOK** — the user supplies their own key (Gemini, OpenRouter, or Groq),
      stored per-user; used only for chat, synthesis, reports, and rewrites,
      with keyless fallbacks wherever one exists.
   3. **Hosted credits (planned)** — a limited free allowance plus paid tiers
@@ -67,15 +85,21 @@ Prioritize the missing links in this order:
 
 ## Platforms
 
-1. **macOS and web now** — the macOS SwiftUI shell runs this repo's responsive
-   web UI against a local loopback sidecar. Windows is deferred by owner
-   direction (2026-09-23).
-2. **iOS and Android live in the separate `research-mobile` repository.**
+1. **macOS and Windows desktop first** — owner update, 2026-10-05. Build
+   SwiftUI and WinForms interfaces with visible Settings and platform shortcuts,
+   managed backend startup, and native file dialogs. This supersedes the
+   previous macOS/web focus and Windows deferral.
+2. **The standalone browser app is out of product scope for now.** The existing
+   React code in `frontend/` is retained as legacy source, excluded from desktop
+   packages. The owner explicitly selected native controls throughout.
+   Development previews and browser tests only maintain the legacy code.
+3. **iOS and Android live in the separate `research-mobile` repository.**
    Changes to this repo's React frontend do not automatically reach that app.
+   Mobile work is paused while the desktop experience is the priority.
 - **Local-runtime boundary (desktop):** the sidecar binds `127.0.0.1` only
   on an ephemeral port; the shell passes a per-launch `RESEARCH_DESKTOP_TOKEN`
-  exchanged for an HttpOnly `SameSite=Strict` session cookie (constant-time
-  compare, cleared from the URL via 303). The cookie alone grants nothing —
+  sent as `X-Notaeo-Desktop-Token` in API-only native mode (constant-time
+  comparison, no browser exchange). This launch token alone grants no data —
   every data route still requires the account Bearer token. Desktop builds
   are same-origin only (no Vite CORS origin). `GET /api/runtime` states this
   boundary with no user data. Network egress stays explicit-only: web

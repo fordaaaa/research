@@ -12,8 +12,7 @@
     "e2e:iphone": "playwright test --project=iphone-webkit",
     "e2e:pixel": "playwright test --project=pixel-chromium",
     "e2e:remote": "playwright test",
-    "e2e:list": "playwright test --list",
-    "preview": "vite preview"
+    "e2e:list": "playwright test --list"
   },
   "dependencies": {
     "@fontsource/atkinson-hyperlegible-next": "^5.3.0",

@@ -16,6 +16,6 @@ it("shows a contrasting orb while keyless source search is pending", () => {
   render(<SearchPanel onSearch={onSearch} onImportUrl={vi.fn()} />);
   fireEvent.change(screen.getByPlaceholderText("Search your sources…"), { target: { value: "cells" } });
   fireEvent.click(screen.getByRole("button", { name: "Submit search" }));
-  expect(onSearch).toHaveBeenCalledWith("cells");
+  expect(onSearch).toHaveBeenCalledWith("cells", expect.any(AbortSignal));
   expect(screen.getByRole("img", { name: "searching" }).getAttribute("data-theme")).toBe("dark");
 });

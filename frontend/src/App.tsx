@@ -18,6 +18,7 @@ import FolioLoader from "./components/FolioLoader";
 import FirstRunTour from "./components/FirstRunTour";
 import type { TourStep } from "./components/FirstRunTour";
 import StudyPanel from "./components/StudyPanel";
+import ExamCoachPanel from "./components/ExamCoachPanel";
 import ReaderModal from "./components/ReaderModal";
 import NotesPanel from "./components/NotesPanel";
 import { Badge, BottomNav, Button, Card, Tabs } from "./components/ui";
@@ -87,6 +88,7 @@ export default function App() {
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [view, setView] = useState<WorkspaceView>("research");
+  const notebookEntryView = useRef<WorkspaceView>("research");
   const [mobileSection, setMobileSection] = useState<MobileSection>("library");
   const [mobileLibraryPane, setMobileLibraryPane] = useState<"sources" | "notes">("sources");
   const [backendUp, setBackendUp] = useState(true);
@@ -98,6 +100,15 @@ export default function App() {
   // capture is too late for auto-opened tours and async opens. null =
   // auto-openerless open → restore to #main-content; undefined = legacy.
   const [settingsTrigger, setSettingsTrigger] = useState<HTMLElement | null | undefined>(undefined);
+  useEffect(() => {
+    const onDesktopCommand = (event: Event) => {
+      if (!(event instanceof CustomEvent) || event.detail !== "settings") return;
+      setSettingsTrigger(null);
+      setShowSettings(true);
+    };
+    window.addEventListener("notaeo:desktop-command", onDesktopCommand);
+    return () => window.removeEventListener("notaeo:desktop-command", onDesktopCommand);
+  }, []);
   const [tourTrigger, setTourTrigger] = useState<HTMLElement | null | undefined>(null);
   const [readerTrigger, setReaderTrigger] = useState<HTMLElement | null | undefined>(undefined);
   const [readingId, setReadingId] = useState<string | null>(null);
@@ -336,9 +347,10 @@ export default function App() {
 
   // Baseline load for opening or switching notebooks: seeds the count
   // without celebrating — these sources already existed.
-  const loadSourcesBaseline = useCallback(async (id: string) => {
+  const loadSourcesBaseline = useCallback(async (id: string, isActive: () => boolean) => {
     try {
       const next = await api.listSources(id);
+      if (!isActive()) return;
       setSources(next);
       sourcesCountPrev.current = next.length;
       if (next.length > 0) {
@@ -346,6 +358,7 @@ export default function App() {
         setExportNotice(null);
       }
     } catch {
+      if (!isActive()) return;
       setSources([]);
       sourcesCountPrev.current = 0;
     }
@@ -450,10 +463,17 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    let active = true;
     if (notebook) {
-      void loadSourcesBaseline(notebook.id);
-      setView("research");
-      setMobileSection("library");
+      setSources([]);
+      sourcesCountPrev.current = 0;
+      void loadSourcesBaseline(notebook.id, () => active).finally(() => {
+        if (active) setOpeningNotebook(false);
+      });
+      const entryView = notebookEntryView.current;
+      notebookEntryView.current = "research";
+      setView(entryView);
+      setMobileSection(entryView === "research" ? "library" : mobileSectionForView(entryView));
       setMobileLibraryPane("sources");
       setExportError(null);
       setExportNotice(null);
@@ -463,10 +483,14 @@ export default function App() {
       if (noticeNotebookRef.current !== notebook.id) setNotice(null);
       if (firstSaveFor.current !== notebook.id) setSaveAnnouncement(null);
     } else {
+      notebookEntryView.current = "research";
+      setOpeningNotebook(false);
+      setSources([]);
       sourcesCountPrev.current = 0;
       setNotice(null);
       setSaveAnnouncement(null);
     }
+    return () => { active = false; };
   }, [notebook, loadSourcesBaseline]);
 
   const handleExport = async () => {
@@ -501,16 +525,14 @@ export default function App() {
     }
   };
 
-  const openNotebook = (nb: Notebook) => {
+  const openNotebook = (nb: Notebook, entryView: WorkspaceView = "research") => {
+    notebookEntryView.current = entryView;
     setOpeningNotebook(true);
     setNotebook(nb);
     setMobileSection("library");
     setMobileLibraryPane("sources");
-    revealSourcesPane();
+    if (entryView === "research") revealSourcesPane();
     playBoot();
-    void loadSourcesBaseline(nb.id).finally(() => {
-      window.setTimeout(() => setOpeningNotebook(false), 300);
-    });
   };
 
   const selectMobileSection = (section: MobileSection) => {
@@ -735,10 +757,13 @@ export default function App() {
         )}
         <div data-testid="header-actions" className="ml-auto flex items-center gap-1 sm:gap-2">
           {!backendUp && <Badge tone="warn">backend not reachable</Badge>}
+          <button data-tour="settings" type="button" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:bg-seafoam hover:text-neutral-100" onClick={(e) => openSettings(e)}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m9 3-1 3-3 1-2 3 2 2-1 3 3 2 3-1 2 2 3-1 1-3 3-1 2-3-2-2 1-3-3-2-3 1-2-2Z" /><circle cx="12" cy="11" r="3" /></svg>
+            Settings
+          </button>
           {user && (
             <>
               <button type="button" aria-label="Take a tour" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 py-2 text-xs font-medium text-neutral-500 transition-colors hover:bg-seafoam hover:text-neutral-100 sm:px-3" onClick={(e) => startTour(e)}><span aria-hidden="true" className="sm:hidden">Tour</span><span className="hidden sm:inline">Take a tour</span></button>
-              <button data-tour="settings" type="button" className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-xs font-medium text-neutral-500 transition-colors hover:bg-seafoam hover:text-neutral-100" onClick={(e) => openSettings(e)}>Settings</button>
               <span data-testid="header-email-text" aria-hidden="true" className="hidden max-w-40 truncate text-xs text-neutral-500 sm:inline">
                 {user.email}
               </span>
@@ -775,6 +800,7 @@ export default function App() {
           hasSearched={mergedHasSearched}
           hasExportedOrReviewed={mergedHasExportedOrReviewed}
           onOpen={openNotebook}
+          onOpenCoach={(nb) => openNotebook(nb, "coach")}
           onStartReview={(queue, names) => setCrossReview({ queue, names })}
           onCreate={async (name) => {
             const nb = await api.createNotebook(name);
@@ -1032,7 +1058,7 @@ export default function App() {
             )}
             {view === "search" && (
               <SearchPanel
-                onSearch={(q) => api.search(notebook.id, q)}
+                onSearch={(q, signal, related) => related ? api.search(notebook.id, q, signal, true) : api.search(notebook.id, q, signal)}
                 onSearched={markSearched}
                 onOpenSource={openReader}
                 sourcesVersion={sources.length}
@@ -1043,6 +1069,8 @@ export default function App() {
               />
             )}
             {view === "study" && <StudyPanel notebookId={notebook.id} onSourcesChanged={() => refreshSources(notebook.id)} onOpenSource={openReader} onReviewed={() => setHasExportedOrReviewed(true)} />}
+            {view === "coach" && <ExamCoachPanel key={notebook.id} notebookId={notebook.id} aiConfigured={aiConfigured}
+              onOpenSource={openReader} onProgress={() => { setHasExportedOrReviewed(true); setDashboardTick((tick) => tick + 1); }} />}
             {view === "notes" && <NotesPanel notebookId={notebook.id} capturedNote={capturedNote} />}
             {view === "write" && <HumanizerPanel aiConfigured={aiConfigured} />}
             {view === "skills" && <SkillsPanel notebookId={notebook.id} />}

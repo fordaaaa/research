@@ -245,28 +245,38 @@ def suggest_cards(
 
 
 def _excerpt_for_term(source: Source, term: str) -> tuple[str, Chunk | None]:
-    """First long sentence from the first chunk containing the term stem.
-
-    Shared grounding helper: same chunk/sentence mechanism as suggest_cards.
-    """
+    """Select a sentence about the term and keep it visible in a bounded quote."""
     wanted = set(stemmed_words(term))
     for chunk in source.chunks:
         if wanted and wanted.isdisjoint(set(stemmed_words(chunk.text))):
             continue
         for sentence in _sentences(chunk.text):
-            if len(sentence) >= 30:
-                return sentence[:280], chunk
+            if len(sentence) < 30:
+                continue
+            mention = next(
+                (match for match in _SURFACE_TOKEN.finditer(sentence)
+                 if stem(match.group(0)) in wanted), None,
+            )
+            if mention is None:
+                continue
+            start = 0 if mention.end() <= 280 else max(0, mention.start() - 80)
+            if start and not sentence[start - 1].isspace():
+                boundary = sentence.find(" ", start, mention.start())
+                if boundary >= 0:
+                    start = boundary + 1
+            return sentence[start:start + 280], chunk
     return "", None
 
 
-def build_glossary(sources: list[Source], limit: int = 20) -> list[dict]:
+def build_glossary(sources: list[Source], limit: int = 20, focus_topics: list[str] | None = None) -> list[dict]:
     """Deterministic term → grounded excerpt entries with provenance.
 
     Terms rank by notebook-wide frequency (key_terms order); each entry cites
     the first source/chunk holding the term. Deduplicated by normalized term,
     stable order, capped at limit. No AI, no writes.
     """
-    ranked = key_terms(sources, top_n=max(limit * 3, limit + 5))
+    ranked = [(term, 0) for topic in focus_topics or [] for term in _terms(topic)]
+    ranked.extend(key_terms(sources, top_n=max(limit * 3, limit + 5)))
     seen: set[str] = set()
     seen_display: set[str] = set()
     entries: list[dict] = []
@@ -308,7 +318,7 @@ def _surface_form(excerpt: str, term: str) -> str:
     return _surface_in_text(excerpt, term)
 
 
-def build_quiz(sources: list[Source], limit: int = 10) -> list[dict]:
+def build_quiz(sources: list[Source], limit: int = 10, focus_topics: list[str] | None = None) -> list[dict]:
     """Deterministic questions derived from the glossary entries.
 
     Even-index entries become short-answer prompts (answer: grounded excerpt);
@@ -317,7 +327,7 @@ def build_quiz(sources: list[Source], limit: int = 10) -> list[dict]:
     No AI, no writes.
     """
     questions: list[dict] = []
-    for index, entry in enumerate(build_glossary(sources, limit=limit)):
+    for index, entry in enumerate(build_glossary(sources, limit=limit, focus_topics=focus_topics)):
         base = {
             "term": entry["term"],
             "source_id": entry["source_id"],

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Notaeo.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Compile the portable shell units directly so this suite runs on any
+       OS without pulling WinForms. ApiClient/Models/CoachLogic/DesktopStartup
+       SessionStore/BackendProcess/UploadPolicy/PendingGuard are the actual
+       shipping units, exercised here through HttpMessageHandler fakes and real
+       /bin/sh processes (no static source checks, no AppData writes). -->
+  <ItemGroup>
+    <Compile Include="..\Research\DesktopStartup.cs" Link="Shell\DesktopStartup.cs" />
+    <Compile Include="..\Research\Models.cs" Link="Shell\Models.cs" />
+    <Compile Include="..\Research\ApiClient.cs" Link="Shell\ApiClient.cs" />
+    <Compile Include="..\Research\CoachLogic.cs" Link="Shell\CoachLogic.cs" />
+    <Compile Include="..\Research\SessionStore.cs" Link="Shell\SessionStore.cs" />
+    <Compile Include="..\Research\BackendProcess.cs" Link="Shell\BackendProcess.cs" />
+    <Compile Include="..\Research\UploadPolicy.cs" Link="Shell\UploadPolicy.cs" />
+    <Compile Include="..\Research\PendingGuard.cs" Link="Shell\PendingGuard.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

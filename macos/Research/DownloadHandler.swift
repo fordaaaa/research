@@ -1,6 +1,6 @@
 import Foundation
 
-/// Filename and navigation policy shared by the WebKit delegates.
+/// Safe native export filenames and retained legacy navigation helpers.
 enum DownloadHandler {
     static let maxFilenameLength = 255
 

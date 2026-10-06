@@ -105,7 +105,7 @@ def register(app: FastAPI) -> None:
         configured = store.get_ai_settings(user.id)
         if not key or not configured.model:
             raise HTTPException(status_code=503, detail="add an AI provider key in Settings to use AI chat")
-        excerpts, citations = build_context(store, notebook_id)
+        excerpts, citations = build_context(store, notebook_id, query=body.message)
         note_excerpts = build_note_excerpts(store, notebook_id)
         memory = store.get_memory(notebook_id).strip()[:3000]
         if memory:
@@ -143,7 +143,7 @@ def register(app: FastAPI) -> None:
         if not key or not configured.model:
             raise HTTPException(status_code=503, detail="add an AI provider key in Settings to use AI chat")
 
-        excerpts, citations = build_context(store, notebook_id)
+        excerpts, citations = build_context(store, notebook_id, query=body.message)
         if not excerpts:
             raise HTTPException(status_code=400, detail="add a source before asking AI")
         prompt = (

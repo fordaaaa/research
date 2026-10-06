@@ -1,4 +1,4 @@
-export type AIProvider = "gemini" | "openrouter";
+export type AIProvider = "gemini" | "openrouter" | "groq";
 
 export interface AISettings {
   configured: boolean;

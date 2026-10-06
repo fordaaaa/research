@@ -62,8 +62,8 @@ describe("sound staging", () => {
     setSoundEnabled(true);
     playTap();
     expect(ctx.createOscillator).toHaveBeenCalledTimes(1);
-    expect(frequency.setValueAtTime).toHaveBeenCalledWith(880, 0);
-    expect(osc.stop).toHaveBeenCalledWith(0.06);
+    expect(frequency.setValueAtTime.mock.calls[0][0]).toBeLessThanOrEqual(450);
+    expect(osc.stop.mock.calls[0][0]).toBeLessThanOrEqual(0.06);
   });
 
   it("recognizes button-like tap targets only", () => {

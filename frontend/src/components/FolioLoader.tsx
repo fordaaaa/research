@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { usePrefersReducedMotion } from "../useMountTransition";
 
 interface Props {
@@ -27,14 +27,16 @@ const STAGE_INTERVAL_MS = 1100;
 export default function FolioLoader({ title, subtitle, stages, compact = false, className = "" }: Props) {
   const reducedMotion = usePrefersReducedMotion();
   const [stageIndex, setStageIndex] = useState(0);
+  const shadowId = useId();
+  const stageCount = stages?.length ?? 0;
 
   useEffect(() => {
-    if (!stages || stages.length < 2 || reducedMotion) return;
+    if (stageCount < 2 || reducedMotion) return;
     const timer = window.setInterval(() => {
-      setStageIndex((index) => (index + 1) % stages.length);
+      setStageIndex((index) => (index + 1) % stageCount);
     }, STAGE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [stages, reducedMotion]);
+  }, [stageCount, reducedMotion]);
 
   const visibleSubtitle =
     stages && stages.length > 0 ? stages[reducedMotion ? 0 : stageIndex % stages.length] : subtitle;
@@ -50,13 +52,13 @@ export default function FolioLoader({ title, subtitle, stages, compact = false, 
         className="max-w-full"
       >
         <defs>
-          <filter id="folio-sheet-shadow" x="-15%" y="-15%" width="130%" height="135%">
+          <filter id={shadowId} x="-15%" y="-15%" width="130%" height="135%">
             <feDropShadow dx="0" dy="8" floodColor="#1B242C" floodOpacity="0.08" stdDeviation="12" />
             <feDropShadow dx="0" dy="2" floodColor="#1B242C" floodOpacity="0.04" stdDeviation="4" />
           </filter>
         </defs>
         <g className="folio-animated-folio">
-          <rect x="200" y="45" width="200" height="175" rx="14" fill="#FFFFFF" stroke="#E6E0D4" strokeWidth="1.8" filter="url(#folio-sheet-shadow)" />
+          <rect x="200" y="45" width="200" height="175" rx="14" fill="#FFFFFF" stroke="#E6E0D4" strokeWidth="1.8" filter={`url(#${shadowId})`} />
           <g className="folio-animated-corner">
             <path d="M370 45 L400 75 H370 Z" fill="#EAE5DA" stroke="#D3CDC0" strokeWidth="1.2" />
           </g>

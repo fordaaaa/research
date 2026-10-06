@@ -1,8 +1,8 @@
-"""Local loopback server used by the native macOS application.
+"""Local loopback server used by the native desktop applications.
 
 Binds 127.0.0.1 only on an ephemeral port. The shell passes a per-launch
-RESEARCH_DESKTOP_TOKEN which the API exchanges for an HttpOnly session
-cookie; the account login (Bearer) is still mandatory on data routes.
+RESEARCH_DESKTOP_TOKEN as a native request header; account login (Bearer)
+is still mandatory on data routes. Legacy renderer mode uses a cookie.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import uvicorn
+from fastapi import FastAPI
 
 from api.main import create_app
 
@@ -33,8 +34,31 @@ def web_root() -> Path:
     raise RuntimeError("research frontend assets are missing")
 
 
+def create_desktop_app() -> FastAPI:
+    """Native bundles need only the API; legacy bundles retain their renderer."""
+    if not os.environ.get("RESEARCH_DESKTOP_TOKEN"):
+        raise RuntimeError("desktop sidecar requires RESEARCH_DESKTOP_TOKEN")
+    if os.environ.get("RESEARCH_NATIVE_DESKTOP") == "1":
+        configured = os.environ.get("RESEARCH_DATA_DIR")
+        if not configured or not Path(configured).is_absolute():
+            raise RuntimeError("native sidecar requires an absolute RESEARCH_DATA_DIR")
+        if getattr(sys, "frozen", False):
+            executable = Path(sys.executable).resolve()
+            roots = [executable.parent]
+            for parent in executable.parents:
+                if parent.suffix == ".app":
+                    roots.append(parent)
+                if parent.name == "Resources":
+                    roots.append(parent.parent)
+            if any(Path(configured).resolve().is_relative_to(root) for root in roots):
+                raise RuntimeError("RESEARCH_DATA_DIR must be outside the desktop bundle")
+        return create_app()
+    return create_app(web_root())
+
+
 def serve() -> None:
     """Bind an ephemeral loopback port and announce it before serving requests."""
+    app = create_desktop_app()
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listener.bind((DESKTOP_HOST, 0))
@@ -49,7 +73,7 @@ def serve() -> None:
     # honored; api/auth.py keys buckets on the TCP peer IP. Pinned explicitly
     # (not relying on the installed default) for forward-compat.
     config = uvicorn.Config(
-        create_app(web_root()),
+        app,
         host=DESKTOP_HOST,
         port=port,
         log_level="warning",

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Allow cross-targeting the Windows shell from macOS/Linux CI. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>Notaeo</AssemblyName>
+    <RootNamespace>Notaeo</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Native controls throughout: no WebView/WebView2 dependency.
+       The shipping app talks to the loopback FastAPI sidecar (native
+       API-only mode, RESEARCH_NATIVE_DESKTOP=1) via HttpClient. -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

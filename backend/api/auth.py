@@ -284,6 +284,7 @@ def _client_ip(request: Request | None) -> str:
     trust_xff = (
         os.environ.get("RESEARCH_TRUST_XFF") == "1"
         and os.environ.get("RESEARCH_IGNORE_XFF") != "1"
+        and os.environ.get("RESEARCH_NATIVE_DESKTOP") != "1"
     )
     if not trust_xff:
         if peer:

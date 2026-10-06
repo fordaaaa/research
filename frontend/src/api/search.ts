@@ -1,8 +1,8 @@
 import { apiFetch, j, BASE } from "./client";
 import type { SearchHit, WebSearchResult } from "./types";
 
-export const search = (notebookId: string, q: string, signal?: AbortSignal) =>
-  apiFetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}`, { signal }).then(
+export const search = (notebookId: string, q: string, signal?: AbortSignal, related = false) =>
+  apiFetch(`${BASE}/notebooks/${notebookId}/search?q=${encodeURIComponent(q)}${related ? "&related=true" : ""}`, { signal }).then(
     j<SearchHit[]>
   );
 

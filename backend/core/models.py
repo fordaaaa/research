@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -188,11 +188,12 @@ class WebSearchResult(BaseModel):
     snippet: str
 
 
-AIProvider = Literal["gemini", "openrouter"]
+AIProvider = Literal["gemini", "openrouter", "groq"]
 
 AI_DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-3.5-flash-lite",
     "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "groq": "openai/gpt-oss-20b",
 }
 
 
@@ -549,6 +550,79 @@ class QuizQuestion(BaseModel):
     source_title: str
     pages: list[int] = Field(default_factory=list)
     chunk_seq: int = Field(default=0, ge=0)
+
+
+class ExamGoal(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    exam_date: date
+    daily_minutes: int = Field(ge=5, le=120)
+    focus_topics: list[str] = Field(default_factory=list, max_length=12)
+
+    @model_validator(mode="after")
+    def _clean_content(self) -> "ExamGoal":
+        self.title = self.title.strip()
+        if not self.title or any(not topic.strip() or len(topic) > 120 for topic in self.focus_topics):
+            raise ValueError("Use a title and nonblank focus topics of at most 120 characters")
+        self.focus_topics = list(dict.fromkeys(topic.strip() for topic in self.focus_topics))
+        return self
+
+
+class CoachTask(BaseModel):
+    id: str
+    topic: str
+    prompt: str
+    answer: str
+    minutes: int = Field(ge=1)
+    reason: str
+    source_id: str | None = None
+    source_title: str | None = None
+    pages: list[int] = Field(default_factory=list)
+    chunk_seq: int | None = None
+    card_id: str | None = None
+
+
+class CoachAttemptInput(BaseModel):
+    task_id: str = Field(pattern=r"^[a-f0-9]{12}$")
+    rating: Literal["got_it", "revise"]
+    response: str = Field(max_length=4_000)
+
+
+class CoachAttempt(CoachAttemptInput):
+    created_at: datetime
+
+
+class CoachSession(BaseModel):
+    id: str
+    notebook_id: str
+    goal: ExamGoal
+    status: Literal["draft", "active", "completed"] = "draft"
+    generated_by: Literal["basic", "ai"] = "basic"
+    notice: str | None = None
+    tasks: list[CoachTask]
+    attempts: list[CoachAttempt] = Field(default_factory=list)
+    created_at: datetime
+    completed_at: datetime | None = None
+
+
+class CoachState(BaseModel):
+    goal: ExamGoal | None = None
+    sessions: list[CoachSession] = Field(default_factory=list)
+
+
+class CoachGenerationRequest(BaseModel):
+    use_ai: bool = False
+
+
+class CoachStartRequest(BaseModel):
+    task_ids: list[str] = Field(min_length=1, max_length=10)
+
+
+class CoachExplanation(BaseModel):
+    answer: str
+    citations: list[Citation] = Field(default_factory=list)
+    model: str | None = None
+    generated_by: Literal["basic", "ai"] = "basic"
+    notice: str | None = None
 
 
 # ---------- classes, assignments, dashboard, classroom ----------

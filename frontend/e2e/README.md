@@ -5,6 +5,8 @@ WebKit) and **pixel-chromium** (Pixel 7 device profile, Chromium).
 Selectors are accessibility-first (`getByRole`/`getByLabel`/placeholders,
 `data-testid` only for the review swipe surface); no timing sleeps — every
 wait is a Playwright auto-retrying assertion.
+Test pages disable WebAudio before navigation, including previews, so local
+checks are silent. This does not alter normal app sound settings.
 
 ## Local (default)
 
@@ -51,6 +53,17 @@ Registration-mode user accounts remain: there is no account-delete endpoint.
 - `health.contract.spec.ts` — `GET /api/health` is `{ok:true}`; failures
   attach status + body to the report.
 - `auth.shell.spec.ts` — public login shell, no account needed.
+- `coach.journey.spec.ts` — authenticated course goal → selected practice →
+  source reader → recorded attempt → finish → reload → missed-topic follow-up;
+  verifies the coach fits a 320px viewport. It creates and deletes only its
+  own notebook; also checks per-question drafts and rating after an explanation.
+  No provider calls.
+- `search.related.spec.ts` — keyword misses a typo, related matching finds
+  the original passage, and its source opens. Creates/deletes its own notebook.
+- `motion.preview.spec.ts` — a mocked signed-in shell exercises loading,
+  keyboard card reveals, thinking styles, sample answer/error outcomes, and
+  reduced-motion readability. Preview interactions send no API requests and
+  save no data; no account or provider key is needed by these tests.
 - `mobile.journey.spec.ts` — log in/register → uniquely named notebook →
   paste source → reader (incl. Important-passages expectation for pastes:
   hidden, since only URL ingests rank passages per `core/ingest.py`) →

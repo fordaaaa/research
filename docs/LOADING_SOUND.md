@@ -27,12 +27,18 @@ same offline assets. Thinking orbs stay the AI-only indicator.
 
 ## Sound staging (this pass: boot + success chimes)
 
-- `src/sound.ts`: offline WebAudio synth (two-note boot lift, single soft
-  confirm), no assets, no network. **On by default** (owner decision) with a
+- `frontend/src/sound.ts`: offline WebAudio synth with a cozy, quiet two-note
+  success chime (C4/E4, under a quarter second), softer opening tones, and a
+  brief lower-pitched button tap. Sine tones use a short attack and continuous
+  fade instead of a sustained plateau. No assets or network. **On by default**
+  (owner decision) with a
   shared lazily-created context that resumes on first gesture (browsers and
   WKWebView start contexts suspended). Toggle in Settings persists per-device
   (`notaeo:sound`); every `play*` no-ops when muted or without
   `AudioContext`.
+- Playwright test pages disable audio before navigation, including Settings
+  previews, through `frontend/e2e/audio.ts`. This changes only browser-test
+  contexts; the owner's saved sound preference is untouched.
 - Wired: login/notebook-open boot chime (post-gesture), notebook export
   success chime, Settings preview on enable. No looped audio during AI
   thinking — orbs cover that visually.

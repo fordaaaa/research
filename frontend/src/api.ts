@@ -25,4 +25,5 @@ export * from "./api/skills";
 export * from "./api/study";
 export * from "./api/dashboard";
 export * from "./api/classroom";
+export * from "./api/coach";
 export * from "./api/types";

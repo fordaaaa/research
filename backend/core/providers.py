@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from time import sleep
 
-from core import gemini, openrouter
+from core import gemini, groq, openrouter
 
 FALLBACK_MODELS: dict[str, list[str]] = {
     "gemini": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"],
@@ -12,14 +12,16 @@ FALLBACK_MODELS: dict[str, list[str]] = {
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-chat-v3-0324:free",
     ],
+    "groq": ["openai/gpt-oss-120b"],
 }
 DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-3.5-flash-lite",
     "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "groq": "openai/gpt-oss-20b",
 }
 
-_ADAPTERS = {"gemini": gemini, "openrouter": openrouter}
-_ADAPTER_ERRORS = (gemini.GeminiError, openrouter.OpenRouterError)
+_ADAPTERS = {"gemini": gemini, "openrouter": openrouter, "groq": groq}
+_ADAPTER_ERRORS = (gemini.GeminiError, openrouter.OpenRouterError, groq.GroqError)
 
 
 class AIError(Exception):

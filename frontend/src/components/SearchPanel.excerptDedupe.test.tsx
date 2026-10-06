@@ -32,7 +32,7 @@ describe("round8 item4 excerpt dedupe", () => {
     render(<SearchPanel onSearch={onSearch} onImportUrl={vi.fn()} />);
     fireEvent.change(screen.getByPlaceholderText(/search your sources/i), { target: { value: "photosynthesis" } });
     fireEvent.submit(screen.getByPlaceholderText(/search your sources/i).closest("form")!);
-    await screen.findByText(/passage/i);
+    await screen.findByRole("status", { name: "Search result count" });
   }
 
   it("strips a leading title-echo from the snippet", async () => {

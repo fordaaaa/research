@@ -4,6 +4,7 @@ import * as api from "../../api";
 import type { Flashcard, ReviewRating } from "../../api";
 import { usePrefersReducedMotion } from "../../useMountTransition";
 import { decideSwipe } from "./reviewGesture";
+import FlashcardFace from "./FlashcardFace";
 import { Button, EmptyState } from "../ui";
 import { playSuccess } from "../../sound";
 
@@ -151,6 +152,16 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
     if (rating) void grade(rating);
   };
 
+  const cancelDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    startRef.current = null;
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // ignore missing pointer-capture implementations
+    }
+    setDrag(null);
+  };
+
   if (queue.length === 0) {
     return (
       <div className="mt-3" data-testid="review-session">
@@ -200,12 +211,11 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
             : `${current.review_count} past review${current.review_count === 1 ? "" : "s"} · ${intervalLabel(current.interval_days)} interval`}
         </span>
       </div>
-      <div className="relative">
+      <div key={current.id} className="relative animate-review-enter">
         <div
           data-testid="review-swipe-surface"
           data-motion={reducedMotion ? "reduced" : "full"}
-          key={current.id}
-          className={`animate-review-enter mt-2 min-h-36 w-full rounded-xl border border-neutral-700 bg-neutral-950 p-5 text-center select-none ${
+          className={`mt-2 min-h-36 w-full rounded-xl border border-neutral-700 bg-neutral-950 p-5 text-center select-none ${
             reducedMotion ? "" : "transition-transform duration-150 ease-out active:scale-[0.99]"
           }`}
           style={{
@@ -216,20 +226,16 @@ export default function ReviewSession({ notebookId, initialQueue, onExit, onGrad
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerCancel={cancelDrag}
+          onLostPointerCapture={cancelDrag}
         >
-          <button
-            className="w-full text-center"
-            onClick={() => setFlipped((f) => !f)}
-            aria-label={flipped ? "Hide answer" : "Show answer"}
-          >
-            <span className="text-[11px] uppercase tracking-wider text-neutral-600">
-              {flipped ? "answer — tap to hide" : "question — tap to reveal"}
-            </span>
-            <span className="mt-2 block whitespace-pre-wrap text-base leading-relaxed">
-              {flipped ? current.back : current.front}
-            </span>
-          </button>
+          <FlashcardFace
+            front={current.front}
+            back={current.back}
+            flipped={flipped}
+            onFlip={() => setFlipped((f) => !f)}
+            disabled={grading !== null}
+          />
         </div>
         {showHint && !reducedMotion && (
           <div

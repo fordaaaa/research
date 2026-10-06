@@ -3,8 +3,13 @@
 Live state of the project. **Read this first** before doing anything.
 
 > Status: branch `main`, hosted multi-user pivot landed (SQLite + email auth,
-> per-user data). Web and macOS polish plus Gemini model maintenance are the
-> current work. Windows is deferred; mobile lives in `research-mobile`.
+> per-user data). Installed macOS and Windows apps are the current priority
+> (owner update 2026-10-05). The standalone browser product is paused; the
+> owner selected native controls throughout: SwiftUI and WinForms. A first
+> native exam-coach alpha is implemented; additional feature screens still need
+> porting. Legacy frontend assets are excluded from packaging.
+> Mobile lives
+> in `research-mobile` and is paused while desktop work is the priority.
 > Owner direction: hosted backend (`research-server`) with thin clients, App
 > Store later ($99 program budgeted then, not now). Login order: email (done)
 > → Google (implemented, client-ID config pending) → Apple last.
@@ -16,6 +21,37 @@ Live state of the project. **Read this first** before doing anything.
 > `5eef8ac fix: authenticate study exports` (cards TSV + mindmap exports,
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
+
+## Native desktop alpha (2026-10-05, uncommitted)
+
+- macOS now uses SwiftUI for account login, notebooks, source reading/import,
+  native ZIP export, exam goals, revision selection/resume, written answers,
+  self-ratings, explanations and session history. Settings opens from the gear
+  and app menu before login; includes appearance, reduced motion and a local
+  AI-loading preview. Account credentials use Keychain.
+- Windows has equivalent core WinForms screens, native settings and export.
+  DPAPI protects account tokens. Expired sessions and delayed logout responses
+  preserve newer logins. Process ownership, stale callbacks, upload limits and
+  duplicate revision requests were reviewed and corrected after OpenCode work.
+- Native packages call the API directly with a launch-token header plus account
+  Bearer authentication. Browser docs/cookie exchange are disabled in native
+  mode. Startup requires external data storage. A real loopback wire check
+  verifies forwarded-IP headers cannot bypass native auth rate limits.
+- Verification: backend **379 passed**; macOS **28 passed**; Windows portable
+  suite **62 passed**. macOS package builds, verifies arm64 and its ad-hoc
+  signature. Windows Release cross-build and self-contained win-x64 publish
+  passed; the Windows Python bundle and real WinForms/DPAPI runtime still need
+  Windows verification. Native Mac Settings and local loading preview were
+  exercised via accessibility controls and inspected visually. The packaged
+  sidecar passed auth/source/revision/history/explanation/export smoke checks
+  with disposable data. Legacy frontend production build passed.
+- The signed macOS app is at `macos/build/Build/Products/Release/Notaeo.app`.
+  No commits, releases or deployments. Own mobile preview processes on 8002
+  and 8082 were stopped; existing development servers were left running.
+- Remaining native screens: search, notes, chat, flashcard management, study
+  artifacts, outlines, public-web discovery and Google login. Existing APIs
+  and legacy React source remain. Full native revision click-through, physical
+  keyboard shortcuts, provider inference and Windows layout need manual checks.
 
 ## Study/mobile batch shipped (2026-09-20)
 
@@ -125,6 +161,115 @@ Live state of the project. **Read this first** before doing anything.
 ## Current state
 
 - Branch `main`, remote `origin` = `https://github.com/fordaaaa/research`.
+- **Practice/search quality and cozy sound (2026-10-05, uncommitted):**
+  Basic coach sessions deduplicate repeated passages and prioritize missed
+  topics, explicit focus topics, due cards, fresh material, then previously
+  successful review. Missed flashcards use current edited content. Ungraded
+  answers survive question navigation and grading another question while the
+  panel stays mounted; self-rating persists them. Explanations expose rating
+  controls immediately; navigation moves keyboard focus to the new heading.
+  Source Search has an opt-in **Find related passages** mode with partial
+  lexical coverage, scoped aliases and unambiguous one-edit typo correction;
+  exact keyword search remains default and quoted phrases stay literal.
+  Chat context shares the expansion groups. This is not embedding retrieval.
+  Success now plays a quiet C4/E4 sine chime with a short fade (owner chose
+  a pretty, cozy sound); opening and button cues are softer too. All browser
+  test pages, including auth and previews, disable audio before navigation.
+  The bridge gate passed. Two OpenCode coding jobs timed out after writing
+  failing regression tests; the coordinator implemented and integrated the
+  changes. Independent backend review approved. Frontend review found focus
+  loss, reproduced and fixed; follow-up explicitly approved. Its proposed
+  explanation/navigation race was ruled out with a deferred-response test:
+  navigation is disabled while busy, and clears explanations afterwards.
+  Final checks: backend **372 passed**; frontend **546 passed**, 232 files
+  (`npm test -- --maxWorkers=2`); production build passed; lint exits 0 with
+  React effect/organization warnings. **16 Chromium/WebKit browser checks
+  passed**, using throwaway data and ports 8011/5181. Native arm64 sidecar,
+  Xcode app build, ad-hoc signing and signature verification passed. Artifact:
+  `macos/build/Build/Products/Release/Notaeo.app`.
+  The packaged sidecar smoke passed desktop cookie exchange, account auth,
+  related search, mixed source/card practice, finish, and edited-card follow-up
+  with temporary data removed afterwards.
+  See `docs/CODE_REVIEW_2026-10-05.md` and `docs/EXAM_COACH.md` for evidence
+  and limits. Live provider inference/student evaluation remains pending.
+  Owner-owned :8000/:5173 processes and the review.py whitespace edit remain
+  preserved. No commits, app AI calls, hosted operations or native-subagent
+  substitution were performed.
+- **Exam-coach first loop (2026-10-02, uncommitted):** Home now says
+  "Know what to study next" and opens a selected notebook's Exam coach.
+  Goals/date/time/focus, proposed source/card practice, question selection and
+  order, explicit start, written attempts, self-ratings, completion, and saved
+  sessions are implemented. Latest missed topics lead the next session across
+  the full completed history; the UI shows twenty recent sessions. A rare
+  chosen topic on page 101 survives repetitive earlier material. Reference
+  snippets now actually contain their glossary topic instead of always
+  quoting the first sentence of a chunk. Optional AI generation validates
+  source references and verbatim quotes; explanations require supporting
+  quotes and valid citation numbers, falling back to basic content on errors.
+  Request motion follows actual AI wait time; stale notebook requests abort
+  and cannot replace the current plan. See `docs/EXAM_COACH.md`.
+  Two OpenCode implementation jobs failed before producing code, and an
+  initial small review timed out. The coordinator implemented this batch;
+  subsequent independent OpenCode review found five issues, regression tests
+  reproduced them, and all were fixed. Final follow-up: **approved, no
+  concrete remaining blockers** in the inspected coach code. No native
+  subagents were substituted. Quote/citation validation does not establish
+  explanation factuality; live inference/student evaluation remains pending.
+  Final suites: backend **345 passed**, frontend **536 passed** (228 files),
+  **10 Chromium/WebKit browser journeys passed** with temporary data and
+  ports 8011/5181. Lint exits 0 with React effect/organization warnings.
+  `sh scripts/build_macos_app.sh` passed: production frontend, arm64 sidecar,
+  Xcode app build, ad-hoc signature and deep/strict verification. Output:
+  `macos/build/Build/Products/Release/Notaeo.app`.
+  The packaged arm64 sidecar also passed a real API smoke flow with desktop
+  cookie exchange, account auth, goal, practice, finish, and missed-topic
+  follow-up using a throwaway data directory (removed afterwards).
+  Working changes remain uncommitted; user-owned :8000/:5173 processes and
+  the pre-existing review.py whitespace edit remain preserved.
+- **Exam-coach direction + retrieval/free-provider groundwork (2026-10-02,
+  uncommitted):** Owner selected explanations, practice, and a revision plan
+  as the first student need. PRODUCT.md now prioritizes that loop; the first
+  implementation is recorded above. Three OpenCode investigation workers plus independent
+  product/code reviews informed `docs/NOTAEO_DIRECTION_DRAFT.md` (slogans,
+  homepage draft, demo, milestones) and
+  `docs/AI_RETRIEVAL_RESEARCH_2026-10-02.md` (observed search baseline and current
+  provider sources).
+  Both chat routes now select passages for the question using bounded lexical
+  ranking. Distinct-topic representatives prevent a repetitive long source
+  from evicting the other side of a comparison. No-query synthesis/outline
+  behavior and strict keyword-search semantics are preserved; synonyms/typos
+  and model answer quality still need evaluation.
+  Groq is an optional per-user provider in Settings (default
+  `openai/gpt-oss-20b`, same-provider `openai/gpt-oss-120b` fallback). Settings
+  reload uses the supported-provider registry, avoiding incorrect Gemini
+  dispatch. There is no bundled key or hosted allowance. Tests mock inference;
+  no live AI answers were evaluated.
+  Workers recorded failing tests before implementation; coordinator added and
+  observed failing starvation and real API settings-reload regressions, then
+  fixed them. Independent OpenCode final review approved.
+  Verification: backend **325 passed**; frontend **527 passed** (225 files,
+  `npm test -- --maxWorkers=2`); frontend build clean; lint exits 0 with existing
+  warnings; **8 Chromium/WebKit E2E passed** on isolated ports 8011/5181 and
+  temporary data (cleaned up). `sh scripts/build_macos_app.sh` passed and rebuilt
+  the ad-hoc-signed arm64 Notaeo.app with the new backend and frontend.
+  The existing dev backend on :8000 still exposes the old two-provider schema
+  and needs a restart for Groq; it was preserved along with the Vite server and
+  the pre-existing `backend/api/review.py` whitespace edit.
+- **Review, optimization, and motion previews (2026-10-02, uncommitted):**
+  OpenCode workers implemented single-pass search totals and flashcard gesture
+  fixes; the coordinator integrated and reviewed the changes. Notebook opens
+  fetch sources once, stale searches/chat operations are guarded, loading
+  cadence survives rerenders, and thinking ink follows Night appearance.
+  Settings → Motion → Try motion exercises loading, flashcard reveals, all
+  nine thinking styles, and sample answer/error outcomes without provider
+  requests or saved study progress. Real chat uses the shared thinking state
+  until its request settles and animates arriving messages. Reduced motion
+  remains supported. See `docs/CODE_REVIEW_2026-10-02.md` for scope/evidence.
+  Verification: backend **298 passed**, frontend **523 passed** (224 files),
+  frontend build and lint (warnings only), **10 Chromium/WebKit E2E passed**,
+  and signed arm64 macOS app build passed. E2E selectors now match the current
+  Notaeo auth, mobile library, and delete-confirm flows. The pre-existing
+  whitespace edit in `backend/api/review.py` is preserved.
 - **FX polish (2026-10-01):** WebAudio tones now fade in and out smoothly;
   saves/exports use a short rising pair, and finished review sessions use a
   quieter four-note rise. Review cards animate into place, the completion
@@ -146,15 +291,16 @@ Live state of the project. **Read this first** before doing anything.
 ## Native macOS alpha
 
 - `macos/Research.xcodeproj` is a real SwiftUI app (macOS 14+, arm64). It owns
-  the child process and embeds the existing UI in `WKWebView`; Electron is not
-  used.
-- `backend/desktop.py` binds a random `127.0.0.1` port, serves the Vite build,
-  and announces readiness to Swift. It keeps `/api` routes ahead of static files.
-- `scripts/build_macos_app.sh` builds React, the PyInstaller `onedir` sidecar,
-  and the Xcode app, copies the sidecar and web assets into Resources, then
+  the child process and uses native SwiftUI controls. The Windows target uses
+  WinForms. The native interface migration is in progress.
+- `backend/desktop.py` binds a random `127.0.0.1` port and announces readiness.
+  `RESEARCH_NATIVE_DESKTOP=1` starts an API-only sidecar without web assets.
+- `scripts/build_macos_app.sh` builds the PyInstaller `onedir` sidecar
+  and the Xcode app, copies the sidecar into Resources, then
   ad-hoc signs and verifies the bundle. Run it from the repository root.
 - The shell writes to `~/Library/Application Support/research/data`; every
-  launch has a random HttpOnly desktop-session cookie. Development remains
+  launch has a random `X-Notaeo-Desktop-Token` request credential, in addition
+  to account Bearer authentication. Windows uses AppData. Development remains
   unguarded when `RESEARCH_DESKTOP_TOKEN` is absent.
 - The local build is not notarized or publicly distributable. Notarization
   requires Apple’s paid developer program and must remain optional under $0.
@@ -169,9 +315,10 @@ Live state of the project. **Read this first** before doing anything.
 - Keyless discovery, ingestion, search, reading, study workflows, and exports
   are the product direction. Do not make any of these rely on the optional AI
   adapter.
-- An optional AI experiment exists (Gemini or OpenRouter provider, user picks in
-  Settings) but is not a roadmap dependency. It stores a user-supplied key only
-  locally and remains fully disabled otherwise. `core/providers.py` retries 429s
+- Optional remote AI supports Gemini, OpenRouter, and Groq (user picks in
+  Settings). The exam-coach milestone can lead with AI, while core study
+  remains useful without a key. Keys are stored per-user; AI remains disabled
+  when unconfigured. `core/providers.py` retries 429s
   (honoring `Retry-After`) and falls back to backup free models before erroring.
 
 ## Locked owner decisions
@@ -184,7 +331,7 @@ Live state of the project. **Read this first** before doing anything.
 6. **SQLite store** — multi-user data lives in `app.db` (WAL) under the data dir; per-user rows everywhere, cross-user access is 404. Swap inside `core/store.py` only. One-shot JSON import: `backend/scripts/migrate_json_to_sqlite.py`.
 7. **Public/private boundary (locked)** — this repo stays MIT and holds the complete useful keyless/no-AI local/self-hosted product (ingest, search, reader, study, exports, discovery, shared UI, local service, BYOK adapters). Private `fordaaaa/research-server` owns hosted operations only: cloud accounts, managed storage/sync, subscriptions/entitlements, hosted AI credits/routing, rate limits/abuse controls, admin/ops, production secrets/infra. Never imply access to private code or gate local flows on it.
 8. **Three AI modes (locked)** — no-AI first-class, BYOK (per-user Gemini/OpenRouter key), hosted credits later (limited free allowance + paid tiers, routed/entitled by the private server).
-9. **Platforms (owner update 2026-09-23)** — macOS and web now; Windows deferred. iOS and Android live in the separate `research-mobile` repository.
+9. **Platforms (owner update 2026-10-05)** — native SwiftUI macOS and WinForms Windows apps first; standalone browser product paused. Legacy React source is retained but excluded from desktop packages. iOS and Android live in `research-mobile`; mobile work is paused while desktop is the priority.
 10. **Hosted-launch legal (locked, owner + lawyer required)** — launch needs Terms of Service, Privacy Policy, Acceptable Use/AI terms, subscription/cancellation language, retention/export/deletion commitments, copyright/takedown handling, and student/minor-data treatment. Legal review is required; docs must not draft definitive legal claims.
 11. **Coding-worker policy (locked)** — every future coding worker writes a meaningful failing test first, implements, runs targeted tests, runs the repo-required broader checks, reports exact evidence, and commits only after reviewer approval.
 
@@ -237,7 +384,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Frontend map (minimal, intentionally lagging)
 
-`src/api.ts` is the compatibility barrel for domain modules in `src/api/`; `src/api/client.ts` owns token handling, shared response parsing, and downloads, with contracts grouped under `src/api/types/`. `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive mobile navigation. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Web-first: the macOS WKWebView wrapper inherits this UI, so native work stays in the shell. Sound is one offline WebAudio module (`src/sound.ts`, default on, single `notaeo:sound` toggle in SettingsDialog): boot lift, success confirm, a quiet universal tap tick via one delegated listener (`armTapSounds()` in `main.tsx`), and a settings preview that bypasses the mute gate; `index.css` pairs it with universal `:active` press physics that collapse under `prefers-reduced-motion`. `FolioLoader.tsx` stages the boot animation; `Checklist.tsx` renders the 4-item onboarding list fed by `GET /api/me/progress` merged with sticky local flags.
+`src/api.ts` is the compatibility barrel for domain modules in `src/api/`; `src/api/client.ts` owns token handling, shared response parsing, and downloads, with contracts grouped under `src/api/types/`. `src/components/` — AuthPanel (login/register gate), NotebookPicker (home dashboard + demo entry), UploadZone, SourceList (tap-to-read), ReaderModal (page navigation), SearchPanel, ResearchPanel (quick plan/gather), OutlinePanel (deep-research outlines), ChatPanel, StudyPanel (scheduled flashcards + grounded drafts + glossary + quiz + guide + mind map), HumanizerPanel, SkillsPanel, SettingsDialog, `ui.tsx` (Button/Card/Badge/Tabs/inputs) · `App.tsx` — sticky header, desktop tool rail/source panel, and responsive internal renderer. Appearance is local to the device: Paper (default), Ocean, Night, with readable Atkinson Hyperlegible Next or optional Maple Mono; both fonts are bundled offline. `src/index.css` maps existing `neutral-*` utilities to theme tokens (`neutral-950` page, `neutral-900` surface, `neutral-100` primary ink/button). Avoid raw `white`/`black` fills and per-component `dark:` variants. No router, no state library. Legacy interface only: native apps do not embed this renderer. Sound is one offline WebAudio module (`src/sound.ts`, default on, single `notaeo:sound` toggle in SettingsDialog): boot lift, success confirm, a quiet universal tap tick via one delegated listener (`armTapSounds()` in `main.tsx`), and a settings preview that bypasses the mute gate; `index.css` pairs it with universal `:active` press physics that collapse under `prefers-reduced-motion`. `FolioLoader.tsx` stages the boot animation; `Checklist.tsx` renders the 4-item onboarding list fed by `GET /api/me/progress` merged with sticky local flags.
 
 ## Testing
 
@@ -246,6 +393,15 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 
 ## Next milestones
 
+- **Owner selection (2026-10-02): AI exam coach.** Course material →
+  explanations → practice → revision plan. Prioritize useful retrieval, then
+  one editable exam revision session, then attempts/missed topics and a
+  reasoned follow-up session. This supersedes the earlier essay-first milestone
+  order; accounts, useful no-key core flows, and hosted boundaries remain.
+  See `docs/PRODUCT.md`, `docs/NOTAEO_DIRECTION_DRAFT.md`, and `docs/EXAM_COACH.md`.
+  The first goal/session/attempt/follow-up loop is implemented; evaluate real
+  course material and AI explanations next. Calendar integration, AI grading,
+  whole-course coverage, and readiness estimates remain future work.
 - **M3** — icon, native export/download handoff, and automated Xcode tests shipped. Distribution status is documented in `docs/MACOS_DISTRIBUTION.md`; streamed chat and public distribution work remain, with paid notarization optional for local builds.
 - **M7 — SHIPPED (multi-user):** SQLite store, email auth (pbkdf2 + 30d sessions), per-user everything, login UI, JSON→SQLite migration script, private `research-server` self-host repo.
 - **Next: verify Google OAuth end-to-end** (real client ID + web button flow), then Apple at App Store time ($99 program).
@@ -262,7 +418,7 @@ FastAPI + pydantic v2 (backend, `uv.lock` pinned) · React 19 + Vite 8.2.2 + Tai
 - **Humanizer (humanizer-skill-inspired, shipped):** `core/humanize.py` implements 13 of the 25 public patterns as deterministic regex checks (staging, AI vocab, inflation, formatting, chat residue, rhythm). `POST /api/humanize/analyze` is keyless and notebook-free; `POST /api/humanize/rewrite` needs a configured key and accepts an optional voice sample. UI: `HumanizerPanel.tsx` under the Humanize tab.
 - **Skills + memory (hermes-agent-inspired, shipped keyless subset):** global skills library (SQLite-backed, per-user; trigger-word matching, cap 3) and per-notebook memory notes. Both work with no key, and only reach a provider as prompt sections in chat/synthesis/report when AI is configured. Deliberately NOT vendored: Hermes gateway, messaging platforms, cron, subagents, TUI — all require keys/servers and would break keyless-first. UI: `SkillsPanel.tsx` under the Skills tab.
 - **M5 — shipped**, see Next milestones (study kit: flashcards, guides, mind maps, reader, demo).
-- **M6** — only then assess optional remote AI experiments; they must never gate the product.
+- **M6** — improve optional remote AI quality/provider choices and streaming alongside the exam-coach milestone; provider availability must not gate core study.
 
 ## Parking lot
 

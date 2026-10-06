@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import * as api from "../api";
 import type { ChatMessage, ChatSession } from "../api";
 import Spinner from "./Spinner";
-import ThinkingDots from "./ThinkingDots";
+import AIActivity from "./AIActivity";
 import { EmptyState, Skeleton } from "./ui";
 
 interface Props {
@@ -31,6 +31,8 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
   const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const selectedIdRef = useRef<string | null>(null);
+  const notebookEpoch = useRef(0);
+  const historyEpoch = useRef(0);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -38,19 +40,25 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
 
   useEffect(() => {
     let active = true;
+    notebookEpoch.current += 1;
     setLoadingSessions(true);
     setError(null);
     setSelectedId(null);
+    setSessions([]);
     setMessages([]);
+    setBusyIds([]);
+    setMessage("");
     api.listChatSessions(notebookId)
       .then((next) => { if (active) { setSessions(next); setSelectedId(next[0]?.id ?? null); } })
       .catch((err) => active && setError(err instanceof Error ? err.message : "could not load chat sessions"))
       .finally(() => active && setLoadingSessions(false));
-    return () => { active = false; };
+    return () => { active = false; notebookEpoch.current += 1; };
   }, [notebookId]);
 
   useEffect(() => {
-    if (!selectedId) { setMessages([]); setHasMore(false); return; }
+    historyEpoch.current += 1;
+    setLoadingMore(false);
+    if (!selectedId) { setMessages([]); setHasMore(false); setLoadingMessages(false); return; }
     let active = true;
     setLoadingMessages(true);
     api.listChatMessages(notebookId, selectedId, PAGE_SIZE + 1)
@@ -65,43 +73,49 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
   }, [notebookId, selectedId]);
 
   async function newSession() {
+    const epoch = notebookEpoch.current;
     setError(null);
     try {
       const created = await api.createChatSession(notebookId);
+      if (epoch !== notebookEpoch.current) return;
       setSessions((current) => [created, ...current]);
       setSelectedId(created.id);
       setMessages([]);
-    } catch (err) { setError(err instanceof Error ? err.message : "could not create chat session"); }
+    } catch (err) { if (epoch === notebookEpoch.current) setError(err instanceof Error ? err.message : "could not create chat session"); }
   }
 
   async function loadOlder() {
     if (!selectedId || loadingMore || !hasMore || messages.length === 0) return;
     const sessionId = selectedId;
+    const epoch = historyEpoch.current;
     const oldestId = messages[0].id;
     setLoadingMore(true); setError(null);
     try {
       const older = await api.listChatMessages(notebookId, sessionId, PAGE_SIZE + 1, oldestId);
-      if (selectedIdRef.current !== sessionId) return;
+      if (selectedIdRef.current !== sessionId || epoch !== historyEpoch.current) return;
       if (older.length > PAGE_SIZE) setMessages((current) => [...older.slice(1), ...current]);
       else { setMessages((current) => [...older, ...current]); setHasMore(false); }
     } catch (err) {
-      if (selectedIdRef.current !== sessionId) return;
+      if (selectedIdRef.current !== sessionId || epoch !== historyEpoch.current) return;
       setError(err instanceof Error ? err.message : "could not load older messages");
     } finally {
-      if (selectedIdRef.current === sessionId) setLoadingMore(false);
+      if (selectedIdRef.current === sessionId && epoch === historyEpoch.current) setLoadingMore(false);
     }
   }
 
-  async function deleteSession(id: string) {    setError(null);
+  async function deleteSession(id: string) {
+    const epoch = notebookEpoch.current;
+    setError(null);
     try {
       await api.deleteChatSession(notebookId, id);
+      if (epoch !== notebookEpoch.current) return;
       const remaining = sessions.filter((session) => session.id !== id);
       setSessions(remaining);
       if (selectedId === id) {
         setSelectedId(remaining[0]?.id ?? null);
         if (remaining.length === 0) setMessages([]);
       }
-    } catch (err) { setError(err instanceof Error ? err.message : "could not delete chat session"); }
+    } catch (err) { if (epoch === notebookEpoch.current) setError(err instanceof Error ? err.message : "could not delete chat session"); }
   }
 
   async function sendMessage(event: FormEvent) {
@@ -109,6 +123,7 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
     const trimmed = message.trim();
     if (!trimmed || !selectedId || !(configured || (hostedAvailable && hostedOptIn)) || busyIds.includes(selectedId)) return;
     const sessionId = selectedId;
+    const epoch = notebookEpoch.current;
     setBusyIds((current) => (current.includes(sessionId) ? current : [...current, sessionId]));
     setError(null);
     const userMessage: ChatMessage = { id: `pending-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`, session_id: sessionId, role: "user", text: trimmed, citations: [], model: null, created_at: new Date().toISOString() };
@@ -117,6 +132,7 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
       const answer = hostedAvailable && hostedOptIn
         ? await api.sendHostedChatMessage(notebookId, sessionId, trimmed)
         : await api.sendChatMessage(notebookId, sessionId, trimmed);
+      if (epoch !== notebookEpoch.current) return;
       setSessions((current) => current.map((session) => session.id === sessionId ? {
         ...session,
         title: session.title === "New conversation" ? trimmed.slice(0, 80) : session.title,
@@ -126,11 +142,12 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
       setMessages((current) => current.some((item) => item.id === userMessage.id) ? [...current, answer] : current);
       onAsked?.();
     } catch (err) {
+      if (epoch !== notebookEpoch.current) return;
       if (selectedIdRef.current !== sessionId) return;
       setMessages((current) => current.filter((item) => item.id !== userMessage.id));
       setError(err instanceof Error ? err.message : "could not send message");
     } finally {
-      setBusyIds((current) => current.filter((id) => id !== sessionId));
+      if (epoch === notebookEpoch.current) setBusyIds((current) => current.filter((id) => id !== sessionId));
     }
   }
 
@@ -172,8 +189,24 @@ export default function ChatPanel({ notebookId, configured, hostedAvailable = fa
                   )}
                 </div>
               )}
-              {messages.map((item) => <article key={item.id} className={`rounded-xl p-3 text-sm ${item.role === "user" ? "ml-6 bg-neutral-800" : "mr-6 bg-neutral-950"}`}><p className="whitespace-pre-wrap leading-relaxed text-neutral-200">{item.text}</p>{item.citations.length > 0 && <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">{item.citations.map((citation, index) => <button key={`${item.id}-${citation.source_id}-${index}`} type="button" className="min-h-11 rounded-lg border border-neutral-700 px-2 hover:bg-neutral-800" onClick={(e) => onOpenSource(citation.source_id, e.currentTarget)}>[{index + 1}] {citation.source_title}</button>)}</div>}{item.model && <p className="mt-2 text-[11px] text-neutral-600">Answered by {item.model}</p>}</article>)}
-              {busy && <div className="mr-6 flex items-center gap-2 rounded-xl bg-neutral-950 p-3 text-sm text-neutral-500"><ThinkingDots state="composing" /> Thinking…</div>}
+              {messages.map((item) => (
+                <article key={item.id} className={`animate-chat-message rounded-xl p-3 text-sm ${item.role === "user" ? "ml-6 bg-neutral-800" : "mr-6 bg-neutral-950"}`}>
+                  <p className="whitespace-pre-wrap leading-relaxed text-neutral-200">{item.text}</p>
+                  {item.citations.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">
+                      {item.citations.map((citation, index) => (
+                        <button key={`${item.id}-${citation.source_id}-${index}`} type="button"
+                          className="min-h-11 rounded-lg border border-neutral-700 px-2 hover:bg-neutral-800"
+                          onClick={(e) => onOpenSource(citation.source_id, e.currentTarget)}>
+                          [{index + 1}] {citation.source_title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {item.model && <p className="mt-2 text-[11px] text-neutral-600">Answered by {item.model}</p>}
+                </article>
+              ))}
+              {busy && <div className="mr-6"><AIActivity /></div>}
             </div>
             {hostedAvailable && hostedOptIn && <p className="mt-3 text-xs text-neutral-500">Hosted AI sends relevant excerpts to OpenCode’s free model. Avoid sensitive material; availability and limits can change.</p>}
 <form className="mt-3 flex gap-2" onSubmit={sendMessage}><input className="min-h-11 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 text-base outline-none focus:border-neutral-500 sm:text-sm" placeholder={configured || (hostedAvailable && hostedOptIn) ? "Ask about this notebook…" : "Set up AI to ask your sources…"} value={message} disabled={!(configured || (hostedAvailable && hostedOptIn)) || !selectedId || busy} onChange={(event) => setMessage(event.target.value)} /><button className="min-h-11 rounded-lg bg-neutral-100 px-4 text-sm font-medium text-neutral-900 hover:bg-neutral-200 disabled:opacity-50" disabled={!(configured || (hostedAvailable && hostedOptIn)) || !selectedId || busy || !message.trim()} type="submit">{busy ? "Sending…" : "Send"}</button></form>

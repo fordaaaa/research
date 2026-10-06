@@ -91,11 +91,11 @@ test.describe("mobile core journey", () => {
       // still covers the happy path.
     }
     await expect(
-      page.getByRole("navigation", { name: "Breadcrumb" }),
-    ).toContainText(notebookName);
+      page.getByRole("status", { name: "Site announcements" }),
+    ).toContainText(`Notebook ${notebookName} created`);
 
     // --- Paste a source ---
-    await page.getByRole("button", { name: /Paste text instead/i }).click();
+    // Creating a notebook opens its paste editor and focuses the title.
     await page.locator("#paste-title").fill(sourceTitle);
     await page.locator("#paste-body").fill(pasteBody);
     await page.getByRole("button", { name: "Save source" }).click();
@@ -232,7 +232,7 @@ test.describe("mobile core journey", () => {
 
     // --- Glossary (deterministic, source-cited) ---
     await page.getByRole("tab", { name: "Glossary" }).click();
-    await expect(page.getByRole("heading", { name: "Glossary" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Glossary", exact: true })).toBeVisible();
     const makeCard = page
       .getByRole("button", { name: "Make flashcard" })
       .first();
@@ -259,7 +259,7 @@ test.describe("mobile core journey", () => {
       .getByRole("navigation", { name: "Notebook sections" })
       .getByRole("button", { name: "Library" })
       .click();
-    await page.getByRole("tab", { name: "Notes" }).click();
+    await page.getByRole("tab", { name: "Notes (Library)", exact: true }).click();
     await page.getByRole("button", { name: "New note" }).click();
     await page.getByLabel("Note title").fill(noteTitle);
     await page.getByLabel("Note body").fill("E2E body text for the note.");
@@ -269,10 +269,11 @@ test.describe("mobile core journey", () => {
     ).toBeVisible();
 
     // --- Delete the test notebook (cleanup) ---
-    await page.getByRole("button", { name: "research", exact: true }).click();
+    await page.getByRole("button", { name: "Notaeo home", exact: true }).click();
     await page
       .getByRole("button", { name: `Delete ${notebookName}` })
       .click();
+    await page.getByRole("button", { name: `Confirm delete ${notebookName}` }).click();
     await expect(
       page.getByRole("button", { name: `Open ${notebookName}` }),
     ).toBeHidden();

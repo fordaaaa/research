@@ -17,6 +17,6 @@ describe("round8 item5 search affordance", () => {
     const input = screen.getByPlaceholderText(/search your sources/i);
     fireEvent.change(input, { target: { value: "chlorophyll" } });
     fireEvent.submit(input.closest("form")!);
-    await vi.waitFor(() => expect(onSearch).toHaveBeenCalledWith("chlorophyll"));
+    await vi.waitFor(() => expect(onSearch).toHaveBeenCalledWith("chlorophyll", expect.any(AbortSignal)));
   });
 });
