@@ -11,7 +11,12 @@ struct MainView: View {
     @State private var notice: String?
     @State private var loading = false
     @State private var tab: Tab = .sources
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
+
+    private var motion: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: reduceMotion)
+    }
 
     enum Tab: String, CaseIterable { case sources = "Sources", coach = "Exam coach" }
 
@@ -21,40 +26,63 @@ struct MainView: View {
         } detail: {
             if let id = selectedId, let nb = notebooks.first(where: { $0.id == id }) {
                 VStack(spacing: 0) {
-                    Picker("", selection: $tab) {
-                        ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented).padding([.top, .horizontal])
+                    HStack(alignment: .center, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(nb.name).font(NativeType.title).lineLimit(1)
+                            Text(tab == .sources ? "Make room for what you're learning." : "One focused session at a time.")
+                                .font(NativeType.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 12)
+                        Picker("Notebook view", selection: $tab) {
+                            ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                    }
+                    .padding(.horizontal, 24).padding(.vertical, 18)
+                    .background(NativePalette.surface)
+                    Divider()
                     Group {
                         switch tab {
-                        case .sources: SourcesView(notebook: nb).id(nb.id)
-                        case .coach: CoachView(notebook: nb).id(nb.id)
+                        case .sources: SourcesView(notebook: nb).id(nb.id).transition(motion.transition)
+                        case .coach: CoachView(notebook: nb).id(nb.id).transition(motion.transition)
                         }
                     }
+                    .animation(motion.animation, value: tab)
                 }
             } else {
-                ContentUnavailableView("Select a notebook", systemImage: "books.vertical", description: Text("Create one or pick from the sidebar."))
+                ContentUnavailableView("A space for your next exam", systemImage: "books.vertical", description: Text("Create a notebook for a course, then add your material and plan a revision session."))
             }
         }
+        .font(NativeType.body)
+        .background(NativePalette.canvas)
         .task { await reload() }
     }
 
     private var notebookSidebar: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "book.closed.fill").foregroundStyle(NativePalette.accent).accessibilityHidden(true)
+                Text("Your notebooks").font(NativeType.heading)
+                Spacer()
+                if loading { ProgressView().controlSize(.small).accessibilityLabel("Loading notebooks") }
+            }.padding(.horizontal, 16).padding(.vertical, 18)
             List(selection: $selectedId) {
-                Section("Notebooks") {
-                    ForEach(notebooks) { nb in
-                        Text(nb.name).tag(nb.id as String?)
-                    }
+                ForEach(notebooks) { nb in
+                    Label(nb.name, systemImage: "text.book.closed")
+                        .font(.system(size: 14, weight: .medium))
+                        .padding(.vertical, 5)
+                        .tag(nb.id as String?)
                 }
             }
             Divider()
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Start a new course").font(NativeType.caption).foregroundStyle(.secondary)
                 TextField("New notebook name", text: $newName).textFieldStyle(.roundedBorder)
-                Button("Create notebook") {
+                Button {
                     Task { await create() }
-                }.disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || loading)
-                if let notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            }.padding(10)
+                } label: { Label("Create notebook", systemImage: "plus") }
+                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || loading)
+                if let notice { Text(notice).font(NativeType.caption).foregroundStyle(.secondary) }
+            }.padding(16)
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 260)
     }
@@ -105,15 +133,26 @@ struct SourcesView: View {
     @State private var urlText = ""
     @State private var importerPresented = false
     @State private var readingId: String?
+    @State private var addingSources = false
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
+
+    private var motion: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: reduceMotion)
+    }
 
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedSourceId) {
                 ForEach(sources) { s in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(s.title).font(.headline).lineLimit(2)
-                        Text(s.kind.uppercased()).font(.caption).foregroundStyle(.secondary)
-                    }.tag(s.id as String?)
+                    HStack(alignment: .top, spacing: 9) {
+                        Image(systemName: s.kind == "url" ? "link" : "doc.text")
+                            .foregroundStyle(NativePalette.accent).padding(.top, 2).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(s.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
+                            Text(s.kind.uppercased()).font(NativeType.caption).foregroundStyle(.secondary)
+                        }
+                    }.padding(.vertical, 5).tag(s.id as String?)
                 }
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 280)
@@ -123,42 +162,58 @@ struct SourcesView: View {
             }
         } detail: {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 24) {
                     addControls
-                    Divider()
-                    if readingId != nil { ProgressView("Opening source…") }
+                    if readingId != nil { ProgressView("Opening source…").padding(.vertical, 24) }
                     if let detail {
-                        Text(detail.title).font(.title2.bold())
-                        Text("\(detail.kind.uppercased()) · \(detail.pages.count) pages").font(.caption).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(detail.title).font(NativeType.title)
+                            Text("\(detail.kind.uppercased()) · \(detail.pages.count) \(detail.pages.count == 1 ? "page" : "pages")")
+                                .font(NativeType.caption).foregroundStyle(.secondary)
+                        }
                         ForEach(detail.pages, id: \.number) { page in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Page \(page.number)").font(.caption.bold()).foregroundStyle(.secondary)
-                                Text(page.text).font(.body).textSelection(.enabled)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("PAGE \(page.number)").font(NativeType.caption).tracking(1.2).foregroundStyle(.secondary)
+                                Text(page.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(24)
+                            .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(NativePalette.border))
                         }
                         if detail.pages.isEmpty {
                             ForEach(detail.chunks, id: \.seq) { chunk in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Passage \(chunk.seq + 1)").font(.caption.bold()).foregroundStyle(.secondary)
-                                    Text(chunk.text).font(.body).textSelection(.enabled)
+                                    Text(chunk.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
                                 }
                             }
                         }
-                    } else {
-                        Text("Pick a source to read. Use Add sources to paste text, import a URL, or upload a file.")
-                            .foregroundStyle(.secondary)
+                    } else if readingId == nil {
+                        ContentUnavailableView("Bring your course material", systemImage: "doc.text.magnifyingglass", description: Text("Add lecture notes, a PDF, or an article. Select a source to settle in and read."))
                     }
-                    if let notice { Text(notice).font(.callout).foregroundStyle(.secondary) }
-                }.padding().frame(maxWidth: .infinity, alignment: .leading)
+                    if let notice {
+                        Text(notice).font(.callout).foregroundStyle(.secondary)
+                            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 10))
+                            .transition(motion.transition)
+                    }
+                }
+                .padding(24).frame(maxWidth: 820, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .animation(motion.animation, value: notice)
             }
+            .background(NativePalette.canvas)
         }
     }
 
     private var addControls: some View {
-        GroupBox("Add sources") {
+        DisclosureGroup("Add course material", isExpanded: $addingSources) {
             VStack(alignment: .leading, spacing: 10) {
                 TextField("Paste title", text: $pasteTitle).textFieldStyle(.roundedBorder)
-                TextEditor(text: $pasteText).frame(minHeight: 90).border(Color.secondary.opacity(0.3))
+                TextEditor(text: $pasteText).frame(minHeight: 90)
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativePalette.border))
+                    .accessibilityLabel("Source text to paste")
                 HStack {
                     Button("Save paste") { Task { await savePaste(force: false) } }.disabled(busy || pasteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("Upload file…") { importerPresented = true }.disabled(busy)
@@ -169,8 +224,13 @@ struct SourcesView: View {
                     Button("Add URL") { Task { await addURL(force: false) } }.disabled(busy || urlText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 if busy { ProgressView().controlSize(.small) }
-            }.padding(.top, 4)
+            }.font(NativeType.body).padding(.top, 10)
         }
+        .font(.system(size: 14, weight: .medium))
+        .padding(16)
+        .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(NativePalette.border))
+        .animation(motion.animation, value: addingSources)
         .fileImporter(isPresented: $importerPresented, allowedContentTypes: [.pdf, .plainText, UTType(filenameExtension: "docx") ?? .data], allowsMultipleSelection: true) { result in
             Task { await upload(result) }
         }
@@ -184,6 +244,7 @@ struct SourcesView: View {
             let result = try await api.listSources(notebookId: notebook.id)
             guard !Task.isCancelled else { return }
             sources = result
+            if sources.isEmpty { addingSources = true }
             if selectedSourceId == nil { selectedSourceId = sources.first?.id }
             notice = nil
         } catch {

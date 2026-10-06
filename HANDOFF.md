@@ -22,6 +22,33 @@ Live state of the project. **Read this first** before doing anything.
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
 
+## Native macOS typography and motion (2026-10-06)
+
+- Added a shared native style: rounded San Francisco headings, larger body
+  text, serif source reading, warm neutral surfaces and an adaptive teal
+  accent. Sidebar, notebook header, sign-in and source reader have clearer
+  spacing and hierarchy; import controls collapse without animating every page.
+- Coach uses native cards, actual question/time-budget progress, gentle
+  question/session/reference-answer transitions and explicit answer focus.
+  Loading has a small staggered-dot capsule; Settings previews it locally.
+  Both system and in-app Reduce Motion disable decorative movement; the
+  timeline pauses and shows static dots. No audio added.
+- OpenCode implemented the coach/Settings polish and independently reviewed
+  the diff. Root integrated it and corrected animation scope, notice contrast,
+  editor labels, auth field behavior, picker layout and question focus.
+- A Debug-only XCTest host uses isolated preferences and in-memory account
+  credentials and does not start the sidecar. This prevents tests from asking
+  for the owner's real Keychain account. Release retains normal Keychain auth.
+- Verification: meaningful motion-policy and test-host isolation checks first
+  failed, then passed. Full macOS suite **31 passed**; arm64 native packaging
+  and ad-hoc signature verification passed. A temporary SwiftUI host exercised
+  the actual source/coach/Settings views against a disposable packaged API,
+  including light/dark layout and animated/static loading preview. Full
+  physical-keyboard revision navigation and provider inference remain manual
+  checks. Backend, Windows and legacy frontend were not changed in this batch.
+- App: `macos/build/Build/Products/Release/Notaeo.app`. Reviewed and approved
+  for a separate feature commit; no release or deployment.
+
 ## Native desktop alpha (2026-10-05, uncommitted)
 
 - macOS now uses SwiftUI for account login, notebooks, source reading/import,

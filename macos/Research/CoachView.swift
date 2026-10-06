@@ -21,6 +21,14 @@ struct CoachView: View {
     @State private var explanation: CoachExplanation?
     @State private var busy: String?
     @State private var error: String?
+    @FocusState private var answerFocused: Bool
+    @AccessibilityFocusState private var questionFocused: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("notaeo.native.reduceMotion") private var appReduceMotion = false
+    private var motion: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion)
+    }
 
     private static let dayFmt: DateFormatter = {
         let f = DateFormatter()
@@ -31,33 +39,61 @@ struct CoachView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 16) {
                 header
-                if let error {
-                    Text(error).font(.callout).foregroundStyle(.red)
-                    Button("Reload coach") { Task { await load() } }
+                Group {
+                    if let error {
+                        errorBlock(error)
+                            .transition(motion.transition)
+                    }
                 }
-                if busy != nil && busy?.hasPrefix("ai-") == true {
-                    NativeAIActivity(label: "Waiting for AI…")
-                } else if busy != nil {
-                    ProgressView("Saving your revision progress…")
-                }
+                .animation(motion.animation, value: error)
+                Group { loadingBlock }
+                    .animation(motion.animation, value: busy)
                 goalCard
                 if let session = currentSession {
                     sessionCard(session)
+                        .id(session.id)
+                        .transition(motion.transition)
                 }
                 historyCard
-            }.padding().frame(maxWidth: 720, alignment: .leading)
+            }
+            .padding(24)
+            .frame(maxWidth: 720, alignment: .leading)
+            .animation(motion.animation, value: sessionId)
         }
+        .background(NativePalette.canvas)
         .disabled(busy != nil)
         .task(id: notebook.id) { await load() }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Your exam coach").font(.title2.bold())
+            Text("Your exam coach").font(NativeType.display)
             Text("Know what to study next. Use your course material, practise, and revisit what you missed.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(NativeType.body).foregroundStyle(.secondary)
+                .lineSpacing(2)
+        }
+        .padding(.top, 4)
+    }
+
+    private func errorBlock(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(message).font(NativeType.body).foregroundStyle(.red)
+            Button("Reload coach") { Task { await load() } }
+        }
+    }
+
+    @ViewBuilder
+    private var loadingBlock: some View {
+        if busy?.hasPrefix("ai-") == true {
+            NativeAIActivity(label: "Waiting for AI…")
+                .transition(motion.transition)
+        } else if busy != nil {
+            ProgressView("Saving your revision progress…")
+                .tint(NativePalette.accent)
+                .font(NativeType.body)
+                .transition(motion.transition)
         }
     }
 
@@ -68,8 +104,8 @@ struct CoachView: View {
     // MARK: - Goal
 
     private var goalCard: some View {
-        GroupBox("Exam goal") {
-            VStack(alignment: .leading, spacing: 8) {
+        NativeCard(title: "Exam goal", systemImage: "target") {
+            VStack(alignment: .leading, spacing: 12) {
                 TextField("Exam title", text: $goalTitle).textFieldStyle(.roundedBorder)
                 HStack {
                     DatePicker("Exam date", selection: $examDate, displayedComponents: .date)
@@ -83,16 +119,18 @@ struct CoachView: View {
                 }
                 if !aiConfigured {
                     Text("Source-based practice works now. Add an optional AI key in Settings for explanations.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(NativeType.caption).foregroundStyle(.secondary)
+                        .lineSpacing(1)
                 }
                 if let g = state?.goal {
-                    Text("Saved: \(g.title) · \(g.dailyMinutes) min · \(g.examDate)").font(.caption).foregroundStyle(.secondary)
+                    Text("Saved: \(g.title) · \(g.dailyMinutes) min · \(g.examDate)").font(NativeType.caption).foregroundStyle(.secondary)
                 }
                 Button("Build revision session") { Task { await build() } }
+                    .buttonStyle(.borderedProminent)
                     .disabled(busy != nil || state?.goal == nil || hasActive || goalDirty)
                 if hasActive {
                     HStack {
-                        Text("Finish your active session before building another.").font(.callout).foregroundStyle(.secondary)
+                        Text("Finish your active session before building another.").font(NativeType.body).foregroundStyle(.secondary)
                         Button("Resume active session") {
                             if let active = state?.sessions.first(where: { $0.status == "active" }) {
                                 sessionId = active.id
@@ -120,27 +158,40 @@ struct CoachView: View {
     // MARK: - Session
 
     private func sessionCard(_ session: CoachSession) -> some View {
-        GroupBox(session.status == "completed" ? "Session complete" : session.status == "draft" ? "Your revision session" : "Practice session") {
-            VStack(alignment: .leading, spacing: 10) {
+        let title: String
+        let icon: String
+        switch session.status {
+        case "completed": title = "Session complete"; icon = "checkmark.circle"
+        case "draft": title = "Your revision session"; icon = "list.bullet"
+        default: title = "Practice session"; icon = "pencil"
+        }
+        return NativeCard(title: title, systemImage: icon) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("\(session.goal.title) · \(session.tasks.reduce(0) { $0 + $1.minutes }) min · \(session.generatedBy == "ai" ? "AI practice" : "Source-based practice")")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let n = session.notice, !n.isEmpty { Text(n).font(.callout).foregroundStyle(.orange) }
+                    .font(NativeType.caption).foregroundStyle(.secondary)
+                if let n = session.notice, !n.isEmpty { Text(n).font(NativeType.body).foregroundStyle(NativePalette.warning) }
                 if session.status == "draft" {
                     draftList(session)
+                        .transition(motion.transition)
                 } else if session.status == "active" {
                     if let task = session.tasks.indices.contains(index) ? session.tasks[index] : nil {
                         activeQuestion(session, task: task)
+                            .id(task.id)
+                            .transition(motion.transition)
                     }
                 } else {
                     completedList(session)
+                        .transition(motion.transition)
                 }
             }
+            .animation(motion.animation, value: session.status)
+            .animation(motion.animation, value: index)
         }
     }
 
     private func draftList(_ session: CoachSession) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Choose your questions and their order before starting.").font(.callout).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Choose your questions and their order before starting.").font(NativeType.body).foregroundStyle(.secondary)
             ForEach(session.tasks) { item in
                 Toggle(isOn: Binding(
                     get: { selected.contains(item.id) },
@@ -149,17 +200,23 @@ struct CoachView: View {
                         else { selected.removeAll { $0 == item.id } }
                     }
                 )) {
-                    VStack(alignment: .leading) {
-                        Text("\(item.topic) · \(item.minutes) min").font(.headline)
-                        Text(item.prompt).font(.callout).foregroundStyle(.secondary)
-                        Text(item.reason).font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(item.topic) · \(item.minutes) min").font(NativeType.heading)
+                        Text(item.prompt).font(NativeType.body).foregroundStyle(.secondary)
+                        Text(item.reason).font(NativeType.caption).foregroundStyle(.secondary)
                     }
                 }
             }
-            Text("Selected: \(selectedMinutes(session)) of \(session.goal.dailyMinutes) minutes").font(.callout).foregroundStyle(.secondary)
+            let chosen = selectedMinutes(session)
+            let budget = max(session.goal.dailyMinutes, 1)
+            ProgressView(value: Double(min(chosen, budget)), total: Double(budget))
+                .tint(NativePalette.accent)
+                .accessibilityLabel("Selected \(chosen) of \(session.goal.dailyMinutes) minutes")
+            Text("Selected: \(chosen) of \(session.goal.dailyMinutes) minutes").font(NativeType.body).foregroundStyle(.secondary)
             Button("Start selected session") { Task { await start(session) } }
+                .buttonStyle(.borderedProminent)
                 .disabled(busy != nil || selected.isEmpty || selected.count > 10 || selectedMinutes(session) > session.goal.dailyMinutes)
-            Text("Choose up to 10 questions within your time budget.").font(.caption).foregroundStyle(.secondary)
+            Text("Choose up to 10 questions within your time budget.").font(NativeType.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -170,17 +227,25 @@ struct CoachView: View {
     private func activeQuestion(_ session: CoachSession, task: CoachTask) -> some View {
         let key = "\(session.id):\(task.id)"
         let attempt = session.attempts.first(where: { $0.taskId == task.id })
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("Question \(index + 1) of \(session.tasks.count) · \(session.attempts.count) answered")
-                .font(.caption).foregroundStyle(.secondary)
-            Text(task.topic).font(.headline)
-            Text(task.prompt)
-            Text(task.reason).font(.caption).foregroundStyle(.secondary)
-            Text("Your answer").font(.caption.bold())
+        let answered = session.attempts.count
+        let total = max(session.tasks.count, 1)
+        return VStack(alignment: .leading, spacing: 10) {
+            ProgressView(value: Double(min(answered, total)), total: Double(total))
+                .tint(NativePalette.accent)
+                .accessibilityLabel("\(answered) of \(session.tasks.count) answered")
+            Text("Question \(index + 1) of \(session.tasks.count) · \(answered) answered")
+                .font(NativeType.caption).foregroundStyle(.secondary)
+            Text(task.topic).font(NativeType.heading).accessibilityFocused($questionFocused)
+            Text(task.prompt).font(NativeType.body).lineSpacing(2)
+            Text(task.reason).font(NativeType.caption).foregroundStyle(.secondary)
+            Text("Your answer").font(NativeType.heading)
             TextEditor(text: Binding(get: { responses[key] ?? attempt?.response ?? "" }, set: { responses[key] = $0 }))
-                .frame(minHeight: 90).border(Color.secondary.opacity(0.3))
+                .frame(minHeight: 110)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(NativePalette.border))
+                .accessibilityLabel("Your answer")
+                .focused($answerFocused)
             Text("Choose Got it or Revise again to save your answer. Unrated drafts stay while you move between questions.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(NativeType.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Show reference answer") { revealed = true }
                 Button(useAi && aiConfigured ? "Explain with AI" : "Show explanation") {
@@ -188,29 +253,31 @@ struct CoachView: View {
                 }
             }
             if revealed {
-                GroupBox("Reference answer") {
+                NativeCard(title: "Reference answer") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(task.answer).textSelection(.enabled)
+                        Text(task.answer).font(NativeType.body).textSelection(.enabled)
                         if task.sourceId != nil {
                             Text("\(task.sourceTitle ?? "Course source")\(task.pages.isEmpty ? "" : " · p. \(task.pages.map(String.init).joined(separator: ", "))")")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(NativeType.caption).foregroundStyle(.secondary)
                         }
                         Text("Compare your answer, then choose how to revise. These ratings are your self-assessment.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(NativeType.caption).foregroundStyle(.secondary)
                     }
                 }
+                .transition(motion.transition)
             }
             if let explanation {
-                GroupBox("Explanation (\(explanation.generatedBy))") {
+                NativeCard(title: "Explanation (\(explanation.generatedBy))") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(explanation.answer).textSelection(.enabled)
-                        if let n = explanation.notice, !n.isEmpty { Text(n).font(.callout).foregroundStyle(.orange) }
+                        Text(explanation.answer).font(NativeType.body).textSelection(.enabled)
+                        if let n = explanation.notice, !n.isEmpty { Text(n).font(NativeType.body).foregroundStyle(NativePalette.warning) }
                         ForEach(explanation.citations, id: \.sourceId) { c in
-                            Text("\(c.sourceTitle) · p. \(c.pages.map(String.init).joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)
+                            Text("\(c.sourceTitle) · p. \(c.pages.map(String.init).joined(separator: ", "))").font(NativeType.caption).foregroundStyle(.secondary)
                         }
-                        if let m = explanation.model { Text(m).font(.caption2).foregroundStyle(.tertiary) }
+                        if let m = explanation.model { Text(m).font(NativeType.caption).foregroundStyle(.tertiary) }
                     }
                 }
+                .transition(motion.transition)
             }
             if revealed || explanation != nil || attempt != nil {
                 HStack {
@@ -226,6 +293,8 @@ struct CoachView: View {
                 }
             }
         }
+        .animation(motion.animation, value: revealed)
+        .animation(motion.animation, value: explanation)
     }
 
     private func allRatedLocally(_ session: CoachSession) -> Bool {
@@ -234,16 +303,17 @@ struct CoachView: View {
     }
 
     private func completedList(_ session: CoachSession) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             let revise = session.attempts.filter { $0.rating == "revise" }.count
-            Text("\(revise) topic\(revise == 1 ? "" : "s") to revisit in your next session.").font(.callout)
-            Text("Your ratings guide the next plan. They do not estimate your exam score.").font(.caption).foregroundStyle(.secondary)
+            Text("\(revise) topic\(revise == 1 ? "" : "s") to revisit in your next session.").font(NativeType.heading)
+            Text("Your ratings guide the next plan. They do not estimate your exam score.").font(NativeType.caption).foregroundStyle(.secondary)
             ForEach(session.tasks) { item in
                 let saved = session.attempts.first(where: { $0.taskId == item.id })
                 DisclosureGroup("\(item.topic) · \(saved?.rating == "revise" ? "Revisit" : "Got it")") {
                     VStack(alignment: .leading, spacing: 6) {
                         Text((saved?.response.isEmpty == false) ? saved!.response : "No written answer")
-                        Text("Reference: \(item.answer)").font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                            .font(NativeType.body)
+                        Text("Reference: \(item.answer)").font(NativeType.body).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                 }
             }
@@ -251,10 +321,10 @@ struct CoachView: View {
     }
 
     private var historyCard: some View {
-        GroupBox("Saved sessions") {
+        NativeCard(title: "Saved sessions", systemImage: "clock") {
             let done = state?.sessions.filter { $0.status == "completed" } ?? []
             if done.isEmpty {
-                Text("No finished sessions yet.").font(.callout).foregroundStyle(.secondary)
+                Text("No finished sessions yet.").font(NativeType.body).foregroundStyle(.secondary)
             } else {
                 FlowWrapping(buttons: done.map { s in
                     (label: "\(s.goal.title) · \(s.attempts.count) answers", id: s.id)
@@ -267,6 +337,8 @@ struct CoachView: View {
 
     private func navigate(to next: Int) {
         index = next; revealed = false; explanation = nil
+        answerFocused = true
+        questionFocused = true
     }
 
     // MARK: - API calls
@@ -391,22 +463,36 @@ struct CoachView: View {
 struct NativeAIActivity: View {
     let label: String
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
+    @AppStorage("notaeo.native.reduceMotion") private var appReduceMotion = false
+    private var policy: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion)
+    }
 
     var body: some View {
-        HStack(spacing: 10) {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || systemReduceMotion)) { context in
+        HStack(spacing: 8) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: policy.reducesMotion)) { context in
                 HStack(spacing: 4) {
                     ForEach(0..<3) { index in
-                        let phase = context.date.timeIntervalSinceReferenceDate * 4 - Double(index) * 0.8
-                        Circle().fill(.tint).frame(width: 6, height: 6)
-                            .opacity(reduceMotion || systemReduceMotion ? 0.7 : 0.55 + 0.3 * sin(phase))
-                            .offset(y: reduceMotion || systemReduceMotion ? 0 : -2 * max(0, sin(phase)))
+                        let sample = policy.activitySample(time: context.date.timeIntervalSinceReferenceDate, index: index)
+                        Circle()
+                            .fill(NativePalette.accent)
+                            .frame(width: 6, height: 6)
+                            .opacity(policy.reducesMotion ? 0.7 : sample.opacity)
+                            .offset(y: policy.reducesMotion ? 0 : CGFloat(sample.offset))
                     }
-                }.frame(height: 18)
-            }.accessibilityHidden(true)
-            Text(label).font(.callout).foregroundStyle(.secondary)
-        }.accessibilityElement(children: .combine)
+                }
+                .frame(height: 18)
+            }
+            .accessibilityHidden(true)
+            Text(label).font(NativeType.caption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(NativePalette.surface))
+        .overlay(Capsule().stroke(NativePalette.border))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+        .transition(policy.transition)
     }
 }
 
@@ -419,6 +505,8 @@ private struct FlowWrapping: View {
             ForEach(buttons, id: \.id) { b in
                 Button(b.label) { onPick(b.id) }
                     .buttonStyle(.link)
+                    .font(NativeType.body)
+                    .tint(NativePalette.accent)
                     .opacity(b.id == selectedId ? 1 : 0.8)
             }
         }

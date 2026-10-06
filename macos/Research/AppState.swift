@@ -22,6 +22,26 @@ final class AppState: ObservableObject {
     private let credentials: any SessionCredentialStore
     private let preferences: UserDefaults
 
+    static func isTestHost(environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        #if DEBUG
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+        #else
+        return false
+        #endif
+    }
+
+    static func forApplication(environment: [String: String] = ProcessInfo.processInfo.environment) -> AppState {
+        #if DEBUG
+        if isTestHost(environment: environment) {
+            return AppState(credentials: TestHostCredentials(),
+                            preferences: UserDefaults(suiteName: "notaeo.test-host.\(UUID().uuidString)")!)
+        }
+        #endif
+        return AppState()
+    }
+
     init(credentials: any SessionCredentialStore = KeychainSessionStore(), preferences: UserDefaults = .standard) {
         self.credentials = credentials
         self.preferences = preferences
@@ -112,6 +132,15 @@ protocol SessionCredentialStore {
     func load() -> String?
     func save(_ token: String?)
 }
+
+#if DEBUG
+@MainActor
+private final class TestHostCredentials: SessionCredentialStore {
+    private var token: String?
+    func load() -> String? { token }
+    func save(_ token: String?) { self.token = token }
+}
+#endif
 
 @MainActor
 private final class KeychainSessionStore: SessionCredentialStore {

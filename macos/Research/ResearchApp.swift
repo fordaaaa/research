@@ -20,7 +20,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 struct NotaeoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var backend = BackendProcess()
-    @StateObject private var appState = AppState()
+    @StateObject private var appState = AppState.forApplication()
     @AppStorage("notaeo.native.appearance") private var appearance = "system"
 
     var body: some Scene {
@@ -31,7 +31,7 @@ struct NotaeoApp: App {
                 .environmentObject(appState)
                 .onAppear {
                     appDelegate.backend = backend
-                    backend.startIfNeeded()
+                    if !AppState.isTestHost() { backend.startIfNeeded() }
                 }
                 .onChange(of: backend.state, initial: true) { _, state in
                     if case .ready(let url) = state {
@@ -49,6 +49,7 @@ struct NotaeoApp: App {
             SettingsView()
                 .environmentObject(appState)
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
+                .tint(NativePalette.accent)
         }
     }
 }
@@ -57,6 +58,12 @@ private struct ContentView: View {
     @EnvironmentObject private var backend: BackendProcess
     @EnvironmentObject private var appState: AppState
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
+
+    private var motion: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: reduceMotion)
+    }
 
     var body: some View {
         Group {
@@ -72,15 +79,26 @@ private struct ContentView: View {
                 if appState.isLoggedIn {
                     MainView()
                         .environmentObject(appState)
+                        .transition(motion.transition)
                 } else {
                     AuthView()
                         .environmentObject(appState)
+                        .transition(motion.transition)
                 }
             case .idle, .starting:
                 StartupView()
             }
         }
         .frame(minWidth: 960, minHeight: 640)
+        .font(NativeType.body)
+        .tint(NativePalette.accent)
+        .animation(motion.animation, value: appState.isLoggedIn)
+        .transaction { transaction in
+            if motion.reducesMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -96,12 +114,13 @@ private struct ContentView: View {
 
 private struct StartupView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text("Notaeo").font(.system(size: 28, weight: .semibold, design: .rounded))
-            Text("Preparing your workspace…").font(.subheadline).foregroundStyle(.secondary)
+        VStack(spacing: 20) {
+            Image(systemName: "book.closed.fill").font(.system(size: 32))
+                .foregroundStyle(NativePalette.accent).accessibilityHidden(true)
+            Text("Notaeo").font(NativeType.display)
+            NativeAIActivity(label: "Preparing your workspace…")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(NativePalette.canvas)
     }
 }

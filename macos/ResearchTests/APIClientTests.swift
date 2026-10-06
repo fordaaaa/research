@@ -1,6 +1,54 @@
 import XCTest
 @testable import Notaeo
 
+final class NativeMotionTests: XCTestCase {
+    @MainActor
+    func testTestHostStartsWithoutRestoringOrSharingAccountState() {
+        let environment = ["XCTestConfigurationFilePath": "/tmp/test-host.xctestconfiguration"]
+        let first = AppState.forApplication(environment: environment)
+        XCTAssertNil(first.accountToken)
+        XCTAssertNil(first.userEmail)
+        first.accountToken = "test-only-token"
+        first.userEmail = "test@example.invalid"
+        let second = AppState.forApplication(environment: environment)
+        XCTAssertNil(second.accountToken)
+        XCTAssertNil(second.userEmail)
+    }
+
+    func testEitherReduceMotionPreferenceStopsAnimationAndActivityMovement() {
+        for (system, app) in [(true, false), (false, true), (true, true)] {
+            let policy = NativeMotionPolicy(systemReduceMotion: system, appReduceMotion: app)
+            XCTAssertTrue(policy.reducesMotion)
+            XCTAssertNil(policy.animation)
+            for index in 0..<3 {
+                let first = policy.activitySample(time: 0, index: index)
+                let later = policy.activitySample(time: 17.5, index: index)
+                XCTAssertEqual(first.offset, 0)
+                XCTAssertEqual(first.opacity, later.opacity)
+                XCTAssertEqual(later.offset, 0)
+            }
+        }
+    }
+
+    func testActivityIsGentlePeriodicAndStaggeredWithoutReduceMotion() {
+        let policy = NativeMotionPolicy(systemReduceMotion: false, appReduceMotion: false)
+        XCTAssertFalse(policy.reducesMotion)
+        XCTAssertNotNil(policy.animation)
+        for index in 0..<3 {
+            for time in stride(from: 0.0, to: 4.0, by: 0.05) {
+                let sample = policy.activitySample(time: time, index: index)
+                XCTAssertTrue((-3.0...0.0).contains(sample.offset))
+                XCTAssertTrue((0.35...0.9).contains(sample.opacity))
+                let repeatSample = policy.activitySample(time: time + 1.8, index: index)
+                XCTAssertEqual(sample.offset, repeatSample.offset, accuracy: 0.0001)
+                XCTAssertEqual(sample.opacity, repeatSample.opacity, accuracy: 0.0001)
+            }
+        }
+        XCTAssertNotEqual(policy.activitySample(time: 0.5, index: 0).offset,
+                          policy.activitySample(time: 0.5, index: 1).offset)
+    }
+}
+
 // MARK: - Stub transport (real URLSession request pipeline, not source checks)
 
 final class StubURLProtocol: URLProtocol {

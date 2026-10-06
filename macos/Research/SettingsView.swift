@@ -11,9 +11,14 @@ struct SettingsView: View {
     @State private var busy = false
     @State private var message: String?
     @AppStorage("notaeo.native.appearance") private var appearance = "system"
-    @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
+    @AppStorage("notaeo.native.reduceMotion") private var appReduceMotion = false
     @State private var previewing = false
     @State private var previewTask: Task<Void, Never>?
+
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    private var motion: NativeMotionPolicy {
+        NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion)
+    }
 
     private let providers = ["gemini", "openrouter", "groq"]
     private let defaultModels = [
@@ -30,7 +35,8 @@ struct SettingsView: View {
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
                 }
-                Toggle("Reduce motion", isOn: $reduceMotion)
+                Toggle("Reduce motion", isOn: $appReduceMotion)
+                    .accessibilityLabel("Reduce motion")
                 Button("Preview AI loading") {
                     previewing = true
                     previewTask = Task { @MainActor in
@@ -39,21 +45,25 @@ struct SettingsView: View {
                         previewing = false
                     }
                 }.disabled(previewing)
-                if previewing { NativeAIActivity(label: "Preparing an explanation…") }
-                Text("The preview runs locally for three seconds.").font(.caption).foregroundStyle(.secondary)
+                if previewing {
+                    NativeAIActivity(label: "Preparing an explanation…")
+                        .transition(motion.transition)
+                }
+                Text("The preview runs locally for three seconds.").font(NativeType.caption).foregroundStyle(.secondary)
             }
             Section("Account") {
                 if let email = appState.userEmail, appState.isLoggedIn {
-                    Text(email).textSelection(.enabled)
+                    Text(email).font(NativeType.body).textSelection(.enabled)
                     Button("Sign out") { Task { await appState.signOut() } }
                 } else {
                     Text("Sign in to access your notebooks and optional AI settings.")
-                        .font(.callout).foregroundStyle(.secondary)
+                        .font(NativeType.body).foregroundStyle(.secondary)
+                        .lineSpacing(1)
                 }
             }
             Section("Optional AI") {
                 Text("Your key is saved with your account and used only when you request an AI feature.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(NativeType.caption).foregroundStyle(.secondary)
                 Picker("Provider", selection: Binding(get: { provider }, set: {
                     provider = $0
                     model = defaultModels[$0] ?? model
@@ -64,7 +74,7 @@ struct SettingsView: View {
                 SecureField("API key", text: $apiKey).disabled(!appState.isLoggedIn)
                 TextField("Model", text: $model).textFieldStyle(.roundedBorder).disabled(!appState.isLoggedIn)
                 Text(configured ? "AI is configured." : "AI is not configured. Coach works without a key.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(NativeType.caption).foregroundStyle(.secondary)
                 HStack {
                     Button(busy ? "Saving…" : (configured ? "Replace key" : "Enable AI")) {
                         Task { await save() }
@@ -73,12 +83,23 @@ struct SettingsView: View {
                         Button("Remove key") { Task { await remove() } }.disabled(busy || !appState.isLoggedIn)
                     }
                 }
-                if let message { Text(message).font(.callout).foregroundStyle(.secondary) }
+                if let message {
+                    Text(message).font(NativeType.body).foregroundStyle(.secondary)
+                        .transition(motion.transition)
+                }
             }
         }
         .formStyle(.grouped)
         .disabled(busy)
         .frame(width: 560, height: 660)
+        .transaction { transaction in
+            if motion.reducesMotion {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+        .animation(motion.animation, value: previewing)
+        .animation(motion.animation, value: message)
         .task(id: appState.accountToken) {
             configured = false; apiKey = ""; message = nil
             await load()
