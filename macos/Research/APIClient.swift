@@ -37,7 +37,11 @@ enum APIError: LocalizedError, Equatable, Sendable {
 /// - Account auth is `Authorization: Bearer <token>`.
 /// - Desktop loopback guard is `X-Notaeo-Desktop-Token: <per-launch token>`.
 /// - Base URL is the loopback sidecar root (e.g. http://127.0.0.1:PORT).
-final class NotaeoAPI: Sendable {
+protocol NotebookSearching: Sendable {
+    func searchNotebook(notebookId: String, request: NativeSearchRequest) async throws -> SearchPage
+}
+
+final class NotaeoAPI: NotebookSearching {
     static let desktopTokenHeader = "X-Notaeo-Desktop-Token"
 
     let baseURL: URL
@@ -199,6 +203,14 @@ final class NotaeoAPI: Sendable {
     }
 
     // MARK: - Sources
+
+    func searchNotebook(notebookId: String, request: NativeSearchRequest) async throws -> SearchPage {
+        var query = ["q": request.query, "related": request.related ? "true" : "false",
+                     "offset": String(request.offset), "limit": String(request.limit)]
+        if let kind = request.kind, !kind.isEmpty { query["kind"] = kind }
+        let response = try await send(path: "api/notebooks/\(notebookId)/search/page", method: "GET", query: query)
+        return try decode(SearchPage.self, from: response.data)
+    }
 
     func listSources(notebookId: String) async throws -> [SourceSummary] {
         let res = try await send(path: "api/notebooks/\(notebookId)/sources", method: "GET")

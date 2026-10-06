@@ -20,6 +20,7 @@
 		B10000000000000000000113 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000112 /* SettingsView.swift */; };
 		C10000000000000000000101 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000100 /* APIClientTests.swift */; };
 		D10000000000000000000001 /* NativeStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000002 /* NativeStyle.swift */; };
+		E10000000000000000000001 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000002 /* SearchView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +40,7 @@
 		B10000000000000000000112 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C10000000000000000000100 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		D10000000000000000000002 /* NativeStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeStyle.swift; sourceTree = "<group>"; };
+		E10000000000000000000002 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,7 +50,7 @@
 
 /* Begin PBXGroup section */
 		A00100000000000000000040 = {isa = PBXGroup; children = (A00100000000000000000041 /* Research */, A00100000000000000000043 /* ResearchTests */, A00100000000000000000042 /* Products */); sourceTree = "<group>"; };
-		A00100000000000000000041 /* Research */ = {isa = PBXGroup; children = (D10000000000000000000002 /* NativeStyle.swift */, B10000000000000000000100 /* Models.swift */, B10000000000000000000102 /* APIClient.swift */, B10000000000000000000104 /* AppState.swift */, A00100000000000000000010 /* ResearchApp.swift */, A00100000000000000000012 /* BackendProcess.swift */, B10000000000000000000106 /* AuthView.swift */, B10000000000000000000108 /* MainView.swift */, B10000000000000000000110 /* CoachView.swift */, B10000000000000000000112 /* SettingsView.swift */, A00100000000000000000016 /* DownloadHandler.swift */, A0010000000000000000001A /* Assets.xcassets */); path = Research; sourceTree = "<group>"; };
+		A00100000000000000000041 /* Research */ = {isa = PBXGroup; children = (E10000000000000000000002 /* SearchView.swift */, D10000000000000000000002 /* NativeStyle.swift */, B10000000000000000000100 /* Models.swift */, B10000000000000000000102 /* APIClient.swift */, B10000000000000000000104 /* AppState.swift */, A00100000000000000000010 /* ResearchApp.swift */, A00100000000000000000012 /* BackendProcess.swift */, B10000000000000000000106 /* AuthView.swift */, B10000000000000000000108 /* MainView.swift */, B10000000000000000000110 /* CoachView.swift */, B10000000000000000000112 /* SettingsView.swift */, A00100000000000000000016 /* DownloadHandler.swift */, A0010000000000000000001A /* Assets.xcassets */); path = Research; sourceTree = "<group>"; };
 		A00100000000000000000042 /* Products */ = {isa = PBXGroup; children = (A00100000000000000000020 /* Notaeo.app */, A00100000000000000000021 /* ResearchTests.xctest */); name = Products; sourceTree = "<group>"; };
 		A00100000000000000000043 /* ResearchTests */ = {isa = PBXGroup; children = (C10000000000000000000100 /* APIClientTests.swift */, A00100000000000000000018 /* DownloadHandlerTests.swift */); path = ResearchTests; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -67,7 +69,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A00100000000000000000052 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (D10000000000000000000001 /* NativeStyle.swift in Sources */, B10000000000000000000101 /* Models.swift in Sources */, B10000000000000000000103 /* APIClient.swift in Sources */, B10000000000000000000105 /* AppState.swift in Sources */, A00100000000000000000011 /* ResearchApp.swift in Sources */, A00100000000000000000013 /* BackendProcess.swift in Sources */, B10000000000000000000107 /* AuthView.swift in Sources */, B10000000000000000000109 /* MainView.swift in Sources */, B10000000000000000000111 /* CoachView.swift in Sources */, B10000000000000000000113 /* SettingsView.swift in Sources */, A00100000000000000000017 /* DownloadHandler.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A00100000000000000000052 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (E10000000000000000000001 /* SearchView.swift in Sources */, D10000000000000000000001 /* NativeStyle.swift in Sources */, B10000000000000000000101 /* Models.swift in Sources */, B10000000000000000000103 /* APIClient.swift in Sources */, B10000000000000000000105 /* AppState.swift in Sources */, A00100000000000000000011 /* ResearchApp.swift in Sources */, A00100000000000000000013 /* BackendProcess.swift in Sources */, B10000000000000000000107 /* AuthView.swift in Sources */, B10000000000000000000109 /* MainView.swift in Sources */, B10000000000000000000111 /* CoachView.swift in Sources */, B10000000000000000000113 /* SettingsView.swift in Sources */, A00100000000000000000017 /* DownloadHandler.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 		A00100000000000000000058 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C10000000000000000000101 /* APIClientTests.swift in Sources */, A00100000000000000000019 /* DownloadHandlerTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

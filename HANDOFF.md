@@ -22,6 +22,30 @@ Live state of the project. **Read this first** before doing anything.
 > same guarantees). Both carry frontend tests (`api.export.test.ts`,
 > `api.study-export.test.ts`); 401s clear the token and signal login.
 
+## Native macOS course search and backend pagination (2026-10-06)
+
+- Native Search tab and Cmd+F support queries, exact phrases, supported
+  related terms, source-type filters, result counts and pagination. Results
+  open the selected source at its cited page. Returning to Search retains
+  results and query; changing notebooks clears them. Generation and task
+  cancellation checks prevent stale results and loading state races.
+- Backend adds typed `GET /api/notebooks/{id}/search/page`; the legacy list
+  endpoint remains compatible. Both share the existing one-pass engine,
+  filters, account ownership checks, timing and progress tracking. No new
+  provider, key requirement, dependency or database migration.
+- Verification: new backend tests first **8 failed, 1 passed**, then **9
+  passed**; full backend **388 passed**. New native transport/state tests
+  first failed to compile before implementation; full native suite **35
+  passed**. The signed arm64 macOS package builds and verifies. The actual
+  Swift client passed a real packaged-loopback check for pagination, related
+  metadata, cited-source page lookup and out-of-range results with disposable
+  data. Native Search layout was inspected. Full physical-keyboard/source
+  navigation click-through remains a manual check.
+- OpenCode implemented the backend and independently approved the combined
+  feature after root integration. Typography/motion is committed separately
+  as `97437ad`; this search batch is a separate feature commit. Windows search
+  controls and the other remaining native feature screens still need porting.
+
 ## Native macOS typography and motion (2026-10-06)
 
 - Added a shared native style: rounded San Francisco headings, larger body
@@ -75,7 +99,7 @@ Live state of the project. **Read this first** before doing anything.
 - The signed macOS app is at `macos/build/Build/Products/Release/Notaeo.app`.
   No commits, releases or deployments. Own mobile preview processes on 8002
   and 8082 were stopped; existing development servers were left running.
-- Remaining native screens: search, notes, chat, flashcard management, study
+- Remaining native screens at this milestone: search, notes, chat, flashcard management, study
   artifacts, outlines, public-web discovery and Google login. Existing APIs
   and legacy React source remain. Full native revision click-through, physical
   keyboard shortcuts, provider inference and Windows layout need manual checks.

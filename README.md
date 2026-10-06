@@ -7,6 +7,10 @@ set an exam goal, and work through a short revision session. The native workflow
 supports written answers, source-based explanations and saved self-ratings.
 AI is optional; an account is required.
 
+On macOS, open **Search** (or press **⌘F**) to find passages across a notebook.
+Filter by source type, include supported related terms, and open a result at
+its cited source page. Search works without an AI key.
+
 **Know what to study next.** The first **exam coach** loop now lets you save an
 exam goal and time budget, choose a short revision session, record answers,
 and revisit topics you marked missed. Create a notebook, import your material,

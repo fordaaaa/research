@@ -49,6 +49,98 @@ final class NativeMotionTests: XCTestCase {
     }
 }
 
+final class NativeSearchAPITests: XCTestCase {
+    func testSearchPreservesQueryAndDecodesPaginationWithAuthenticatedRequest() async throws {
+        StubURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/notebooks/course/search/page")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer acct-1")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Notaeo-Desktop-Token"), "desk-per-launch")
+            let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            let query = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value!) })
+            XCTAssertEqual(query["q"], "ATP & \"Calvin cycle\"")
+            XCTAssertEqual(query["related"], "true")
+            XCTAssertEqual(query["kind"], "paste")
+            XCTAssertEqual(query["offset"], "10")
+            XCTAssertEqual(query["limit"], "10")
+            let json = #"{"query":"ATP & \"Calvin cycle\"","hits":[{"source_id":"source","source_title":"Biology","pages":[3],"score":12.5,"snippet":"ATP and the Calvin cycle.","matched_terms":["atp"]}],"total":11,"limit":10,"offset":10,"has_more":false,"took_ms":2,"related":true}"#
+            return (http(request.url!, status: 200), Data(json.utf8))
+        }
+        let page = try await api().searchNotebook(notebookId: "course", request: NativeSearchRequest(query: "ATP & \"Calvin cycle\"", kind: "paste", related: true, offset: 10))
+        XCTAssertEqual(page.total, 11)
+        XCTAssertFalse(page.hasMore)
+        XCTAssertEqual(page.hits.first?.sourceId, "source")
+        XCTAssertEqual(page.hits.first?.pages, [3])
+    }
+}
+
+private actor DelayedSearchService: NotebookSearching {
+    private var pending: [String: CheckedContinuation<SearchPage, any Error>] = [:]
+    func searchNotebook(notebookId: String, request: NativeSearchRequest) async throws -> SearchPage {
+        try await withCheckedThrowingContinuation { pending[request.query] = $0 }
+    }
+    func hasRequest(_ query: String) -> Bool { pending[query] != nil }
+    func resolve(_ query: String) {
+        pending.removeValue(forKey: query)?.resume(returning: SearchPage(query: query, hits: [], total: 0, limit: 10, offset: 0, hasMore: false, tookMs: 1, related: true))
+    }
+}
+
+final class NativeSearchStateTests: XCTestCase {
+    @MainActor
+    private func waitForRequest(_ query: String, service: DelayedSearchService) async throws {
+        let deadline = Date().addingTimeInterval(3)
+        while !(await service.hasRequest(query)) {
+            guard Date() < deadline else { throw NSError(domain: "search-test-timeout", code: 1) }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+    }
+
+    @MainActor
+    func testLateSearchCannotReplaceNewerResultsOrStopItsLoadingState() async throws {
+        let service = DelayedSearchService()
+        let controller = NativeSearchController()
+        let first = Task { await controller.search(notebookId: "course", request: NativeSearchRequest(query: "first"), using: service) }
+        try await waitForRequest("first", service: service)
+        let second = Task { await controller.search(notebookId: "course", request: NativeSearchRequest(query: "second"), using: service) }
+        try await waitForRequest("second", service: service)
+        await service.resolve("first")
+        await first.value
+        XCTAssertTrue(controller.isLoading)
+        XCTAssertNil(controller.page)
+        await service.resolve("second")
+        await second.value
+        XCTAssertFalse(controller.isLoading)
+        XCTAssertEqual(controller.page?.query, "second")
+    }
+
+    @MainActor
+    func testClearingPendingSearchPreventsItsResponseFromReappearing() async throws {
+        let service = DelayedSearchService()
+        let controller = NativeSearchController()
+        let task = Task { await controller.search(notebookId: "course", request: NativeSearchRequest(query: "cancelled"), using: service) }
+        try await waitForRequest("cancelled", service: service)
+        controller.clear()
+        await service.resolve("cancelled")
+        await task.value
+        XCTAssertFalse(controller.isLoading)
+        XCTAssertNil(controller.page)
+        XCTAssertNil(controller.error)
+    }
+
+    @MainActor
+    func testCancelledViewTaskCannotPublishALateResult() async throws {
+        let service = DelayedSearchService()
+        let controller = NativeSearchController()
+        let task = Task { await controller.search(notebookId: "course", request: NativeSearchRequest(query: "leaving"), using: service) }
+        try await waitForRequest("leaving", service: service)
+        task.cancel()
+        await service.resolve("leaving")
+        await task.value
+        XCTAssertFalse(controller.isLoading)
+        XCTAssertNil(controller.page)
+        XCTAssertNil(controller.error)
+    }
+}
+
 // MARK: - Stub transport (real URLSession request pipeline, not source checks)
 
 final class StubURLProtocol: URLProtocol {

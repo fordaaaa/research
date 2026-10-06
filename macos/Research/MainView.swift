@@ -11,6 +11,9 @@ struct MainView: View {
     @State private var notice: String?
     @State private var loading = false
     @State private var tab: Tab = .sources
+    @State private var sourceTarget: SourceOpenTarget?
+    @State private var searchFocusVersion = 0
+    @StateObject private var searchController = NativeSearchController()
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("notaeo.native.reduceMotion") private var reduceMotion = false
 
@@ -18,7 +21,12 @@ struct MainView: View {
         NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: reduceMotion)
     }
 
-    enum Tab: String, CaseIterable { case sources = "Sources", coach = "Exam coach" }
+    enum Tab: String, CaseIterable { case sources = "Sources", search = "Search", coach = "Exam coach" }
+
+    private struct SourceOpenTarget {
+        let sourceId: String
+        let page: Int?
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -29,20 +37,27 @@ struct MainView: View {
                     HStack(alignment: .center, spacing: 20) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(nb.name).font(NativeType.title).lineLimit(1)
-                            Text(tab == .sources ? "Make room for what you're learning." : "One focused session at a time.")
+                            Text(tab == .sources ? "Make room for what you're learning." : tab == .search ? "Find it, then read it in context." : "One focused session at a time.")
                                 .font(NativeType.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 12)
                         Picker("Notebook view", selection: $tab) {
                             ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                        }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                        }.pickerStyle(.segmented).labelsHidden().frame(width: 310)
                     }
                     .padding(.horizontal, 24).padding(.vertical, 18)
                     .background(NativePalette.surface)
                     Divider()
                     Group {
                         switch tab {
-                        case .sources: SourcesView(notebook: nb).id(nb.id).transition(motion.transition)
+                        case .sources:
+                            SourcesView(notebook: nb, initialSourceId: sourceTarget?.sourceId, initialPage: sourceTarget?.page)
+                                .id(nb.id).transition(motion.transition)
+                        case .search:
+                            SearchView(notebook: nb, focusVersion: searchFocusVersion, controller: searchController) { hit in
+                                sourceTarget = SourceOpenTarget(sourceId: hit.sourceId, page: hit.pages.first)
+                                tab = .sources
+                            }.id(nb.id).transition(motion.transition)
                         case .coach: CoachView(notebook: nb).id(nb.id).transition(motion.transition)
                         }
                     }
@@ -55,6 +70,18 @@ struct MainView: View {
         .font(NativeType.body)
         .background(NativePalette.canvas)
         .task { await reload() }
+        .onChange(of: selectedId) { _, _ in sourceTarget = nil; searchController.clear() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    tab = .search
+                    searchFocusVersion += 1
+                } label: { Label("Search course material", systemImage: "magnifyingglass") }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(selectedId == nil)
+                .help("Search course material (⌘F)")
+            }
+        }
     }
 
     private var notebookSidebar: some View {
@@ -123,6 +150,8 @@ struct MainView: View {
 struct SourcesView: View {
     @EnvironmentObject private var appState: AppState
     let notebook: Notebook
+    let initialSourceId: String?
+    let initialPage: Int?
     @State private var sources: [SourceSummary] = []
     @State private var selectedSourceId: String?
     @State private var detail: SourceDetail?
@@ -141,6 +170,13 @@ struct SourcesView: View {
         NativeMotionPolicy(systemReduceMotion: systemReduceMotion, appReduceMotion: reduceMotion)
     }
 
+    init(notebook: Notebook, initialSourceId: String? = nil, initialPage: Int? = nil) {
+        self.notebook = notebook
+        self.initialSourceId = initialSourceId
+        self.initialPage = initialPage
+        _selectedSourceId = State(initialValue: initialSourceId)
+    }
+
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedSourceId) {
@@ -157,53 +193,64 @@ struct SourcesView: View {
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 280)
             .task(id: notebook.id) { await reload() }
-            .onChange(of: selectedSourceId) { _, v in
+            .onChange(of: selectedSourceId, initial: true) { _, v in
                 if let v { Task { await read(id: v) } } else { detail = nil }
             }
         } detail: {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
-                    addControls
-                    if readingId != nil { ProgressView("Opening source…").padding(.vertical, 24) }
-                    if let detail {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(detail.title).font(NativeType.title)
-                            Text("\(detail.kind.uppercased()) · \(detail.pages.count) \(detail.pages.count == 1 ? "page" : "pages")")
-                                .font(NativeType.caption).foregroundStyle(.secondary)
-                        }
-                        ForEach(detail.pages, id: \.number) { page in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("PAGE \(page.number)").font(NativeType.caption).tracking(1.2).foregroundStyle(.secondary)
-                                Text(page.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 24) {
+                        addControls
+                        if readingId != nil { ProgressView("Opening source…").padding(.vertical, 24) }
+                        if let detail {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if detail.id == initialSourceId, let initialPage {
+                                    Text("Opened from search · Page \(initialPage)")
+                                        .font(NativeType.caption).foregroundStyle(NativePalette.accent)
+                                }
+                                Text(detail.title).font(NativeType.title)
+                                Text("\(detail.kind.uppercased()) · \(detail.pages.count) \(detail.pages.count == 1 ? "page" : "pages")")
+                                    .font(NativeType.caption).foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(24)
-                            .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(NativePalette.border))
-                        }
-                        if detail.pages.isEmpty {
-                            ForEach(detail.chunks, id: \.seq) { chunk in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Passage \(chunk.seq + 1)").font(.caption.bold()).foregroundStyle(.secondary)
-                                    Text(chunk.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
+                            ForEach(detail.pages, id: \.number) { page in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("PAGE \(page.number)").font(NativeType.caption).tracking(1.2).foregroundStyle(.secondary)
+                                    Text(page.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(24)
+                                .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 14))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(NativePalette.border))
+                                .id("page-\(page.number)")
+                            }
+                            if detail.pages.isEmpty {
+                                ForEach(detail.chunks, id: \.seq) { chunk in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Passage \(chunk.seq + 1)").font(.caption.bold()).foregroundStyle(.secondary)
+                                        Text(chunk.text).font(NativeType.reading).lineSpacing(6).textSelection(.enabled)
+                                    }
                                 }
                             }
+                        } else if readingId == nil {
+                            ContentUnavailableView("Bring your course material", systemImage: "doc.text.magnifyingglass", description: Text("Add lecture notes, a PDF, or an article. Select a source to settle in and read."))
                         }
-                    } else if readingId == nil {
-                        ContentUnavailableView("Bring your course material", systemImage: "doc.text.magnifyingglass", description: Text("Add lecture notes, a PDF, or an article. Select a source to settle in and read."))
+                        if let notice {
+                            Text(notice).font(.callout).foregroundStyle(.secondary)
+                                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 10))
+                                .transition(motion.transition)
+                        }
                     }
-                    if let notice {
-                        Text(notice).font(.callout).foregroundStyle(.secondary)
-                            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(NativePalette.surface, in: RoundedRectangle(cornerRadius: 10))
-                            .transition(motion.transition)
-                    }
+                    .padding(24).frame(maxWidth: 820, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .animation(motion.animation, value: notice)
                 }
-                .padding(24).frame(maxWidth: 820, alignment: .leading)
-                .frame(maxWidth: .infinity)
-                .animation(motion.animation, value: notice)
+                .background(NativePalette.canvas)
+                .onChange(of: detail?.id) { _, id in
+                    guard id == initialSourceId, let initialPage else { return }
+                    proxy.scrollTo("page-\(initialPage)", anchor: .top)
+                }
             }
-            .background(NativePalette.canvas)
         }
     }
 

@@ -25,6 +25,34 @@ struct Notebook: Codable, Identifiable, Equatable, Sendable {
     var createdAt: String
 }
 
+struct SearchHit: Decodable, Equatable, Sendable {
+    let sourceId: String
+    let sourceTitle: String
+    let pages: [Int]
+    let score: Double
+    let snippet: String
+    let matchedTerms: [String]
+}
+
+struct SearchPage: Decodable, Equatable, Sendable {
+    let query: String
+    let hits: [SearchHit]
+    let total: Int
+    let limit: Int
+    let offset: Int
+    let hasMore: Bool
+    let tookMs: Int
+    let related: Bool
+}
+
+struct NativeSearchRequest: Equatable, Sendable {
+    var query: String
+    var kind: String? = nil
+    var related: Bool = true
+    var offset: Int = 0
+    var limit: Int = 10
+}
+
 struct SourcePage: Codable, Equatable, Sendable {
     var number: Int
     var text: String

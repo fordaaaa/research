@@ -12,6 +12,18 @@ including account and provider configuration. Additional legacy features
 (separate flashcard management, general chat, notes, mind maps and public-web
 discovery) need native interface work; their backend endpoints remain available.
 
+macOS also has native notebook search with source-type filters, optional
+related-term matching, result counts, pagination and cited-page opening in
+the source reader. Search results stay available when reading a source and
+returning to Search; changing notebooks clears the search state. Cmd+F opens
+and focuses Search. Windows search controls still need porting.
+
+`GET /api/notebooks/{id}/search/page` returns a typed page containing `hits`,
+`query`, `total`, `limit`, `offset`, `has_more`, `took_ms` and `related`. It
+shares the existing search engine, filters and account ownership checks.
+The legacy `/search` endpoint retains its list response and timing/total
+headers. Neither endpoint requires AI configuration.
+
 Both clients own a bundled Python API process, bound to `127.0.0.1` on an
 ephemeral port. `RESEARCH_NATIVE_DESKTOP=1` starts the sidecar without a
 frontend directory. `X-Notaeo-Desktop-Token` carries the random launch token;

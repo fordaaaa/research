@@ -145,6 +145,17 @@ class SearchHit(BaseModel):
     matched_terms: list[str] = Field(default_factory=list)
 
 
+class SearchPage(BaseModel):
+    query: str
+    hits: list[SearchHit]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+    took_ms: int
+    related: bool
+
+
 class NotebookCreate(BaseModel):
     """Create payload for POST /api/notebooks.
 
